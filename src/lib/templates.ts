@@ -2,43 +2,6 @@ import { Template } from "@/lib/types";
 
 export const templates: Template[] = [
   {
-    id: "minimalist-portfolio",
-    name: "Minimalist Portfolio",
-    description: "A clean, modern portfolio to showcase your work with style and focus.",
-    previewImage: "template-minimalist-preview",
-    sections: [
-      {
-        id: "hero-1",
-        component: "Hero",
-        props: {
-          headline: "Creative Vision, Expressed",
-          subheadline:
-            "I design and build beautiful, intuitive, and responsive websites that help businesses grow.",
-          ctaText: "View My Work",
-          image: "minimalist-hero",
-        },
-      },
-      {
-        id: "cta-1",
-        component: "CTA",
-        props: {
-          title: "Have a project in mind?",
-          description:
-            "Let's create something amazing together. Reach out to discuss your ideas.",
-          ctaText: "Get in Touch",
-        },
-      },
-      {
-        id: "footer-1",
-        component: "Footer",
-        props: {
-          companyName: "Jane Doe Creative",
-          copyrightYear: new Date().getFullYear(),
-        },
-      },
-    ],
-  },
-  {
     id: "saas-landing",
     name: "SaaS Landing",
     description: "A professional landing page to convert visitors into customers for your software.",

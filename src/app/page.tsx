@@ -56,7 +56,7 @@ export default function Home() {
         </div>
         <div className="mt-8 animate-fade-in-up" style={{ animationDelay: '1s', animationFillMode: 'backwards' }}>
           <Button asChild>
-            <Link href="/builder/minimalist-portfolio">
+            <Link href="/builder/saas-landing">
               Continue as Guest
             </Link>
           </Button>
