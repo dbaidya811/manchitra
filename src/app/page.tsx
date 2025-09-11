@@ -45,14 +45,14 @@ export default function Home() {
         alt="Side image 1"
         width={300}
         height={400}
-        className="absolute top-1/4 left-10 animate-float-delay-1 rounded-lg shadow-2xl opacity-50 hidden md:block"
+        className="absolute top-1/4 left-10 rounded-lg shadow-2xl opacity-50 hidden md:block"
       />
       <Image 
         src="https://i.pinimg.com/736x/7c/c4/e1/7cc4e1597b0cb8d3840a6ad0caf92ef6.jpg"
         alt="Side image 2"
         width={300}
         height={400}
-        className="absolute bottom-1/4 right-10 animate-float-delay-2 rounded-lg shadow-2xl opacity-50 hidden md:block"
+        className="absolute bottom-1/4 right-10 rounded-lg shadow-2xl opacity-50 hidden md:block"
       />
       <div className="flex flex-col items-center justify-center text-center z-10">
         <h1 className="animate-fade-in-up text-6xl font-bold text-white drop-shadow-lg md:text-8xl">
