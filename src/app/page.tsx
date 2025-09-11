@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import Image from "next/image";
+import { ImageCollage } from "@/components/image-collage";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -38,22 +38,17 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
   
 
 export default function Home() {
+  const collageImages = [
+    "https://i.pinimg.com/736x/b4/90/d0/b490d035caa62b7115306e27c3ddea74.jpg",
+    "https://i.pinimg.com/1200x/36/42/35/3642357207110498b34eab1298d99e71.jpg",
+    "https://i.pinimg.com/736x/56/4f/24/564f243d5f6aac08d28acc0a85eb0240.jpg",
+    "https://i.pinimg.com/1200x/25/c4/4b/25c44b215e00a7437496a30ae24982a8.jpg",
+    "https://i.pinimg.com/736x/32/66/2d/32662d78cc5419e76ca4b0080712d5b8.jpg",
+  ];
+
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 p-4 overflow-hidden">
-      <Image 
-        src="https://i.pinimg.com/1200x/2f/92/a1/2f92a1da2764d9a3f6e823a32fa4218d.jpg"
-        alt="Side image 1"
-        width={300}
-        height={400}
-        className="absolute top-1/4 left-10 rounded-lg shadow-2xl opacity-50 hidden md:block"
-      />
-      <Image 
-        src="https://i.pinimg.com/736x/7c/c4/e1/7cc4e1597b0cb8d3840a6ad0caf92ef6.jpg"
-        alt="Side image 2"
-        width={300}
-        height={400}
-        className="absolute bottom-1/4 right-10 rounded-lg shadow-2xl opacity-50 hidden md:block"
-      />
+      <ImageCollage images={collageImages} />
       <div className="flex flex-col items-center justify-center text-center z-10">
         <h1 className="animate-fade-in-up text-6xl font-bold text-white drop-shadow-lg md:text-8xl">
           Manchitra
