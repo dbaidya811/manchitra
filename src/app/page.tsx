@@ -54,13 +54,6 @@ export default function Home() {
             Login with Facebook
           </Button>
         </div>
-        <div className="mt-8 animate-fade-in-up" style={{ animationDelay: '1s', animationFillMode: 'backwards' }}>
-          <Button asChild>
-            <Link href="/builder/saas-landing">
-              Continue as Guest
-            </Link>
-          </Button>
-        </div>
       </div>
     </main>
   );
