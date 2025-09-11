@@ -22,7 +22,7 @@ export function ImageCollage({ images }: ImageCollageProps) {
           return (
             <div
               key={index}
-              className="absolute animate-move-down filter blur-sm"
+              className="absolute animate-move-down filter blur-[2px]"
               style={{
                 top: style.top,
                 left: style.left,
