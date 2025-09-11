@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -33,34 +34,11 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
   );
 
-  const DhakIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="80" 
-      height="80" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="white" 
-      strokeWidth="1" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      {...props}
-    >
-      <path d="M12 2L6 8v8l6 6 6-6V8l-6-6z" fill="rgba(255,255,255,0.2)"/>
-      <ellipse cx="12" cy="5" rx="6" ry="2" strokeWidth="0.5"/>
-      <ellipse cx="12" cy="19" rx="6" ry="2" strokeWidth="0.5"/>
-      <path d="M6 8l12 0M6 16l12 0"/>
-      <path d="M7 9c-2 2-2 6 0 8M17 9c2 2 2 6 0 8" strokeWidth="0.5"/>
-    </svg>
-  );
+  
 
 export default function Home() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 p-4 overflow-hidden">
-      <DhakIcon className="absolute top-10 left-10 animate-float" />
-      <DhakIcon className="absolute bottom-20 right-5 animate-float-delay-1" />
-      <DhakIcon className="absolute top-1/3 right-1/4 animate-float-delay-2" style={{ width: 40, height: 40, opacity: 0.8 }}/>
-      <DhakIcon className="absolute bottom-1/4 left-1/4 animate-float" style={{ width: 50, height: 50, opacity: 0.9 }}/>
       
       <div className="flex flex-col items-center justify-center text-center z-10">
         <h1 className="animate-fade-in-up text-6xl font-bold text-white drop-shadow-lg md:text-8xl">
@@ -74,6 +52,13 @@ export default function Home() {
           <Button size="lg" className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90">
             <FacebookIcon className="mr-2 h-6 w-6" />
             Login with Facebook
+          </Button>
+        </div>
+        <div className="mt-8 animate-fade-in-up" style={{ animationDelay: '1s', animationFillMode: 'backwards' }}>
+          <Button asChild>
+            <Link href="/builder/minimalist-portfolio">
+              Continue as Guest
+            </Link>
           </Button>
         </div>
       </div>
