@@ -1,3 +1,46 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "template-minimalist-preview",
+      "description": "Preview image for the minimalist portfolio template.",
+      "imageUrl": "https://picsum.photos/seed/101/600/400",
+      "imageHint": "minimalist architecture"
+    },
+    {
+      "id": "template-saas-preview",
+      "description": "Preview image for the SaaS landing page template.",
+      "imageUrl": "https://picsum.photos/seed/102/600/400",
+      "imageHint": "modern office"
+    },
+    {
+      "id": "minimalist-hero",
+      "description": "Hero image for the minimalist portfolio.",
+      "imageUrl": "https://picsum.photos/seed/103/1920/1080",
+      "imageHint": "abstract shapes"
+    },
+    {
+      "id": "saas-hero",
+      "description": "Hero image for the SaaS landing page.",
+      "imageUrl": "https://picsum.photos/seed/104/1920/1080",
+      "imageHint": "team collaboration"
+    },
+    {
+      "id": "saas-feature-1",
+      "description": "Feature image 1 for the SaaS landing page.",
+      "imageUrl": "https://picsum.photos/seed/105/500/500",
+      "imageHint": "data analytics"
+    },
+    {
+      "id": "saas-feature-2",
+      "description": "Feature image 2 for the SaaS landing page.",
+      "imageUrl": "https://picsum.photos/seed/106/500/500",
+      "imageHint": "user interface"
+    },
+    {
+      "id": "saas-feature-3",
+      "description": "Feature image 3 for the SaaS landing page.",
+      "imageUrl": "https://picsum.photos/seed/107/500/500",
+      "imageHint": "secure connection"
+    }
+  ]
 }
