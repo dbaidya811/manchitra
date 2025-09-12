@@ -5,6 +5,7 @@ import { ImageCollage } from "@/components/image-collage";
 import { auth, googleProvider, facebookProvider, signInWithPopup } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
+import { FirebaseError } from "firebase/app";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -51,9 +52,17 @@ export default function Home() {
       router.push("/builder/saas-landing");
     } catch (error) {
       console.error("Authentication error:", error);
+      let title = "Authentication Failed";
+      let description = "Could not log you in. Please try again.";
+
+      if (error instanceof FirebaseError && error.code === 'auth/configuration-not-found') {
+        title = "Configuration Error";
+        description = "Authentication is not configured for this provider. Please enable it in your Firebase console.";
+      }
+      
       toast({
-        title: "Authentication Failed",
-        description: "Could not log you in. Please try again.",
+        title,
+        description,
         variant: "destructive",
       });
     }
