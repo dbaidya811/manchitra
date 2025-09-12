@@ -7,7 +7,9 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
-        <div></div>
+        <div className="flex items-center gap-2">
+          <h1 className="font-headline text-xl font-bold">Manchitra</h1>
+        </div>
         <UserProfile />
       </header>
       <main className="flex-1 p-4 md:p-6">
