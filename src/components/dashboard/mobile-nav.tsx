@@ -14,34 +14,23 @@ export function MobileNav() {
   ];
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 border-t bg-background p-2 md:hidden">
-      <div className="relative mx-auto flex h-16 max-w-sm items-center justify-around rounded-2xl bg-secondary/80 backdrop-blur-sm">
-        {navItems.map((item, index) => (
+    <footer className="fixed bottom-0 left-0 right-0 p-4 md:hidden">
+      <nav className="mx-auto flex max-w-xs items-center justify-around rounded-full bg-background/80 p-2 shadow-lg ring-1 ring-black ring-opacity-5 backdrop-blur-sm">
+        {navItems.map((item) => (
           <Link
             key={item.id}
             href={item.href}
             onClick={() => setActiveTab(item.id)}
-            className="z-10 flex flex-col items-center justify-center gap-1 text-center text-secondary-foreground"
+            className={cn(
+                "flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors",
+                activeTab === item.id && "text-primary",
+            )}
           >
-            <item.icon
-              className={cn(
-                "h-6 w-6 transition-transform",
-                activeTab === item.id ? "scale-110" : ""
-              )}
-            />
+            <item.icon className="h-6 w-6" />
             <span className="text-xs font-medium">{item.label}</span>
           </Link>
         ))}
-        <div
-          className="absolute top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-background/80 shadow-inner transition-all duration-300 ease-out animate-nav-slide"
-          style={{
-            left: `${
-              navItems.findIndex((item) => item.id === activeTab) * 50
-            }%`,
-            transform: `translateX(-50%) translateY(-50%)`,
-          }}
-        />
-      </div>
+      </nav>
     </footer>
   );
 }
