@@ -27,15 +27,13 @@ export function UserProfile() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleAuthAction = async () => {
     if (user) {
       await auth.signOut();
-      router.push("/");
-    } else {
-      router.push("/");
     }
+    router.push("/");
   };
 
   if (loading) {
@@ -78,7 +76,7 @@ export function UserProfile() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleAuthAction}>
-          {user ? "Log out" : "Log in"}
+          Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
