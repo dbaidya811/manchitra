@@ -2,13 +2,28 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import Image from "next/image";
 
 export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div className="flex items-center gap-2">
+          <Image
+            src="https://i.postimg.cc/JyzZh7nV/cf28eeebbce0734a5357dba07cd8f1a9-removebg-preview.png"
+            alt="decoration"
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
           <h1 className="font-headline text-xl font-bold">Manchitra</h1>
+          <Image
+            src="https://i.postimg.cc/JyzZh7nV/cf28eeebbce0734a5357dba07cd8f1a9-removebg-preview.png"
+            alt="decoration"
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
         </div>
         <UserProfile />
       </header>
