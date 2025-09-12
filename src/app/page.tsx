@@ -49,7 +49,7 @@ export default function Home() {
   const handleSignIn = async (provider: typeof googleProvider | typeof facebookProvider) => {
     try {
       await signInWithPopup(auth, provider);
-      router.push("/builder/saas-landing");
+      router.push("/dashboard");
     } catch (error) {
       console.error("Authentication error:", error);
       let title = "Authentication Failed";
