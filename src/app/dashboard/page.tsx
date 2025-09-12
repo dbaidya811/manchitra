@@ -9,14 +9,9 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <header className="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
         <div className="flex items-center gap-2">
-          <Image
-            src="https://i.postimg.cc/JyzZh7nV/cf28eeebbce0734a5357dba07cd8f1a9-removebg-preview.png"
-            alt="decoration"
-            width={24}
-            height={24}
-            className="h-6 w-6"
-          />
-          <h1 className="font-headline text-xl font-bold">Manchitra</h1>
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">
+            Manchitra
+          </h1>
           <Image
             src="https://i.postimg.cc/JyzZh7nV/cf28eeebbce0734a5357dba07cd8f1a9-removebg-preview.png"
             alt="decoration"
