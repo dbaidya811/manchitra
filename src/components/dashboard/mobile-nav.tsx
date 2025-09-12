@@ -10,26 +10,32 @@ export function MobileNav() {
 
   const navItems = [
     { id: "home", icon: Home, label: "Home", href: "/dashboard" },
-    { id: "map", icon: Map, label: "Map", href: "#" }, // Assuming map page doesn't exist yet
+    { id: "map", icon: Map, label: "Map", href: "#" },
   ];
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 p-4 md:hidden">
-      <nav className="mx-auto flex max-w-xs items-center justify-around rounded-full bg-background/80 p-2 shadow-lg ring-1 ring-black ring-opacity-5 backdrop-blur-sm">
-        {navItems.map((item) => (
+      <nav className="relative mx-auto flex max-w-xs items-center justify-around rounded-full bg-background/80 p-2 shadow-lg ring-1 ring-black ring-opacity-5 backdrop-blur-sm">
+        {navItems.map((item, index) => (
           <Link
             key={item.id}
             href={item.href}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-                "flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors",
-                activeTab === item.id && "text-primary",
+              "z-10 flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors",
+              activeTab === item.id && "text-primary-foreground",
             )}
           >
             <item.icon className="h-6 w-6" />
             <span className="text-xs font-medium">{item.label}</span>
           </Link>
         ))}
+        <div
+          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc(50%-0.5rem)] rounded-full bg-primary transition-transform duration-300 ease-in-out"
+          style={{
+            transform: `translateX(${activeTab === 'home' ? '0%' : '100%'})`,
+          }}
+        />
       </nav>
     </footer>
   );
