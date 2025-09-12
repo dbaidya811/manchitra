@@ -91,12 +91,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-@keyframes nav-slide {
-  from {
-    transform: translateX(var(--slide-from, 0)) translateY(-50%);
-  }
-  to {
-    transform: translateX(var(--slide-to, 0)) translateY(-50%);
-  }
-}
