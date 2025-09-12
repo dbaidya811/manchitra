@@ -1,6 +1,7 @@
 "use client";
 
 import { UserProfile } from "@/components/dashboard/user-profile";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
 
 export default function DashboardPage() {
   return (
@@ -12,6 +13,7 @@ export default function DashboardPage() {
       <main className="flex-1 p-4 md:p-6">
         {/* This is where the blank dashboard content will go */}
       </main>
+      <MobileNav />
     </div>
   );
 }
