@@ -37,7 +37,7 @@ export function UserProfile() {
   };
 
   if (loading) {
-    return <Skeleton className="h-8 w-8 rounded-full" />;
+    return <Skeleton className="h-10 w-10 rounded-full" />;
   }
 
   const getInitials = (name: string | null) => {
@@ -54,30 +54,31 @@ export function UserProfile() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.photoURL || ""} alt={displayName} />
-            <AvatarFallback>
-              {getInitials(displayName)}
-            </AvatarFallback>
-          </Avatar>
+        <Button
+          variant="ghost"
+          className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0"
+        >
+          <div className="rounded-full p-0.5 ring-2 ring-primary">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={user?.photoURL || ""} alt={displayName} />
+              <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+            </Avatar>
+          </div>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">
-              {displayName}
-            </p>
-            {displayEmail && <p className="text-xs leading-none text-muted-foreground">
-              {displayEmail}
-            </p>}
+            <p className="text-sm font-medium leading-none">{displayName}</p>
+            {displayEmail && (
+              <p className="text-xs leading-none text-muted-foreground">
+                {displayEmail}
+              </p>
+            )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleAuthAction}>
-          Log out
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleAuthAction}>Log out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
