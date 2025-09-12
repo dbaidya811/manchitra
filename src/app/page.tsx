@@ -77,7 +77,7 @@ export default function Home() {
   ];
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-white p-4 overflow-hidden">
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-200 via-orange-300 to-red-400 p-4 overflow-hidden">
       <ImageCollage images={collageImages} />
       <div className="flex flex-col items-center justify-center text-center z-10">
         <h1 className="animate-fade-in-up text-6xl font-bold text-black drop-shadow-lg md:text-8xl">
