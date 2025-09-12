@@ -40,7 +40,23 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
   );
 
-  
+  const GuestIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
 
 export default function Home() {
   const router = useRouter();
@@ -90,6 +106,10 @@ export default function Home() {
     }
   };
 
+  const handleGuestLogin = () => {
+    router.push("/dashboard");
+  };
+
   const collageImages = [
     "https://i.pinimg.com/736x/b4/90/d0/b490d035caa62b7115306e27c3ddea74.jpg",
     "https://i.pinimg.com/1200x/36/42/35/3642357207110498b34eab1298d99e71.jpg",
@@ -113,6 +133,10 @@ export default function Home() {
           <Button size="lg" className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90" onClick={() => handleSignIn(facebookProvider)}>
             <FacebookIcon className="mr-2 h-6 w-6" />
             Login with Facebook
+          </Button>
+          <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
+            <GuestIcon className="mr-2 h-6 w-6" />
+            Login as Guest
           </Button>
         </div>
       </div>
