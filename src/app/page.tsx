@@ -51,13 +51,15 @@ export default function Home() {
       await signInWithPopup(auth, provider);
       router.push("/dashboard");
     } catch (error) {
-      console.error("Authentication error:", error);
       let title = "Authentication Failed";
       let description = "Could not log you in. Please try again.";
 
       if (error instanceof FirebaseError && error.code === 'auth/configuration-not-found') {
         title = "Configuration Error";
-        description = "Authentication is not configured for this provider. Please enable it in your Firebase console.";
+        description = "This sign-in method is not enabled. Please enable it in your Firebase console's Authentication section.";
+        console.error("Firebase Authentication Error: The sign-in provider (e.g., Google, Facebook) is not enabled in your Firebase project. Please go to the Firebase console > Authentication > Sign-in method and enable the provider you are trying to use.");
+      } else {
+        console.error("Authentication error:", error);
       }
       
       toast({
