@@ -22,7 +22,7 @@ export default function DashboardPage() {
         </div>
         <UserProfile />
       </header>
-      <main className="flex-1 p-4 md:p-6">
+      <main className="flex-1 p-4 md:p-6 animate-fade-in-up">
         {/* This is where the blank dashboard content will go */}
       </main>
       <MobileNav />
