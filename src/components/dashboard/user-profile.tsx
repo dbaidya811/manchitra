@@ -25,42 +25,42 @@ export function UserProfile() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
-      if (!user) {
-        router.push("/");
-      }
     });
     return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = async () => {
-    await auth.signOut();
-    router.push("/");
+  const handleAuthAction = async () => {
+    if (user) {
+      await auth.signOut();
+      router.push("/");
+    } else {
+      router.push("/");
+    }
   };
 
   if (loading) {
     return <Skeleton className="h-8 w-8 rounded-full" />;
   }
 
-  if (!user) {
-    return null;
-  }
-
   const getInitials = (name: string | null) => {
-    if (!name) return "";
+    if (!name) return "G";
     return name
       .split(" ")
       .map((n) => n[0])
       .join("");
   };
 
+  const displayName = user?.displayName || "Guest";
+  const displayEmail = user?.email;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user.photoURL || ""} alt={user.displayName || ""} />
+            <AvatarImage src={user?.photoURL || ""} alt={displayName} />
             <AvatarFallback>
-              {getInitials(user.displayName)}
+              {getInitials(displayName)}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -69,15 +69,17 @@ export function UserProfile() {
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">
-              {user.displayName}
+              {displayName}
             </p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
+            {displayEmail && <p className="text-xs leading-none text-muted-foreground">
+              {displayEmail}
+            </p>}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
+        <DropdownMenuItem onClick={handleAuthAction}>
+          {user ? "Log out" : "Log in"}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
