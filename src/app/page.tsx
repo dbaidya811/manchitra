@@ -55,7 +55,6 @@ export default function Home() {
       let description = "An unknown error occurred. Please try again.";
 
       if (error instanceof FirebaseError) {
-        console.error("Firebase Authentication Error:", error.code, error.message);
         switch (error.code) {
           case 'auth/configuration-not-found':
             title = "Configuration Error";
@@ -80,7 +79,7 @@ export default function Home() {
             break;
         }
       } else {
-        console.error("Authentication error:", error);
+        console.error("Unknown authentication error:", error);
       }
       
       toast({
