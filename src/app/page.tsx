@@ -1,6 +1,10 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { ImageCollage } from "@/components/image-collage";
+import { auth, googleProvider, facebookProvider, signInWithPopup } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -38,6 +42,23 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
   
 
 export default function Home() {
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleSignIn = async (provider: typeof googleProvider | typeof facebookProvider) => {
+    try {
+      await signInWithPopup(auth, provider);
+      router.push("/builder/saas-landing");
+    } catch (error) {
+      console.error("Authentication error:", error);
+      toast({
+        title: "Authentication Failed",
+        description: "Could not log you in. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const collageImages = [
     "https://i.pinimg.com/736x/b4/90/d0/b490d035caa62b7115306e27c3ddea74.jpg",
     "https://i.pinimg.com/1200x/36/42/35/3642357207110498b34eab1298d99e71.jpg",
@@ -47,18 +68,18 @@ export default function Home() {
   ];
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 p-4 overflow-hidden">
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-white p-4 overflow-hidden">
       <ImageCollage images={collageImages} />
       <div className="flex flex-col items-center justify-center text-center z-10">
-        <h1 className="animate-fade-in-up text-6xl font-bold text-white drop-shadow-lg md:text-8xl">
+        <h1 className="animate-fade-in-up text-6xl font-bold text-black drop-shadow-lg md:text-8xl">
           Manchitra
         </h1>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-          <Button size="lg" variant="outline" className="bg-white/90 text-black hover:bg-white">
+          <Button size="lg" variant="outline" className="bg-white/90 text-black hover:bg-white" onClick={() => handleSignIn(googleProvider)}>
             <GoogleIcon className="mr-2 h-6 w-6" />
             Login with Google
           </Button>
-          <Button size="lg" className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90">
+          <Button size="lg" className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90" onClick={() => handleSignIn(facebookProvider)}>
             <FacebookIcon className="mr-2 h-6 w-6" />
             Login with Facebook
           </Button>
