@@ -52,12 +52,33 @@ export default function Home() {
       router.push("/dashboard");
     } catch (error) {
       let title = "Authentication Failed";
-      let description = "Could not log you in. Please try again.";
+      let description = "An unknown error occurred. Please try again.";
 
-      if (error instanceof FirebaseError && error.code === 'auth/configuration-not-found') {
-        title = "Configuration Error";
-        description = "This sign-in method is not enabled. Please enable it in your Firebase console's Authentication section.";
-        console.error("Firebase Authentication Error: The sign-in provider (e.g., Google, Facebook) is not enabled in your Firebase project. Please go to the Firebase console > Authentication > Sign-in method and enable the provider you are trying to use.");
+      if (error instanceof FirebaseError) {
+        console.error("Firebase Authentication Error:", error.code, error.message);
+        switch (error.code) {
+          case 'auth/configuration-not-found':
+            title = "Configuration Error";
+            description = "This sign-in method is not enabled. Please enable it in your Firebase console's Authentication section.";
+            break;
+          case 'auth/account-exists-with-different-credential':
+            title = "Account Exists";
+            description = "An account already exists with the same email address but different sign-in credentials. Try signing in with the provider you originally used.";
+            break;
+          case 'auth/popup-blocked':
+            title = "Popup Blocked";
+            description = "The sign-in popup was blocked by your browser. Please allow popups for this site and try again.";
+            break;
+          case 'auth/cancelled-popup-request':
+            return; // User closed the popup, so we don't need to show an error.
+          case 'auth/unauthorized-domain':
+            title = "Unauthorized Domain";
+            description = "This domain is not authorized for OAuth operations. Please add it to the authorized domains list in your Firebase console.";
+            break;
+          default:
+            description = `Error: ${error.message}`;
+            break;
+        }
       } else {
         console.error("Authentication error:", error);
       }
