@@ -122,7 +122,7 @@ export default function Home() {
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-200 via-orange-300 to-red-400 p-4 overflow-hidden">
       <ImageCollage images={collageImages} />
       <div className="flex flex-col items-center justify-center text-center z-10">
-        <h1 className="animate-fade-in-up text-6xl font-bold text-black drop-shadow-lg md:text-8xl">
+        <h1 className="animate-fade-in-up bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-8xl font-bold text-transparent drop-shadow-lg md:text-9xl">
           Manchitra
         </h1>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
