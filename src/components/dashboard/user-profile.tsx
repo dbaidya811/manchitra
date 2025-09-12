@@ -25,9 +25,12 @@ export function UserProfile() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
+      if (!user) {
+        router.push("/");
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
     await auth.signOut();
