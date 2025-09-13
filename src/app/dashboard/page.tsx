@@ -2,8 +2,36 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          // Location retrieved successfully, no need to do anything here.
+        },
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            // This is expected if the user denies permission.
+            // You could show a toast here if you wanted to inform the user.
+            console.log("Location permission denied.");
+          } else {
+            // Handle other errors
+            toast({
+              variant: "destructive",
+              title: "Could not get location",
+              description: error.message,
+            });
+          }
+        }
+      );
+    }
+  }, [toast]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-16 items-center justify-between border-b bg-background px-4 md:px-6">
