@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Fuel, Clock, MapPin, Phone, Globe, Mail, CreditCard, ShoppingCart, Droplet, Wind, Bath, Car, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "../ui/button";
 
 interface Place {
   id: number;
@@ -42,14 +43,21 @@ interface Place {
   };
 }
 
-const InfoLine = ({ icon: Icon, text }: { icon: React.ElementType, text?: string }) => {
+const InfoLine = ({ icon: Icon, text, href }: { icon: React.ElementType, text?: string, href?: string }) => {
     if (!text) return null;
-    return (
-        <div className="flex items-center text-xs text-muted-foreground">
+
+    const content = (
+         <div className="flex items-center text-xs text-muted-foreground">
             <Icon className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
             <span className="truncate">{text}</span>
         </div>
-    )
+    );
+
+    if (href) {
+        return <a href={href} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-primary">{content}</a>
+    }
+
+    return content;
 };
 
 const FeatureIcon = ({ icon: Icon, label, available }: { icon: React.ElementType, label: string, available?: "yes" | "no" }) => {
@@ -113,22 +121,25 @@ export function NearbyPumps() {
               description: error.message,
             });
           }
+           // Still try to load with a fallback or show empty state
           setIsLoading(false);
         }
       );
     } else {
+        // Geolocation not supported
         setIsLoading(false);
     }
   }, [toast]);
 
   if (isLoading) {
     return (
-        <div className="space-y-4">
+        <div className="w-full space-y-4">
             <h2 className="text-2xl font-bold">Nearby Petrol Pumps</h2>
-            <div className="flex gap-4">
-                <Skeleton className="h-64 w-80 rounded-lg" />
-                <Skeleton className="h-64 w-80 rounded-lg" />
-                <Skeleton className="h-64 w-80 rounded-lg" />
+            <div className="flex w-full gap-4 overflow-hidden">
+                <Skeleton className="h-80 w-full max-w-xs rounded-lg" />
+                <Skeleton className="h-80 w-full max-w-xs rounded-lg hidden md:block" />
+                <Skeleton className="h-80 w-full max-w-xs rounded-lg hidden lg:block" />
+                <Skeleton className="h-80 w-full max-w-xs rounded-lg hidden xl:block" />
             </div>
         </div>
     );
@@ -149,10 +160,12 @@ export function NearbyPumps() {
         className="w-full"
       >
         <CarouselContent className="-ml-2">
-          {places.map((place) => (
+          {places.map((place) => {
+            const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.tags.name || 'Petrol Pump')},${place.lat},${place.lon}`;
+            return(
             <CarouselItem key={place.id} className="md:basis-1/2 lg:basis-1/3 xl:basis-1/4 pl-2">
               <div className="p-1 h-full">
-                <Card className="flex flex-col h-full">
+                <Card className="flex flex-col h-full overflow-hidden">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
                         <div>
@@ -167,23 +180,31 @@ export function NearbyPumps() {
                   <CardContent className="space-y-3 flex-grow">
                     <InfoLine icon={MapPin} text={[place.tags["addr:street"], place.tags["addr:city"], place.tags["addr:postcode"]].filter(Boolean).join(', ')} />
                     <InfoLine icon={Clock} text={place.tags.opening_hours} />
-                    <InfoLine icon={Phone} text={place.tags.phone} />
-                    <InfoLine icon={Globe} text={place.tags.website} />
-                    <InfoLine icon={Mail} text={place.tags.email} />
+                    <InfoLine icon={Phone} text={place.tags.phone} href={place.tags.phone && `tel:${place.tags.phone}`} />
+                    <InfoLine icon={Globe} text={place.tags.website} href={place.tags.website} />
+                    <InfoLine icon={Mail} text={place.tags.email} href={place.tags.email && `mailto:${place.tags.email}`}/>
                   </CardContent>
-                  <CardFooter className="flex flex-wrap gap-2 pt-4">
-                      <FeatureIcon icon={Droplet} label="Diesel" available={place.tags["fuel:diesel"]} />
-                      <FeatureIcon icon={Wind} label="CNG" available={place.tags["fuel:cng"]} />
-                      <FeatureIcon icon={ShoppingCart} label="Shop" available={place.tags.shop} />
-                      <FeatureIcon icon={Bath} label="Toilets" available={place.tags.toilets} />
-                      <FeatureIcon icon={Car} label="Car Wash" available={place.tags.car_wash} />
-                      <FeatureIcon icon={CreditCard} label="Cards" available={place.tags["payment:credit_cards"]} />
-                      <FeatureIcon icon={Banknote} label="UPI" available={place.tags["payment:upi"]} />
+                   <CardFooter className="flex flex-col items-start gap-4 pt-4">
+                      <div className="flex flex-wrap gap-2">
+                        <FeatureIcon icon={Droplet} label="Diesel" available={place.tags["fuel:diesel"]} />
+                        <FeatureIcon icon={Wind} label="CNG" available={place.tags["fuel:cng"]} />
+                        <FeatureIcon icon={ShoppingCart} label="Shop" available={place.tags.shop} />
+                        <FeatureIcon icon={Bath} label="Toilets" available={place.tags.toilets} />
+                        <FeatureIcon icon={Car} label="Car Wash" available={place.tags.car_wash} />
+                        <FeatureIcon icon={CreditCard} label="Cards" available={place.tags["payment:credit_cards"]} />
+                        <FeatureIcon icon={Banknote} label="UPI" available={place.tags["payment:upi"]} />
+                      </div>
+                       <Button variant="outline" size="sm" asChild className="w-full">
+                           <a href={gmapsUrl} target="_blank" rel="noopener noreferrer">
+                                <Globe className="mr-2 h-4 w-4" />
+                                View on Google Maps
+                           </a>
+                        </Button>
                   </CardFooter>
                 </Card>
               </div>
             </CarouselItem>
-          ))}
+          )})}
         </CarouselContent>
         <CarouselPrevious className="hidden sm:flex" />
         <CarouselNext className="hidden sm:flex" />
