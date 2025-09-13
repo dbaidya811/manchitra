@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -27,27 +26,97 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [otp, setOtp] = useState("");
 
-  const handleGetOtp = () => {
-    // This is a mock function. In a real app, you'd call your backend to send an OTP.
+
+  const handleGetOtp = async () => {
+    if (!email || !name) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your name and email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSendingOtp(true);
-    setTimeout(() => {
-      setIsSendingOtp(false);
+    try {
+      const response = await fetch('/api/auth/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send OTP.');
+      }
+
       setStep(2);
       toast({
-        title: "OTP Sent",
-        description: "A one-time password has been sent to your email (for real in production!).",
+        title: "OTP Sent (Mock)",
+        description: `For testing, your OTP is ${data.otp}. In a real app, this would be sent to your email.`,
       });
-    }, 1500);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingOtp(false);
+    }
   };
 
-  const handleLogin = () => {
-    // This is a mock function. In a real app, you'd verify the OTP.
-    router.push("/dashboard");
+  const handleLogin = async () => {
+    setIsVerifying(true);
+    try {
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'OTP verification failed.');
+      }
+
+      toast({
+        title: "Login Successful",
+        description: "Welcome to your dashboard!",
+      });
+      router.push("/dashboard");
+
+    } catch (error: any) {
+       toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   };
+
+  const resetFlow = () => {
+    setStep(1);
+    setEmail("");
+    setName("");
+    setOtp("");
+    onOpenChange(false);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if(!isOpen) resetFlow();
+      else onOpenChange(true);
+    }}>
       <DialogContent className="sm:max-w-[425px] bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
         <DialogHeader className="text-center">
           <DialogTitle className="text-2xl font-bold">Guest Login</DialogTitle>
@@ -64,7 +133,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 <Label htmlFor="name" className="text-white/90">
                   Name
                 </Label>
-                <Input id="name" placeholder="Enter your name" className="bg-white/20 border-none placeholder:text-white/70" />
+                <Input id="name" placeholder="Enter your name" className="bg-white/20 border-none placeholder:text-white/70" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-white/90">
@@ -75,6 +144,8 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                   type="email"
                   placeholder="Enter your email"
                   className="bg-white/20 border-none placeholder:text-white/70"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </>
@@ -84,7 +155,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 <Label htmlFor="otp" className="text-white/90">
                   OTP
                 </Label>
-                <Input id="otp" placeholder="Enter your OTP" className="bg-white/20 border-none placeholder:text-white/70" />
+                <Input id="otp" placeholder="Enter your OTP" className="bg-white/20 border-none placeholder:text-white/70" value={otp} onChange={(e) => setOtp(e.target.value)} />
               </div>
           )}
         </div>
@@ -97,8 +168,11 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           )}
            {step === 2 && (
             <>
-                <Button variant="outline" onClick={() => setStep(1)} className="bg-transparent hover:bg-white/20 text-white">Back</Button>
-                <Button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">Go to Dashboard</Button>
+                <Button variant="outline" onClick={() => setStep(1)} className="w-full bg-transparent hover:bg-white/20 text-white">Back</Button>
+                <Button onClick={handleLogin} disabled={isVerifying} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold">
+                   {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                   Go to Dashboard
+                </Button>
             </>
           )}
         </DialogFooter>
