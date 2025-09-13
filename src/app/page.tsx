@@ -80,8 +80,7 @@ export default function Home() {
         </h1>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
           <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
-            <GuestIcon className="mr-2 h-6 w-6" />
-            Login as Guest
+            loging / signup
           </Button>
         </div>
       </div>
