@@ -79,8 +79,17 @@ export default function Home() {
           Manchitra
         </h1>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-          <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
-            loging / signup
+           <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
+            <GoogleIcon className="mr-2 h-5 w-5" />
+            Login with Google
+          </Button>
+          <Button size="lg" variant="secondary" onClick={handleGuestLogin} className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90">
+            <FacebookIcon className="mr-2 h-5 w-5" />
+            Login with Facebook
+          </Button>
+          <Button size="lg" variant="outline" onClick={handleGuestLogin}>
+            <GuestIcon className="mr-2 h-5 w-5" />
+            Login as Guest
           </Button>
         </div>
       </div>
