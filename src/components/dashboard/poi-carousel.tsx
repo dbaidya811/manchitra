@@ -45,15 +45,19 @@ export function PoiCarousel({ category, value, title, areaId }: PoiCarouselProps
         );
         out center;
       `;
-      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(
-        query
-      )}`;
+      const url = `https://overpass-api.de/api/interpreter`;
 
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          method: 'POST',
+          body: `data=${encodeURIComponent(query)}`,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+        });
         const data = await response.json();
         // Filter out places without names
-        const namedPlaces = data.elements.filter((place: Place) => place.tags?.name);
+        const namedPlaces = data.elements.filter((place: any) => place.tags?.name);
         setPlaces(namedPlaces.slice(0, 15)); // Limit to 15 results
       } catch (error) {
         console.error("Failed to fetch places:", error);
@@ -91,7 +95,7 @@ export function PoiCarousel({ category, value, title, areaId }: PoiCarouselProps
         <Carousel
           opts={{
             align: "start",
-            loop: true,
+            loop: places.length > 3,
           }}
           className="w-full"
         >
