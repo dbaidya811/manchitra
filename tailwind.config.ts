@@ -118,6 +118,14 @@ export default {
             transform: 'rotate(360deg)',
           },
         },
+        pulse: {
+          '0%, 100%': {
+            opacity: '1',
+          },
+          '50%': {
+            opacity: '.5',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -126,6 +134,7 @@ export default {
         'fade-in-up': 'fade-in-up 1s ease-out forwards',
         'move-down-infinite': 'move-down-infinite 50s linear infinite',
         spin: 'spin 1s linear infinite',
+        pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
     },
   },

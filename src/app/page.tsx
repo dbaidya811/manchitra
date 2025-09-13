@@ -91,10 +91,12 @@ export default function Home() {
             <FacebookIcon className="mr-2 h-5 w-5" />
             Login with Facebook
           </Button>
-          <Button size="lg" variant="outline" onClick={() => setIsLoginDialogOpen(true)}>
-            <GuestIcon className="mr-2 h-5 w-5" />
-            Login as Guest
-          </Button>
+          <div className="animate-pulse">
+            <Button size="lg" variant="outline" onClick={() => setIsLoginDialogOpen(true)}>
+              <GuestIcon className="mr-2 h-5 w-5" />
+              Login as Guest
+            </Button>
+          </div>
         </div>
       </div>
     </main>
