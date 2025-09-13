@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/hooks/use-toast";
+import { LoginDialog } from "@/components/login-dialog";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -58,6 +59,8 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Home() {
   const router = useRouter();
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
 
   const handleGuestLogin = () => {
     router.push("/dashboard");
@@ -72,6 +75,7 @@ export default function Home() {
   ];
 
   return (
+    <>
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-yellow-200 via-orange-300 to-red-400 p-4 overflow-hidden">
       <ImageCollage images={collageImages} />
       <div className="flex flex-col items-center justify-center text-center z-10">
@@ -87,12 +91,14 @@ export default function Home() {
             <FacebookIcon className="mr-2 h-5 w-5" />
             Login with Facebook
           </Button>
-          <Button size="lg" variant="outline" onClick={handleGuestLogin}>
+          <Button size="lg" variant="outline" onClick={() => setIsLoginDialogOpen(true)}>
             <GuestIcon className="mr-2 h-5 w-5" />
             Login as Guest
           </Button>
         </div>
       </div>
     </main>
+    <LoginDialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen} />
+    </>
   );
 }
