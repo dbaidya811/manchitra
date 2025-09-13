@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert } from "lucide-react";
 
 export function UserProfile() {
   const router = useRouter();
@@ -22,6 +22,11 @@ export function UserProfile() {
   
   const handleAddPlace = () => {
     router.push("/dashboard/map");
+  };
+
+  const handleReportIssue = () => {
+    // Placeholder for reporting an issue
+    console.log("Report Issue clicked");
   };
 
   return (
@@ -49,6 +54,10 @@ export function UserProfile() {
         <DropdownMenuItem onClick={handleAddPlace}>
           <MapPin className="mr-2 h-4 w-4" />
           <span>Add Place</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleReportIssue}>
+          <ShieldAlert className="mr-2 h-4 w-4" />
+          <span>Report Issue</span>
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
