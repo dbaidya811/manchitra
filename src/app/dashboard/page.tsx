@@ -1,8 +1,5 @@
-"use client";
-
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import Image from "next/image";
 
 export default function DashboardPage() {
   return (
@@ -15,7 +12,7 @@ export default function DashboardPage() {
         </div>
         <UserProfile />
       </header>
-      <main className="flex-1 p-4 md:p-6 animate-fade-in-up">
+      <main className="flex-1 p-4 md:p-6">
         {/* This is where the blank dashboard content will go */}
       </main>
       <MobileNav />
