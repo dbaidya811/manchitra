@@ -1,3 +1,5 @@
+import { MobileNav } from "@/components/dashboard/mobile-nav";
+
 export default function DashboardPage() {
   return (
     <div className="h-screen w-screen">
@@ -6,6 +8,7 @@ export default function DashboardPage() {
         style={{ border: 0, width: '100%', height: '100%' }}
         allowFullScreen
       ></iframe>
+      <MobileNav />
     </div>
   );
 }
