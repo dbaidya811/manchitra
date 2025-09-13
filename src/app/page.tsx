@@ -2,10 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
-import { auth, googleProvider, facebookProvider, signInWithPopup } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { FirebaseError } from "firebase/app";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -60,51 +58,6 @@ const FacebookIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Home() {
   const router = useRouter();
-  const { toast } = useToast();
-
-  const handleSignIn = async (provider: typeof googleProvider | typeof facebookProvider) => {
-    try {
-      await signInWithPopup(auth, provider);
-      router.push("/dashboard");
-    } catch (error) {
-      let title = "Authentication Failed";
-      let description = "An unknown error occurred. Please try again.";
-
-      if (error instanceof FirebaseError) {
-        switch (error.code) {
-          case 'auth/configuration-not-found':
-            title = "Configuration Error";
-            description = "This sign-in method is not enabled. Please enable it in your Firebase console's Authentication section.";
-            break;
-          case 'auth/account-exists-with-different-credential':
-            title = "Account Exists";
-            description = "An account already exists with the same email address but different sign-in credentials. Try signing in with the provider you originally used.";
-            break;
-          case 'auth/popup-blocked':
-            title = "Popup Blocked";
-            description = "The sign-in popup was blocked by your browser. Please allow popups for this site and try again.";
-            break;
-          case 'auth/cancelled-popup-request':
-            return; // User closed the popup, so we don't need to show an error.
-          case 'auth/unauthorized-domain':
-            title = "Unauthorized Domain";
-            description = "This domain is not authorized for OAuth operations. Please add it to the authorized domains list in your Firebase console.";
-            break;
-          default:
-            description = `Error: ${error.message}`;
-            break;
-        }
-      } else {
-        console.error("Unknown authentication error:", error);
-      }
-      
-      toast({
-        title,
-        description,
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleGuestLogin = () => {
     router.push("/dashboard");
@@ -126,14 +79,6 @@ export default function Home() {
           Manchitra
         </h1>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-          <Button size="lg" variant="outline" className="bg-white/90 text-black hover:bg-white" onClick={() => handleSignIn(googleProvider)}>
-            <GoogleIcon className="mr-2 h-6 w-6" />
-            Login with Google
-          </Button>
-          <Button size="lg" className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90" onClick={() => handleSignIn(facebookProvider)}>
-            <FacebookIcon className="mr-2 h-6 w-6" />
-            Login with Facebook
-          </Button>
           <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
             <GuestIcon className="mr-2 h-6 w-6" />
             Login as Guest

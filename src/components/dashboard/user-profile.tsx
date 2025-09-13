@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,44 +10,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { LogOut, MapPin } from "lucide-react";
 
 export function UserProfile() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleAuthAction = async () => {
-    if (user) {
-      await auth.signOut();
-    }
+  const handleLogout = () => {
     router.push("/");
   };
-
-  if (loading) {
-    return <Skeleton className="h-10 w-10 rounded-full" />;
-  }
-
-  const getInitials = (name: string | null) => {
-    if (!name) return "G";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("");
-  };
-
-  const displayName = user?.displayName || "Guest";
-  const displayEmail = user?.email;
 
   return (
     <DropdownMenu>
@@ -61,8 +29,8 @@ export function UserProfile() {
         >
           <div className="rounded-full p-0.5 ring-2 ring-primary">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.photoURL || ""} alt={displayName} />
-              <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+              <AvatarImage src="" alt="Guest" />
+              <AvatarFallback>G</AvatarFallback>
             </Avatar>
           </div>
         </Button>
@@ -70,12 +38,7 @@ export function UserProfile() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{displayName}</p>
-            {displayEmail && (
-              <p className="text-xs leading-none text-muted-foreground">
-                {displayEmail}
-              </p>
-            )}
+            <p className="text-sm font-medium leading-none">Guest</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -83,7 +46,7 @@ export function UserProfile() {
           <MapPin className="mr-2 h-4 w-4" />
           <span>Add Place</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleAuthAction}>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
