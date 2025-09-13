@@ -11,7 +11,7 @@ export function AnimatedSearch() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative flex items-center">
+    <div className="relative flex items-center -ml-[50px]">
       <AnimatePresence>
         {isOpen && (
           <motion.div
