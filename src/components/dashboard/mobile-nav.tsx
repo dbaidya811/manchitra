@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Home, Map } from "lucide-react";
+import { Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from 'next/navigation'
 
@@ -17,7 +17,6 @@ export function MobileNav() {
 
   const navItems = [
     { id: "home", icon: Home, label: "Home", href: "/dashboard" },
-    { id: "map", icon: Map, label: "Map", href: "/dashboard/map" },
   ];
 
   return (
@@ -29,7 +28,7 @@ export function MobileNav() {
             href={item.href}
             onClick={() => setActiveTab(item.id)}
             className={cn(
-              "z-10 flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors",
+              "z-10 flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors w-full",
               activeTab === item.id && "text-primary-foreground",
             )}
           >
@@ -38,9 +37,9 @@ export function MobileNav() {
           </Link>
         ))}
         <div
-          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc(50%-0.5rem)] rounded-full bg-primary"
+          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc(100%-1rem)] rounded-full bg-primary"
           style={{
-            transform: `translateX(${activeTab === 'home' ? '0%' : '100%'})`,
+            transform: `translateX(0%)`,
             transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         />
