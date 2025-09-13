@@ -48,10 +48,10 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
         <DialogHeader className="text-center">
-          <DialogTitle>Guest Login</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-2xl font-bold">Guest Login</DialogTitle>
+          <DialogDescription className="text-white/80">
             {step === 1
               ? "Enter your details to receive an OTP."
               : "Enter the OTP sent to your email."}
@@ -61,43 +61,44 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           {step === 1 && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name">
+                <Label htmlFor="name" className="text-white/90">
                   Name
                 </Label>
-                <Input id="name" placeholder="Enter your name" />
+                <Input id="name" placeholder="Enter your name" className="bg-white/20 border-none placeholder:text-white/70" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">
+                <Label htmlFor="email" className="text-white/90">
                   Email
                 </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="Enter your email"
+                  className="bg-white/20 border-none placeholder:text-white/70"
                 />
               </div>
             </>
           )}
           {step === 2 && (
              <div className="space-y-2">
-                <Label htmlFor="otp">
+                <Label htmlFor="otp" className="text-white/90">
                   OTP
                 </Label>
-                <Input id="otp" placeholder="Enter your OTP" />
+                <Input id="otp" placeholder="Enter your OTP" className="bg-white/20 border-none placeholder:text-white/70" />
               </div>
           )}
         </div>
         <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
           {step === 1 && (
-            <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full">
+            <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold">
               {isSendingOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Get OTP
             </Button>
           )}
            {step === 2 && (
             <>
-                <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-                <Button onClick={handleLogin}>Go to Dashboard</Button>
+                <Button variant="outline" onClick={() => setStep(1)} className="bg-transparent hover:bg-white/20 text-white">Back</Button>
+                <Button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">Go to Dashboard</Button>
             </>
           )}
         </DialogFooter>
