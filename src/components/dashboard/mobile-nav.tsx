@@ -21,7 +21,7 @@ export function MobileNav() {
   ];
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-50 p-4 md:hidden">
+    <footer className="fixed bottom-0 left-0 right-0 z-50 p-4">
       <nav className="relative mx-auto flex max-w-xs items-center justify-around rounded-full bg-background/80 p-2 shadow-lg ring-1 ring-black ring-opacity-5 backdrop-blur-sm">
         {navItems.map((item, index) => (
           <Link
