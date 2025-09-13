@@ -63,7 +63,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 <Label htmlFor="name" className="text-right">
                   Name
                 </Label>
-                <Input id="name" defaultValue="Guest User" className="col-span-3" />
+                <Input id="name" placeholder="Enter your name" className="col-span-3" />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="email" className="text-right">
@@ -72,7 +72,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 <Input
                   id="email"
                   type="email"
-                  defaultValue="guest@example.com"
+                  placeholder="Enter your email"
                   className="col-span-3"
                 />
               </div>
