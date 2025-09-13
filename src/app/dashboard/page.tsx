@@ -2,7 +2,6 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { AnimatedSearch } from "@/components/dashboard/animated-search";
 
 export default function DashboardPage() {
   return (
@@ -14,7 +13,6 @@ export default function DashboardPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <AnimatedSearch />
           <UserProfile />
         </div>
       </header>
