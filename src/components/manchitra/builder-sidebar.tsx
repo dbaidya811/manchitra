@@ -25,6 +25,7 @@ import {
   Download,
   Github,
   Home,
+  Loader2,
 } from "lucide-react";
 import type { Section } from "@/lib/types";
 import { ContentSuggestions } from "./content-suggestions";
@@ -32,6 +33,7 @@ import { exportWebsite } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ScrollArea } from "../ui/scroll-area";
+import { useState } from "react";
 
 interface BuilderSidebarProps {
   sections: Section[];
@@ -62,6 +64,7 @@ export function BuilderSidebar({
   onSectionPropsChange,
 }: BuilderSidebarProps) {
   const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleMoveSection = (index: number, direction: "up" | "down") => {
     const newIndex = direction === "up" ? index - 1 : index + 1;
@@ -74,11 +77,22 @@ export function BuilderSidebar({
   };
 
   const handleExport = async () => {
-    const result = await exportWebsite(websiteConfig);
-    toast({
-      title: result.success ? "Export Initiated" : "Export Failed",
-      description: result.message,
-    });
+    setIsExporting(true);
+    try {
+      const result = await exportWebsite(websiteConfig);
+      toast({
+        title: result.success ? "Export Initiated" : "Export Failed",
+        description: result.message,
+      });
+    } catch (error) {
+       toast({
+        title: "Export Failed",
+        description: "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -179,9 +193,18 @@ export function BuilderSidebar({
       </ScrollArea>
       <Separator />
       <SidebarFooter className="p-4 space-y-2">
-        <Button onClick={handleExport} className="w-full">
-          <Download className="mr-2 h-4 w-4" />
-          Export Website
+        <Button onClick={handleExport} className="w-full" disabled={isExporting}>
+          {isExporting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Exporting...
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              Export Website
+            </>
+          )}
         </Button>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="w-full" asChild>
