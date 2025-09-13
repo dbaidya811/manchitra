@@ -11,13 +11,18 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 export function UserProfile() {
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = () => {
-    router.push("/");
+    setIsLoggingOut(true);
+    setTimeout(() => {
+      router.push("/");
+    }, 1000);
   };
   
   const handleAddPlace = () => {
@@ -59,9 +64,13 @@ export function UserProfile() {
           <ShieldAlert className="mr-2 h-4 w-4" />
           <span>Report Issue</span>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+        <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
+          {isLoggingOut ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="mr-2 h-4 w-4" />
+          )}
+          <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

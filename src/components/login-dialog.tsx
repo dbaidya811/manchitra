@@ -91,7 +91,11 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         title: "Login Successful",
         description: "Welcome to your dashboard!",
       });
-      router.push("/dashboard");
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1000);
+
 
     } catch (error: any) {
        toast({
@@ -99,8 +103,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setIsVerifying(false);
+       setIsVerifying(false);
     }
   };
 
