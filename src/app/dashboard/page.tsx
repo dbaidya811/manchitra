@@ -4,6 +4,7 @@ import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { NearbyPumps } from "@/components/dashboard/nearby-places";
 
 export default function DashboardPage() {
   const { toast } = useToast();
@@ -45,7 +46,7 @@ export default function DashboardPage() {
         </div>
       </header>
       <main className="flex-1 p-4 md:p-6">
-        {/* This is where the blank dashboard content will go */}
+        <NearbyPumps />
       </main>
       <MobileNav />
     </div>
