@@ -12,8 +12,12 @@ export default function DashboardPage() {
         </div>
         <UserProfile />
       </header>
-      <main className="flex-1 p-4 md:p-6">
-        {/* This is where the blank map content will go */}
+      <main className="flex-1 p-0 md:p-0">
+        <iframe
+            src="https://www.openstreetmap.org/export/embed.html?bbox=-0.004017949104309083%2C51.47612752051241%2C0.004017949104309083%2C51.47957975293232&layer=mapnik"
+            style={{ border: 0, width: '100%', height: '100%' }}
+            allowFullScreen
+        ></iframe>
       </main>
       <MobileNav />
     </div>
