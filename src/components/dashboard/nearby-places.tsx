@@ -11,7 +11,7 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import { Badge } from "@/components/ui/badge";
-import { Fuel, Loader2, Clock, MapPin, Phone, Globe, Mail, CreditCard, ShoppingCart, Droplet, Wind, Bath, Car, Banknote } from "lucide-react";
+import { Fuel, Clock, MapPin, Phone, Globe, Mail, CreditCard, ShoppingCart, Droplet, Wind, Bath, Car, Banknote } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -124,11 +124,11 @@ export function NearbyPumps() {
   if (isLoading) {
     return (
         <div className="space-y-4">
-            <Skeleton className="h-8 w-48" />
+            <h2 className="text-2xl font-bold">Nearby Petrol Pumps</h2>
             <div className="flex gap-4">
-                <Skeleton className="h-64 w-80" />
-                <Skeleton className="h-64 w-80" />
-                <Skeleton className="h-64 w-80" />
+                <Skeleton className="h-64 w-80 rounded-lg" />
+                <Skeleton className="h-64 w-80 rounded-lg" />
+                <Skeleton className="h-64 w-80 rounded-lg" />
             </div>
         </div>
     );
