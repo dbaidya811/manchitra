@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ArrowLeft, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -43,6 +44,18 @@ export default function ReportIssuePage() {
       message: "",
     },
   });
+  
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const { name, email } = JSON.parse(userData);
+      form.reset({
+        name: name || "",
+        email: email || "",
+        message: "",
+      });
+    }
+  }, [form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);

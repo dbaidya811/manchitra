@@ -86,6 +86,8 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       if (!response.ok) {
         throw new Error(data.message || 'OTP verification failed.');
       }
+      
+      localStorage.setItem("user", JSON.stringify({ name, email }));
 
       toast({
         title: "Login Successful",

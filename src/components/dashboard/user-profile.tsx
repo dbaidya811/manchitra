@@ -13,14 +13,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { LogOut, MapPin, ShieldAlert, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function UserProfile() {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [userName, setUserName] = useState("Guest");
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      const { name } = JSON.parse(userData);
+      if (name) {
+        setUserName(name);
+      }
+    }
+  }, []);
 
   const handleLogout = () => {
     setIsLoggingOut(true);
+    localStorage.removeItem("user");
     setTimeout(() => {
       router.push("/");
     }, 1000);
@@ -43,8 +55,8 @@ export function UserProfile() {
         >
           <div className="rounded-full p-0.5 ring-2 ring-primary">
             <Avatar className="h-8 w-8">
-              <AvatarImage src="" alt="Guest" />
-              <AvatarFallback>G</AvatarFallback>
+              <AvatarImage src="" alt={userName} />
+              <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
           </div>
         </Button>
@@ -52,7 +64,7 @@ export function UserProfile() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Guest</p>
+            <p className="text-sm font-medium leading-none">{userName}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
