@@ -3,6 +3,7 @@ import { PT_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import "node_modules/@tomtom-international/web-sdk-maps/dist/maps.css";
 
 
 export const metadata: Metadata = {

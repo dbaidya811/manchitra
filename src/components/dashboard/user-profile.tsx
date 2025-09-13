@@ -11,13 +11,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, MapPin } from "lucide-react";
 
 export function UserProfile() {
   const router = useRouter();
 
   const handleLogout = () => {
     router.push("/");
+  };
+  
+  const handleAddPlace = () => {
+    router.push("/dashboard/map");
   };
 
   return (
@@ -42,6 +46,10 @@ export function UserProfile() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleAddPlace}>
+          <MapPin className="mr-2 h-4 w-4" />
+          <span>Add Place</span>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
