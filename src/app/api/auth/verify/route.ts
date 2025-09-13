@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
+import { otpStore } from '@/lib/otp-store';
 
-// This should share the same store as your OTP generation route.
-// This is a in-memory store for OTPs. In a real application, use a database like Redis.
-const otpStore: Record<string, { otp: string; expires: number }> = {};
 
 export async function POST(request: Request) {
   try {
@@ -15,7 +13,7 @@ export async function POST(request: Request) {
     const storedOtpData = otpStore[email];
 
     if (!storedOtpData) {
-      return NextResponse.json({ message: 'Invalid or expired OTP.' }, { status: 400 });
+      return NextResponse.json({ message: 'Invalid email or OTP request.' }, { status: 400 });
     }
 
     if (Date.now() > storedOtpData.expires) {

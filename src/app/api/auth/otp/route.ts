@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-// This is a in-memory store for OTPs. In a real application, use a database like Redis.
-const otpStore: Record<string, { otp: string; expires: number }> = {};
+import { otpStore } from '@/lib/otp-store';
 
 export async function POST(request: Request) {
   try {
