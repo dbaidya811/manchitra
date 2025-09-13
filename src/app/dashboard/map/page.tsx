@@ -1,16 +1,20 @@
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { AnimatedSearch } from "@/components/dashboard/animated-search";
 
 export default function DashboardMapPage() {
   return (
     <div className="relative h-screen">
-      <header className="absolute top-0 left-0 right-0 z-10 flex h-16 shrink-0 items-center justify-between px-4 md:px-6 bg-transparent">
+      <header className="absolute top-0 left-0 right-0 z-10 flex h-16 shrink-0 items-center justify-between gap-4 px-4 md:px-6 bg-transparent">
         <div className="flex items-center gap-2">
           <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl font-bold text-transparent drop-shadow-md">
             Manchitra
           </h1>
         </div>
-        <UserProfile />
+        <div className="flex items-center gap-2">
+          <AnimatedSearch />
+          <UserProfile />
+        </div>
       </header>
       <main className="h-full w-full">
         <iframe
