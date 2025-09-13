@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -48,7 +49,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+        <DialogHeader className="text-center">
           <DialogTitle>Guest Login</DialogTitle>
           <DialogDescription>
             {step === 1
@@ -56,38 +57,37 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
               : "Enter the OTP sent to your email."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="space-y-4 py-4">
           {step === 1 && (
             <>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="name">
                   Name
                 </Label>
-                <Input id="name" placeholder="Enter your name" className="col-span-3" />
+                <Input id="name" placeholder="Enter your name" />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">
+              <div className="space-y-2">
+                <Label htmlFor="email">
                   Email
                 </Label>
                 <Input
                   id="email"
                   type="email"
                   placeholder="Enter your email"
-                  className="col-span-3"
                 />
               </div>
             </>
           )}
           {step === 2 && (
-             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="otp" className="text-right">
+             <div className="space-y-2">
+                <Label htmlFor="otp">
                   OTP
                 </Label>
-                <Input id="otp" placeholder="Enter your OTP" className="col-span-3" />
+                <Input id="otp" placeholder="Enter your OTP" />
               </div>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
           {step === 1 && (
             <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full">
               {isSendingOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
