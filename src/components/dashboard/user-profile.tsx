@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -30,8 +31,7 @@ export function UserProfile() {
   };
 
   const handleReportIssue = () => {
-    // Placeholder for reporting an issue
-    console.log("Report Issue clicked");
+    router.push("/dashboard/report-issue");
   };
 
   return (
