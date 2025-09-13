@@ -1,12 +1,14 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, Loader2, MapPin } from "lucide-react";
+import { Search, X, Loader2, MapPin, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
 // Debounce function
 const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
@@ -38,6 +40,7 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const fetchSuggestions = async (searchQuery: string) => {
     if (searchQuery.length < 3) {
@@ -102,6 +105,50 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
     }
   };
 
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        variant: "destructive",
+        title: "Geolocation Not Supported",
+        description: "Your browser does not support geolocation.",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        // Create a small bounding box around the user's location
+        const offset = 0.01;
+        const boundingbox: [string, string, string, string] = [
+          (latitude - offset).toString(),
+          (latitude + offset).toString(),
+          (longitude - offset).toString(),
+          (longitude + offset).toString(),
+        ];
+        
+        const currentLocationSuggestion: Suggestion = {
+            place_id: Date.now(),
+            display_name: "Your Current Location",
+            boundingbox: boundingbox
+        };
+        handleSelectSuggestion(currentLocationSuggestion);
+        setQuery("Your Current Location");
+        setIsLoading(false);
+      },
+      (error) => {
+        toast({
+          variant: "destructive",
+          title: "Unable to retrieve your location",
+          description: error.message,
+        });
+        setIsLoading(false);
+      }
+    );
+  };
+
+
   return (
     <div className="relative flex items-center justify-center h-10 w-full max-w-md" ref={searchContainerRef}>
       <AnimatePresence>
@@ -118,12 +165,21 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
             <Input
               type="text"
               placeholder="Search map..."
-              className="h-10 w-full rounded-full bg-background/80 pl-10 pr-4 text-foreground placeholder:text-muted-foreground"
+              className="h-10 w-full rounded-full bg-background/80 pl-10 pr-12 text-foreground placeholder:text-muted-foreground"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-             {isLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-muted-foreground" />}
+             {(isLoading) && <Loader2 className="absolute right-12 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-muted-foreground" />}
+            <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full"
+                onClick={handleGetCurrentLocation}
+                aria-label="Get current location"
+            >
+                <LocateFixed className="h-5 w-5 text-muted-foreground" />
+            </Button>
              {suggestions.length > 0 && (
               <Card className="absolute top-full mt-2 w-full rounded-lg bg-background/90 p-2 shadow-lg backdrop-blur-sm">
                 <ScrollArea className="h-full max-h-60">
