@@ -15,6 +15,7 @@ import { Place } from "@/lib/types";
 import { Button } from "../ui/button";
 import { MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 interface PoiCarouselProps {
   title: string;
@@ -24,9 +25,35 @@ interface PoiCarouselProps {
 
 export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleShowOnMap = (place: Place) => {
-    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const url = `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${place.lat},${place.lon}`;
+          window.open(url, "_blank");
+        },
+        () => {
+          // Geolocation failed, open with destination only
+          const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`;
+          window.open(url, "_blank");
+          toast({
+            title: "Could not get your location",
+            description: "Opening directions to the destination.",
+          });
+        }
+      );
+    } else {
+      // Geolocation not supported
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`;
+      window.open(url, "_blank");
+      toast({
+        title: "Geolocation not supported",
+        description: "Opening directions to the destination.",
+      });
+    }
   };
   
   return (
