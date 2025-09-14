@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -15,8 +14,13 @@ import { useRouter } from "next/navigation";
 import { LogOut, MapPin, ShieldAlert, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
+import { Place } from "@/lib/types";
 
-export function UserProfile() {
+interface UserProfileProps {
+  onPlaceSubmit?: (place: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => void;
+}
+
+export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [userName, setUserName] = useState("Guest");
@@ -89,7 +93,7 @@ export function UserProfile() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <AddPlaceDialog open={isAddPlaceOpen} onOpenChange={setIsAddPlaceOpen} />
+      <AddPlaceDialog open={isAddPlaceOpen} onOpenChange={setIsAddPlaceOpen} onPlaceSubmit={onPlaceSubmit} />
     </>
   );
 }

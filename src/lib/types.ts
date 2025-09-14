@@ -35,3 +35,18 @@ export interface Template {
   previewImage: (typeof PlaceHolderImages)[number]["id"];
   sections: Section[];
 }
+
+
+export interface Place {
+  id: number;
+  lat: number;
+  lon: number;
+  tags: {
+    name: string;
+    [key: string]: string;
+  };
+  photos?: {file: File, preview: string}[];
+  location?: string;
+  name?: string;
+  description?: string;
+}

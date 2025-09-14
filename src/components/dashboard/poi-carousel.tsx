@@ -11,63 +11,15 @@ import {
 } from "@/components/ui/carousel";
 import { Skeleton } from "../ui/skeleton";
 import Image from "next/image";
-
-interface Place {
-  id: number;
-  lat: number;
-  lon: number;
-  tags: {
-    name: string;
-    [key: string]: string;
-  };
-}
+import { Place } from "@/lib/types";
 
 interface PoiCarouselProps {
-  category: string;
-  value: string;
   title: string;
-  areaId: string; // OSM area ID. Kolkata is 3602888796
+  places: Place[];
+  isLoading?: boolean;
 }
 
-export function PoiCarousel({ category, value, title, areaId }: PoiCarouselProps) {
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPlaces = async () => {
-      setIsLoading(true);
-      const query = `
-        [out:json][timeout:25];
-        (
-          node["${category}"="${value}"](area:${areaId});
-          way["${category}"="${value}"](area:${areaId});
-          relation["${category}"="${value}"](area:${areaId});
-        );
-        out center;
-      `;
-      const url = `https://overpass-api.de/api/interpreter`;
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          body: `data=${encodeURIComponent(query)}`,
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-        });
-        const data = await response.json();
-        // Filter out places without names
-        const namedPlaces = data.elements.filter((place: any) => place.tags?.name);
-        setPlaces(namedPlaces.slice(0, 15)); // Limit to 15 results
-      } catch (error) {
-        console.error("Failed to fetch places:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPlaces();
-  }, [category, value, areaId]);
+export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   
   const getAddress = (tags: Place['tags']) => {
     return [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:postcode']]
@@ -100,25 +52,25 @@ export function PoiCarousel({ category, value, title, areaId }: PoiCarouselProps
           className="w-full"
         >
           <CarouselContent>
-            {places.map((place, index) => (
+            {places.map((place) => (
               <CarouselItem key={place.id} className="md:basis-1/2 lg:basis-1/3">
                 <div className="p-1 h-full">
                   <Card className="h-full flex flex-col overflow-hidden transition-all hover:shadow-lg hover:-translate-y-1">
                     <CardContent className="p-0">
                          <div className="aspect-video overflow-hidden">
                            <Image
-                             src={`https://picsum.photos/seed/${place.id}/600/400`}
+                             src={place.photos?.[0]?.preview || `https://picsum.photos/seed/${place.id}/600/400`}
                              alt={place.tags.name}
                              width={600}
                              height={400}
                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                             data-ai-hint={`${value} building`}
+                             data-ai-hint="building"
                            />
                          </div>
                     </CardContent>
                     <CardHeader>
                       <CardTitle>{place.tags.name}</CardTitle>
-                      {getAddress(place.tags) && <CardDescription>{getAddress(place.tags)}</CardDescription>}
+                      {place.tags.description && <CardDescription>{place.tags.description}</CardDescription>}
                     </CardHeader>
                   </Card>
                 </div>

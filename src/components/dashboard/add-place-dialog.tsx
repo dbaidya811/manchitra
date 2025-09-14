@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LocateFixed, Upload } from "lucide-react";
 import Image from "next/image";
+import { Place } from "@/lib/types";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Name is required." }),
@@ -34,18 +35,21 @@ const formSchema = z.object({
   photos: z.array(z.any()).optional(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 interface AddPlaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onPlaceSubmit?: (place: FormValues) => void;
 }
 
-export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
+export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previews, setPreviews] = useState<(string | null)[]>(Array(5).fill(null));
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -65,7 +69,10 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
         setPreviews(newPreviews);
 
         const currentPhotos = form.getValues("photos") || [];
-        currentPhotos[index] = file;
+        currentPhotos[index] = {
+            file: file,
+            preview: reader.result as string,
+        };
         form.setValue("photos", currentPhotos);
       };
       reader.readAsDataURL(file);
@@ -87,21 +94,20 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
       }
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: FormValues) {
     setIsSubmitting(true);
-    // Filter out null/undefined values from photos array
-    const submissionValues = {
-        ...values,
-        photos: (values.photos || []).filter(p => p),
-    };
-    console.log("Submitting new place:", submissionValues);
+    
+    console.log("Submitting new place:", values);
 
     // Simulate API call
     setTimeout(() => {
       toast({
         title: "Place Submitted",
-        description: "Thank you for your contribution! Your new place has been submitted for review.",
+        description: "Thank you for your contribution! Your new place has been added.",
       });
+      if(onPlaceSubmit) {
+        onPlaceSubmit(values);
+      }
       setIsSubmitting(false);
       resetAndClose();
     }, 1500);

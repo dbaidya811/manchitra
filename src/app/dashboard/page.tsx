@@ -2,11 +2,14 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { PoiCarousel } from "@/components/dashboard/poi-carousel";
+import { Place } from "@/lib/types";
 
 export default function DashboardPage() {
   const { toast } = useToast();
+  const [places, setPlaces] = useState<Place[]>([]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -31,6 +34,20 @@ export default function DashboardPage() {
       );
     }
   }, [toast]);
+  
+  const handleAddPlace = (newPlace: Omit<Place, 'id' | 'tags'>) => {
+     const placeToAdd: Place = {
+      id: Date.now(),
+      lat: parseFloat(newPlace.location.split(',')[0]),
+      lon: parseFloat(newPlace.location.split(',')[1]),
+      tags: {
+        name: newPlace.name,
+        description: newPlace.description,
+      },
+      photos: newPlace.photos,
+    };
+    setPlaces(prevPlaces => [...prevPlaces, placeToAdd]);
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -41,11 +58,11 @@ export default function DashboardPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <UserProfile />
+          <UserProfile onPlaceSubmit={handleAddPlace} />
         </div>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6">
-        
+        {places.length > 0 && <PoiCarousel title="Recently Added Places" places={places} />}
       </main>
       <MobileNav />
     </div>
