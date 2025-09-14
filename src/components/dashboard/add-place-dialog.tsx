@@ -105,7 +105,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-background/80 backdrop-blur-sm border-border/50">
         <DialogHeader>
           <DialogTitle>Add a New Place</DialogTitle>
           <DialogDescription>
@@ -131,7 +131,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full h-32 flex-col gap-2"
+                        className="w-full h-32 flex-col gap-2 bg-transparent hover:bg-accent/50"
                         onClick={() => fileInputRef.current?.click()}
                       >
                         {preview ? (
@@ -161,7 +161,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Central Park Cafe" {...field} />
+                    <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-background/50" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -176,7 +176,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                   <FormControl>
                     <Textarea
                       placeholder="A short description of the place."
-                      className="resize-none"
+                      className="resize-none bg-background/50"
                       {...field}
                     />
                   </FormControl>
@@ -192,7 +192,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                   <FormLabel>Location</FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
-                      <Input placeholder="Address or lat, lng" {...field} />
+                      <Input placeholder="Address or lat, lng" {...field} className="bg-background/50" />
                     </FormControl>
                     <Button type="button" variant="outline" size="icon" onClick={handleGetCurrentLocation}>
                         <LocateFixed className="h-4 w-4" />
