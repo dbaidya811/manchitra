@@ -4,7 +4,6 @@ import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 
 export default function DashboardPage() {
   const { toast } = useToast();
@@ -46,12 +45,7 @@ export default function DashboardPage() {
         </div>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6">
-        <PoiCarousel
-          category="amenity"
-          value="hospital"
-          title="Top Hospitals in Kolkata"
-          areaId="3602888796"
-        />
+        
       </main>
       <MobileNav />
     </div>
