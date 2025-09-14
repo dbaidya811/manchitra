@@ -158,31 +158,6 @@ export default function DashboardPage() {
                             <MapPin className="mr-2 h-4 w-4" />
                             Directions
                         </Button>
-                      <div className="flex w-full gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(place)} className="w-full">
-                          <Edit className="mr-2 h-3 w-3" /> Edit
-                        </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm" className="w-full">
-                                  <Trash2 className="mr-2 h-3 w-3" /> Delete
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete your
-                                  contribution.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeletePlace(place.id)}>Continue</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                      </div>
                     </CardFooter>
                   </Card>
                 ))}
