@@ -52,18 +52,6 @@ export default function DashboardPage() {
           title="Top Hospitals in Kolkata"
           areaId="3602888796"
         />
-        <PoiCarousel
-          category="amenity"
-          value="restaurant"
-          title="Popular Restaurants in Kolkata"
-          areaId="3602888796"
-        />
-        <PoiCarousel
-          category="tourism"
-          value="hotel"
-          title="Recommended Hotels in Kolkata"
-          areaId="3602888796"
-        />
       </main>
       <MobileNav />
     </div>
