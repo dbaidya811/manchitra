@@ -28,9 +28,9 @@ import { Loader2, LocateFixed, Upload } from "lucide-react";
 import Image from "next/image";
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  description: z.string().min(10, { message: "Description must be at least 10 characters." }),
-  location: z.string().min(5, { message: "Please enter a valid location." }),
+  name: z.string().min(1, { message: "Name is required." }),
+  description: z.string().min(1, { message: "Description is required." }),
+  location: z.string().min(1, { message: "Location is required." }),
   photos: z.array(z.any()).optional(),
 });
 
@@ -129,7 +129,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
                   </FormControl>
@@ -142,7 +142,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Textarea
                       placeholder="A short description of the place."
@@ -159,7 +159,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Location <span className="text-destructive">*</span></FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
                       <Input placeholder="Address or lat, lng" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
