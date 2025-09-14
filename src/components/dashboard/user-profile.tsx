@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Loader2, Heart } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Loader2, Heart, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Place } from "@/lib/types";
@@ -57,6 +57,10 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const handleContributions = () => {
     router.push("/dashboard/my-contributions");
   };
+  
+  const handleWhatIHaveSeen = () => {
+    router.push("/dashboard/what-have-i-seen");
+  };
 
   return (
     <>
@@ -88,6 +92,10 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           <DropdownMenuItem onClick={handleContributions}>
             <Heart className="mr-2 h-4 w-4" />
             <span>My Contributions</span>
+          </DropdownMenuItem>
+           <DropdownMenuItem onClick={handleWhatIHaveSeen}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>What I've Seen</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleReportIssue}>
             <ShieldAlert className="mr-2 h-4 w-4" />
