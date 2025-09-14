@@ -12,6 +12,12 @@ export default function DashboardPage() {
   const [places, setPlaces] = useState<Place[]>([]);
 
   useEffect(() => {
+    // Load places from local storage on mount
+    const storedPlaces = localStorage.getItem("user-places");
+    if (storedPlaces) {
+      setPlaces(JSON.parse(storedPlaces));
+    }
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         () => {
@@ -20,7 +26,6 @@ export default function DashboardPage() {
         (error) => {
           if (error.code === error.PERMISSION_DENIED) {
             // This is expected if the user denies permission.
-            // You could show a toast here if you wanted to inform the user.
             console.log("Location permission denied.");
           } else {
             // Handle other errors
@@ -46,8 +51,24 @@ export default function DashboardPage() {
       },
       photos: newPlace.photos,
     };
-    setPlaces(prevPlaces => [...prevPlaces, placeToAdd]);
+
+    const updatedPlaces = [...places, placeToAdd];
+    setPlaces(updatedPlaces);
+    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
   }
+
+  const handleUpdatePlace = (updatedPlace: Place) => {
+    const updatedPlaces = places.map(p => p.id === updatedPlace.id ? updatedPlace : p);
+    setPlaces(updatedPlaces);
+    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+  };
+
+  const handleDeletePlace = (placeId: number) => {
+    const updatedPlaces = places.filter(p => p.id !== placeId);
+    setPlaces(updatedPlaces);
+    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+  };
+
 
   return (
     <div className="flex min-h-screen flex-col">

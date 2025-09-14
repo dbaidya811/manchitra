@@ -39,6 +39,8 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const handleLogout = () => {
     setIsLoggingOut(true);
     localStorage.removeItem("user");
+    // Also clear places on logout
+    localStorage.removeItem("user-places");
     setTimeout(() => {
       router.push("/");
     }, 1000);
@@ -53,8 +55,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   };
 
   const handleContributions = () => {
-    // Placeholder for contributions page/modal
-    console.log("Navigating to contributions");
+    router.push("/dashboard/my-contributions");
   };
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,13 +41,16 @@ interface AddPlaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPlaceSubmit?: (place: FormValues) => void;
+  onPlaceUpdate?: (place: Place) => void;
+  placeToEdit?: Place | null;
 }
 
-export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDialogProps) {
+export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdate, placeToEdit }: AddPlaceDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previews, setPreviews] = useState<(string | null)[]>(Array(5).fill(null));
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const isEditing = !!placeToEdit;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -59,6 +62,27 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
     },
   });
 
+  useEffect(() => {
+    if (isEditing && placeToEdit) {
+      form.reset({
+        name: placeToEdit.tags.name,
+        description: placeToEdit.tags.description,
+        location: `${placeToEdit.lat},${placeToEdit.lon}`,
+        photos: placeToEdit.photos || []
+      });
+      const imagePreviews = Array(5).fill(null);
+      placeToEdit.photos?.forEach((photo, index) => {
+        if(index < 5) imagePreviews[index] = photo.preview;
+      });
+      setPreviews(imagePreviews);
+
+    } else {
+      form.reset({ name: "", description: "", location: "", photos: [] });
+      setPreviews(Array(5).fill(null));
+    }
+  }, [placeToEdit, isEditing, form, open]);
+
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -69,11 +93,15 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
         setPreviews(newPreviews);
 
         const currentPhotos = form.getValues("photos") || [];
-        currentPhotos[index] = {
-            file: file,
+        // Ensure the array is the correct length
+        const photosArray = Array.isArray(currentPhotos) ? currentPhotos : [];
+        while(photosArray.length < 5) photosArray.push(undefined);
+
+        photosArray[index] = {
+            // We can't store the file object in local storage, so we'll just keep the preview
             preview: reader.result as string,
         };
-        form.setValue("photos", currentPhotos);
+        form.setValue("photos", photosArray.filter(p => p));
       };
       reader.readAsDataURL(file);
     }
@@ -97,17 +125,33 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
   function onSubmit(values: FormValues) {
     setIsSubmitting(true);
     
-    console.log("Submitting new place:", values);
-
     // Simulate API call
     setTimeout(() => {
-      toast({
-        title: "Place Submitted",
-        description: "Thank you for your contribution! Your new place has been added.",
-      });
-      if(onPlaceSubmit) {
+      if (isEditing && placeToEdit && onPlaceUpdate) {
+         const updatedPlace: Place = {
+          ...placeToEdit,
+          lat: parseFloat(values.location.split(',')[0]),
+          lon: parseFloat(values.location.split(',')[1]),
+          tags: {
+            ...placeToEdit.tags,
+            name: values.name,
+            description: values.description,
+          },
+          photos: values.photos,
+        };
+        onPlaceUpdate(updatedPlace);
+        toast({
+          title: "Place Updated",
+          description: "Your changes have been saved.",
+        });
+      } else if (onPlaceSubmit) {
         onPlaceSubmit(values);
+        toast({
+          title: "Place Submitted",
+          description: "Thank you for your contribution! Your new place has been added.",
+        });
       }
+
       setIsSubmitting(false);
       resetAndClose();
     }, 1500);
@@ -123,9 +167,9 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
     <Dialog open={open} onOpenChange={resetAndClose}>
       <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
         <DialogHeader>
-          <DialogTitle>Add a New Place</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Place" : "Add a New Place"}</DialogTitle>
           <DialogDescription>
-            Contribute to the map by adding a new point of interest.
+            {isEditing ? "Update the details for this point of interest." : "Contribute to the map by adding a new point of interest."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -165,10 +209,10 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel>Location (Lat, Lng) <span className="text-destructive">*</span></FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
-                      <Input placeholder="Address or lat, lng" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
+                      <Input placeholder="e.g., 40.782, -73.965" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
                     </FormControl>
                     <Button type="button" variant="outline" size="icon" onClick={handleGetCurrentLocation} className="bg-white/20 border-none hover:bg-white/30">
                         <LocateFixed className="h-4 w-4" />
@@ -198,7 +242,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="w-full aspect-square flex items-center justify-center flex-col gap-1 bg-white/10 border border-white/20 hover:bg-white/20 p-0 overflow-hidden"
+                                    className="w-full aspect-square flex items-center justify-center flex-col gap-1 bg-white/10 border border-dashed border-white/40 hover:bg-white/20 hover:border-white/60 p-0 overflow-hidden"
                                     onClick={() => fileInputRefs.current[index]?.click()}
                                 >
                                     {preview ? (
@@ -229,7 +273,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit }: AddPlaceDi
               </Button>
               <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Submit Place
+                {isEditing ? 'Update Place' : 'Submit Place'}
               </Button>
             </DialogFooter>
           </form>
