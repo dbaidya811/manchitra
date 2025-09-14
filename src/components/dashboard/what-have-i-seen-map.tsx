@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -5,7 +6,6 @@ import { Place } from "@/lib/types";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
 // Fix for default marker icon
@@ -24,27 +24,33 @@ function MapUpdater({ center, zoom }: { center: [number, number], zoom: number }
     return null;
 }
 
-
 export default function WhatHaveISeenMap() {
     const [places, setPlaces] = useState<Place[]>([]);
     const [center, setCenter] = useState<[number, number]>([20.5937, 78.9629]); // Default to India
     const [zoom, setZoom] = useState(5);
-    const { toast } = useToast();
 
     useEffect(() => {
         const storedPlaces = localStorage.getItem("user-places");
         if (storedPlaces) {
-            const parsedPlaces = JSON.parse(storedPlaces) as Place[];
-            setPlaces(parsedPlaces);
-            if(parsedPlaces.length > 0) {
-                // Center map on the first contributed place
-                setCenter([parsedPlaces[0].lat, parsedPlaces[0].lon]);
-                setZoom(10);
+            try {
+                const parsedPlaces = JSON.parse(storedPlaces) as Place[];
+                if (Array.isArray(parsedPlaces)) {
+                    setPlaces(parsedPlaces);
+                    if(parsedPlaces.length > 0) {
+                        // Center map on the first contributed place
+                        setCenter([parsedPlaces[0].lat, parsedPlaces[0].lon]);
+                        setZoom(10);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to parse places from localStorage", e);
+                setPlaces([]);
             }
         }
     }, []);
 
     useEffect(() => {
+        // This effect runs only if there are no places.
         if (places.length === 0) {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
@@ -59,7 +65,7 @@ export default function WhatHaveISeenMap() {
                 );
             }
         }
-    }, [places]);
+    }, [places.length]);
 
     if (typeof window === 'undefined') {
         return null;
@@ -96,3 +102,4 @@ export default function WhatHaveISeenMap() {
         </MapContainer>
     );
 }
+
