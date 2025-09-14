@@ -12,7 +12,6 @@ import Image from "next/image";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import Link from "next/link";
 
 export default function MyContributionsPage() {
   const router = useRouter();
@@ -47,6 +46,10 @@ export default function MyContributionsPage() {
     const updatedPlaces = places.map(p => p.id === updatedPlace.id ? updatedPlace : p);
     setPlaces(updatedPlaces);
     localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+  };
+
+  const handleShowOnMap = (place: Place) => {
+    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
   };
 
 
@@ -90,11 +93,9 @@ export default function MyContributionsPage() {
                   <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
-                   <Button asChild size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
-                        <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
-                            <MapPin className="mr-2 h-4 w-4" />
-                            Directions
-                        </Link>
+                   <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
+                        <MapPin className="mr-2 h-4 w-4" />
+                        Directions
                     </Button>
                   <div className="flex w-full gap-2">
                     <Button variant="outline" size="sm" onClick={() => handleEdit(place)} className="w-full">

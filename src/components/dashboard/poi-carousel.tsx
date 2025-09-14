@@ -13,8 +13,8 @@ import { Skeleton } from "../ui/skeleton";
 import Image from "next/image";
 import { Place } from "@/lib/types";
 import { Button } from "../ui/button";
-import Link from "next/link";
 import { MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface PoiCarouselProps {
   title: string;
@@ -23,6 +23,11 @@ interface PoiCarouselProps {
 }
 
 export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
+  const router = useRouter();
+
+  const handleShowOnMap = (place: Place) => {
+    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+  };
   
   return (
     <section>
@@ -70,11 +75,9 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                       {place.tags.description && <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>}
                     </CardHeader>
                     <CardFooter className="mt-auto flex justify-end gap-2 p-3 pt-0">
-                      <Button asChild size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
-                          <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
-                              <MapPin className="mr-2 h-4 w-4" />
-                              Directions
-                          </Link>
+                      <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
+                          <MapPin className="mr-2 h-4 w-4" />
+                          Directions
                       </Button>
                     </CardFooter>
                   </Card>

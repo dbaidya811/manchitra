@@ -1,12 +1,31 @@
+
 "use client";
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { AnimatedSearch } from "@/components/dashboard/animated-search";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useRouter } from 'next/navigation';
 
 export default function DashboardMapPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [viewBox, setViewBox] = useState<string>("-0.004017949104309083,51.47612752051241,0.004017949104309083,51.47957975293232");
+
+  useEffect(() => {
+    const lat = searchParams.get('lat');
+    const lon = searchParams.get('lon');
+    if (lat && lon) {
+      const latNum = parseFloat(lat);
+      const lonNum = parseFloat(lon);
+      const offset = 0.002; // Small offset to create a bounding box
+      const newBbox = [lonNum - offset, latNum - offset, lonNum + offset, latNum + offset].join(',');
+      setViewBox(newBbox);
+      // Optional: remove query params after use
+      router.replace('/dashboard/map');
+    }
+  }, [searchParams, router]);
+
 
   const handleLocationSelect = (location: { boundingbox: [string, string, string, string] }) => {
     const [minLat, maxLat, minLon, maxLon] = location.boundingbox;
