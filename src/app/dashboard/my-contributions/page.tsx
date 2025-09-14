@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,11 +7,12 @@ import { useRouter } from "next/navigation";
 import { Place } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, MapPin, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 export default function MyContributionsPage() {
   const router = useRouter();
@@ -83,34 +85,42 @@ export default function MyContributionsPage() {
                         />
                     </div>
                 </CardContent>
-                <CardHeader className="p-4">
+                <CardHeader className="p-4 pb-2">
                   <CardTitle className="text-base font-semibold">{place.tags.name}</CardTitle>
                   <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
-                <CardFooter className="mt-auto flex justify-end gap-2 p-2 pt-0">
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(place)}>
-                    <Edit className="mr-2 h-3 w-3" /> Edit
-                  </Button>
-                   <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">
-                            <Trash2 className="mr-2 h-3 w-3" /> Delete
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete your
-                            contribution.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(place.id)}>Continue</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                <CardFooter className="mt-auto flex flex-col gap-2 p-4 pt-2">
+                   <Button asChild size="sm" variant="outline" className="w-full">
+                        <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
+                            <MapPin className="mr-2 h-4 w-4" />
+                            Directions
+                        </Link>
+                    </Button>
+                  <div className="flex w-full gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(place)} className="w-full">
+                      <Edit className="mr-2 h-3 w-3" /> Edit
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="w-full">
+                              <Trash2 className="mr-2 h-3 w-3" /> Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete your
+                              contribution.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(place.id)}>Continue</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                  </div>
                 </CardFooter>
               </Card>
             ))}

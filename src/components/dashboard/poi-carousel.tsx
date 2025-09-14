@@ -1,8 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import {
   Carousel,
   CarouselContent,
@@ -13,6 +12,9 @@ import {
 import { Skeleton } from "../ui/skeleton";
 import Image from "next/image";
 import { Place } from "@/lib/types";
+import { Button } from "../ui/button";
+import Link from "next/link";
+import { MapPin } from "lucide-react";
 
 interface PoiCarouselProps {
   title: string;
@@ -22,12 +24,6 @@ interface PoiCarouselProps {
 
 export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   
-  const getAddress = (tags: Place['tags']) => {
-    return [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:postcode']]
-      .filter(Boolean)
-      .join(', ');
-  }
-
   return (
     <section>
       <h2 className="text-2xl font-bold tracking-tight mb-4">{title}</h2>
@@ -73,6 +69,14 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                       <CardTitle className="text-sm font-semibold truncate">{place.tags.name}</CardTitle>
                       {place.tags.description && <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>}
                     </CardHeader>
+                    <CardFooter className="mt-auto flex justify-end gap-2 p-3 pt-0">
+                      <Button asChild size="sm" variant="outline" className="w-full">
+                          <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
+                              <MapPin className="mr-2 h-4 w-4" />
+                              Directions
+                          </Link>
+                      </Button>
+                    </CardFooter>
                   </Card>
                 </div>
               </CarouselItem>
@@ -85,3 +89,4 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
     </section>
   );
 }
+
