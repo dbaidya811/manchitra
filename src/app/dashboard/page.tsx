@@ -8,10 +8,9 @@ import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 import { Place } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Edit, MapPin, Trash2 } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 
 export default function DashboardPage() {
@@ -69,23 +68,8 @@ export default function DashboardPage() {
     setIsEditDialogOpen(false);
   };
 
-  const handleDeletePlace = (placeId: number) => {
-    const updatedPlaces = places.filter(p => p.id !== placeId);
-    setPlaces(updatedPlaces);
-    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
-    toast({
-      title: "Place Deleted",
-      description: "The place has been removed from your contributions.",
-    });
-  };
-
   const handleShowOnMap = (place: Place) => {
     router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
-  };
-
-  const handleEdit = (place: Place) => {
-    setPlaceToEdit(place);
-    setIsEditDialogOpen(true);
   };
 
   const groupedPlaces = useMemo(() => {
@@ -130,9 +114,6 @@ export default function DashboardPage() {
             <section key={area}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold tracking-tight">Places in {area}</h2>
-                 <Button variant="link" onClick={() => router.push('/dashboard/my-contributions')} className="text-primary">
-                  View All <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {areaPlaces.map(place => (
@@ -150,8 +131,8 @@ export default function DashboardPage() {
                         </div>
                     </CardContent>
                     <CardHeader className="p-3 pb-2">
-                      <CardTitle className="text-base font-semibold">{place.tags.name}</CardTitle>
-                      <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
+                      <CardTitle className="text-base font-semibold truncate">{place.tags.name}</CardTitle>
+                      {place.tags.description && <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>}
                     </CardHeader>
                     <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
                        <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
@@ -177,5 +158,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
