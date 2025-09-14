@@ -105,7 +105,7 @@ export default function DashboardPage() {
           <UserProfile onPlaceSubmit={handleAddPlace} />
         </div>
       </header>
-      <main className="flex-1 space-y-8 p-4 md:p-6 pb-24">
+      <main className="flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+1px)]">
         {groupedPlaces.recentPlaces.length > 0 && (
           <PoiCarousel title="Last 15 Added Places" places={groupedPlaces.recentPlaces} />
         )}
