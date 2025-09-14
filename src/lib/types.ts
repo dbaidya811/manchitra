@@ -45,6 +45,7 @@ export interface Place {
     name: string;
     [key: string]: string;
   };
+  area?: string;
   photos?: {file: File, preview: string}[];
   location?: string;
   name?: string;

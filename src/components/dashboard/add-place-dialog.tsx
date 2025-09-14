@@ -31,6 +31,7 @@ import { Place } from "@/lib/types";
 const formSchema = z.object({
   name: z.string().min(1, { message: "Name is required." }),
   description: z.string().min(1, { message: "Description is required." }),
+  area: z.string().optional(),
   location: z.string().min(1, { message: "Location is required." }),
   photos: z.array(z.any()).optional(),
 });
@@ -57,6 +58,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
     defaultValues: {
       name: "",
       description: "",
+      area: "",
       location: "",
       photos: [],
     },
@@ -67,6 +69,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
       form.reset({
         name: placeToEdit.tags.name,
         description: placeToEdit.tags.description,
+        area: placeToEdit.area || "",
         location: `${placeToEdit.lat},${placeToEdit.lon}`,
         photos: placeToEdit.photos || []
       });
@@ -77,7 +80,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
       setPreviews(imagePreviews);
 
     } else {
-      form.reset({ name: "", description: "", location: "", photos: [] });
+      form.reset({ name: "", description: "", area: "", location: "", photos: [] });
       setPreviews(Array(5).fill(null));
     }
   }, [placeToEdit, isEditing, form, open]);
@@ -132,6 +135,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
           ...placeToEdit,
           lat: parseFloat(values.location.split(',')[0]),
           lon: parseFloat(values.location.split(',')[1]),
+          area: values.area,
           tags: {
             ...placeToEdit.tags,
             name: values.name,
@@ -199,6 +203,19 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                       className="resize-none bg-white/20 border-none placeholder:text-white/70"
                       {...field}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="area"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Area (e.g., City, Neighborhood)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., New York City" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

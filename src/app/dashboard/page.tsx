@@ -2,7 +2,7 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 import { Place } from "@/lib/types";
@@ -45,6 +45,7 @@ export default function DashboardPage() {
       id: Date.now(),
       lat: parseFloat(newPlace.location.split(',')[0]),
       lon: parseFloat(newPlace.location.split(',')[1]),
+      area: newPlace.area,
       tags: {
         name: newPlace.name,
         description: newPlace.description,
@@ -69,6 +70,34 @@ export default function DashboardPage() {
     localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
   };
 
+  const groupedPlaces = useMemo(() => {
+    const groups: { [key: string]: Place[] } = {};
+    const recentPlaces: Place[] = [];
+    const placesWithArea: Place[] = [];
+
+    // Sort places by id descending to get recent places
+    const sortedPlaces = [...places].sort((a, b) => b.id - a.id);
+
+    sortedPlaces.forEach(place => {
+      if (recentPlaces.length < 15) {
+        recentPlaces.push(place);
+      }
+      if (place.area) {
+        placesWithArea.push(place);
+      }
+    });
+
+    placesWithArea.forEach(place => {
+      const area = place.area!;
+      if (!groups[area]) {
+        groups[area] = [];
+      }
+      groups[area].push(place);
+    });
+
+    return { recentPlaces, areaGroups: groups };
+  }, [places]);
+
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -83,7 +112,12 @@ export default function DashboardPage() {
         </div>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6">
-        {places.length > 0 && <PoiCarousel title="Recently Added Places" places={places} />}
+        {groupedPlaces.recentPlaces.length > 0 && (
+          <PoiCarousel title="Recently Added Places" places={groupedPlaces.recentPlaces} />
+        )}
+        {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
+           areaPlaces.length > 0 && <PoiCarousel key={area} title={`Places in ${area}`} places={areaPlaces} />
+        ))}
       </main>
       <MobileNav />
     </div>
