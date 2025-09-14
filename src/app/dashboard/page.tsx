@@ -6,9 +6,13 @@ import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 import { Place } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ArrowRight } from "lucide-react";
 
 export default function DashboardPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [places, setPlaces] = useState<Place[]>([]);
 
   useEffect(() => {
@@ -73,7 +77,6 @@ export default function DashboardPage() {
   const groupedPlaces = useMemo(() => {
     const groups: { [key: string]: Place[] } = {};
     const recentPlaces: Place[] = [];
-    const placesWithArea: Place[] = [];
 
     // Sort places by id descending to get recent places
     const sortedPlaces = [...places].sort((a, b) => b.id - a.id);
@@ -83,16 +86,11 @@ export default function DashboardPage() {
         recentPlaces.push(place);
       }
       if (place.area) {
-        placesWithArea.push(place);
+        if (!groups[place.area]) {
+          groups[place.area] = [];
+        }
+        groups[place.area].push(place);
       }
-    });
-
-    placesWithArea.forEach(place => {
-      const area = place.area!;
-      if (!groups[area]) {
-        groups[area] = [];
-      }
-      groups[area].push(place);
     });
 
     return { recentPlaces, areaGroups: groups };
@@ -113,10 +111,20 @@ export default function DashboardPage() {
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6">
         {groupedPlaces.recentPlaces.length > 0 && (
-          <PoiCarousel title="Recently Added Places" places={groupedPlaces.recentPlaces} />
+          <PoiCarousel title="Last 15 Added Places" places={groupedPlaces.recentPlaces} />
         )}
         {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
-           areaPlaces.length > 0 && <PoiCarousel key={area} title={`Places in ${area}`} places={areaPlaces} />
+           areaPlaces.length > 0 && (
+            <section key={area}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold tracking-tight">Places in {area}</h2>
+                <Button variant="link" onClick={() => router.push('/dashboard/my-contributions')} className="text-primary">
+                  View All <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-muted-foreground">{areaPlaces.length} place(s) in this area. Go to "My Contributions" to see all of them.</p>
+            </section>
+           )
         ))}
       </main>
       <MobileNav />
