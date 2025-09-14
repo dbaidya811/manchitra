@@ -59,7 +59,7 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                     <CardContent className="p-0">
                          <div className="aspect-video overflow-hidden">
                            <Image
-                             src={place.photos?.[0]?.preview || `https://picsum.photos/seed/${place.id}/600/400`}
+                             src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
                              alt={place.tags.name}
                              width={600}
                              height={400}

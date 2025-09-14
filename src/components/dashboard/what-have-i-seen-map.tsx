@@ -85,7 +85,7 @@ export default function WhatHaveISeenMap() {
                             {place.photos && place.photos[0]?.preview && (
                                 <div className="aspect-video overflow-hidden rounded-md mb-2">
                                 <Image
-                                    src={place.photos[0].preview}
+                                    src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
                                     alt={place.tags.name}
                                     width={200}
                                     height={112}
