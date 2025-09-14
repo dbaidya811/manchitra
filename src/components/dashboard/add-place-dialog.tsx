@@ -31,7 +31,7 @@ const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   description: z.string().min(10, { message: "Description must be at least 10 characters." }),
   location: z.string().min(5, { message: "Please enter a valid location." }),
-  photo: z.any().optional(),
+  photos: z.array(z.any()).optional(),
 });
 
 interface AddPlaceDialogProps {
@@ -42,8 +42,8 @@ interface AddPlaceDialogProps {
 export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [preview, setPreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previews, setPreviews] = useState<(string | null)[]>(Array(5).fill(null));
+  const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,17 +51,22 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
       name: "",
       description: "",
       location: "",
-      photo: null,
+      photos: [],
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreview(reader.result as string);
-        form.setValue("photo", file);
+        const newPreviews = [...previews];
+        newPreviews[index] = reader.result as string;
+        setPreviews(newPreviews);
+
+        const currentPhotos = form.getValues("photos") || [];
+        currentPhotos[index] = file;
+        form.setValue("photos", currentPhotos);
       };
       reader.readAsDataURL(file);
     }
@@ -84,7 +89,12 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
-    console.log("Submitting new place:", values);
+    // Filter out null/undefined values from photos array
+    const submissionValues = {
+        ...values,
+        photos: (values.photos || []).filter(p => p),
+    };
+    console.log("Submitting new place:", submissionValues);
 
     // Simulate API call
     setTimeout(() => {
@@ -99,7 +109,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
   
   const resetAndClose = () => {
       form.reset();
-      setPreview(null);
+      setPreviews(Array(5).fill(null));
       onOpenChange(false);
   }
 
@@ -114,46 +124,6 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-             <FormField
-              control={form.control}
-              name="photo"
-              render={() => (
-                <FormItem className="flex flex-col items-center justify-center">
-                  <FormControl>
-                    <>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full h-32 flex-col gap-2 bg-transparent hover:bg-accent/50"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {preview ? (
-                          <Image
-                            src={preview}
-                            alt="Preview"
-                            fill
-                            className="object-cover rounded-md"
-                          />
-                        ) : (
-                          <>
-                            <Upload className="h-6 w-6 text-muted-foreground" />
-                            <span className="text-muted-foreground">Upload Photo</span>
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="name"
@@ -198,6 +168,51 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                         <LocateFixed className="h-4 w-4" />
                     </Button>
                   </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="photos"
+              render={() => (
+                <FormItem>
+                    <FormLabel>Photos</FormLabel>
+                    <FormControl>
+                        <div className="grid grid-cols-5 gap-2">
+                            {previews.map((preview, index) => (
+                                <div key={index} className="relative">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    ref={el => fileInputRefs.current[index] = el}
+                                    onChange={(e) => handleFileChange(e, index)}
+                                    className="hidden"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full aspect-square flex-col gap-1 bg-transparent hover:bg-accent/50 p-0"
+                                    onClick={() => fileInputRefs.current[index]?.click()}
+                                >
+                                    {preview ? (
+                                    <Image
+                                        src={preview}
+                                        alt={`Preview ${index + 1}`}
+                                        fill
+                                        className="object-cover rounded-md"
+                                    />
+                                    ) : (
+                                    <>
+                                        <Upload className="h-4 w-4 text-muted-foreground" />
+                                        <span className="text-xs text-muted-foreground">Upload</span>
+                                    </>
+                                    )}
+                                </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
