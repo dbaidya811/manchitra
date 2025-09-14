@@ -115,7 +115,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-md bg-background/80 backdrop-blur-sm border-border/50">
+      <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
         <DialogHeader>
           <DialogTitle>Add a New Place</DialogTitle>
           <DialogDescription>
@@ -131,7 +131,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-background/50" />
+                    <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -146,7 +146,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                   <FormControl>
                     <Textarea
                       placeholder="A short description of the place."
-                      className="resize-none bg-background/50"
+                      className="resize-none bg-white/20 border-none placeholder:text-white/70"
                       {...field}
                     />
                   </FormControl>
@@ -162,9 +162,9 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                   <FormLabel>Location</FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
-                      <Input placeholder="Address or lat, lng" {...field} className="bg-background/50" />
+                      <Input placeholder="Address or lat, lng" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
                     </FormControl>
-                    <Button type="button" variant="outline" size="icon" onClick={handleGetCurrentLocation}>
+                    <Button type="button" variant="outline" size="icon" onClick={handleGetCurrentLocation} className="bg-white/20 border-none hover:bg-white/30">
                         <LocateFixed className="h-4 w-4" />
                     </Button>
                   </div>
@@ -181,7 +181,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                     <FormControl>
                         <div className="grid grid-cols-5 gap-2">
                             {previews.map((preview, index) => (
-                                <div key={index} className="relative">
+                                <div key={index} className="relative group">
                                 <input
                                     type="file"
                                     accept="image/*"
@@ -192,7 +192,7 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="w-full aspect-square flex-col gap-1 bg-transparent hover:bg-accent/50 p-0"
+                                    className="w-full aspect-square flex items-center justify-center flex-col gap-1 bg-white/10 border border-white/20 hover:bg-white/20 p-0 overflow-hidden"
                                     onClick={() => fileInputRefs.current[index]?.click()}
                                 >
                                     {preview ? (
@@ -200,12 +200,12 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
                                         src={preview}
                                         alt={`Preview ${index + 1}`}
                                         fill
-                                        className="object-cover rounded-md"
+                                        className="object-cover transition-transform group-hover:scale-105"
                                     />
                                     ) : (
                                     <>
-                                        <Upload className="h-4 w-4 text-muted-foreground" />
-                                        <span className="text-xs text-muted-foreground">Upload</span>
+                                        <Upload className="h-5 w-5 text-white/70" />
+                                        <span className="text-xs text-white/70">Upload</span>
                                     </>
                                     )}
                                 </Button>
@@ -218,10 +218,10 @@ export function AddPlaceDialog({ open, onOpenChange }: AddPlaceDialogProps) {
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={resetAndClose}>
+              <Button type="button" variant="ghost" onClick={resetAndClose} className="hover:bg-white/20 hover:text-white">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Place
               </Button>
