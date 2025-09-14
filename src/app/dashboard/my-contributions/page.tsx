@@ -7,19 +7,13 @@ import { useRouter } from "next/navigation";
 import { Place } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Edit, MapPin, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import Image from "next/image";
-import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { useToast } from "@/hooks/use-toast";
 
 export default function MyContributionsPage() {
   const router = useRouter();
-  const { toast } = useToast();
   const [places, setPlaces] = useState<Place[]>([]);
-  const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-
+  
   useEffect(() => {
     const storedPlaces = localStorage.getItem("user-places");
     if (storedPlaces) {
@@ -27,27 +21,6 @@ export default function MyContributionsPage() {
     }
   }, []);
   
-  const handleEdit = (place: Place) => {
-    setPlaceToEdit(place);
-    setIsEditDialogOpen(true);
-  };
-  
-  const handleDelete = (placeId: number) => {
-    const updatedPlaces = places.filter(p => p.id !== placeId);
-    setPlaces(updatedPlaces);
-    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
-    toast({
-      title: "Place Deleted",
-      description: "The place has been removed from your contributions.",
-    });
-  };
-
-  const handleUpdatePlace = (updatedPlace: Place) => {
-    const updatedPlaces = places.map(p => p.id === updatedPlace.id ? updatedPlace : p);
-    setPlaces(updatedPlaces);
-    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
-  };
-
   const handleShowOnMap = (place: Place) => {
     router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
   };
@@ -64,12 +37,12 @@ export default function MyContributionsPage() {
             >
             <ArrowLeft className="h-6 w-6" />
         </Button>
-        <h1 className="text-xl font-semibold">My Contributions</h1>
+        <h1 className="text-xl font-semibold">All Places</h1>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6">
         {places.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center h-[50vh]">
-                <p className="text-lg text-muted-foreground">You haven't added any places yet.</p>
+                <p className="text-lg text-muted-foreground">No places have been added yet.</p>
                 <Button onClick={() => router.push('/dashboard')} className="mt-4">Add a Place</Button>
             </div>
         ) : (
@@ -97,31 +70,6 @@ export default function MyContributionsPage() {
                         <MapPin className="mr-2 h-4 w-4" />
                         Directions
                     </Button>
-                  <div className="flex w-full gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(place)} className="w-full">
-                      <Edit className="mr-2 h-3 w-3" /> Edit
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm" className="w-full">
-                              <Trash2 className="mr-2 h-3 w-3" /> Delete
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete your
-                              contribution.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(place.id)}>Continue</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                  </div>
                 </CardFooter>
               </Card>
             ))}
@@ -129,12 +77,6 @@ export default function MyContributionsPage() {
         )}
       </main>
     </div>
-    <AddPlaceDialog
-        open={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-        placeToEdit={placeToEdit}
-        onPlaceUpdate={handleUpdatePlace}
-      />
     </>
   );
 }
