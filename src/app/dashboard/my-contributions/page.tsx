@@ -68,33 +68,33 @@ export default function MyContributionsPage() {
                 <Button onClick={() => router.push('/dashboard')} className="mt-4">Add a Place</Button>
             </div>
         ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {places.map(place => (
-              <Card key={place.id} className="flex flex-col overflow-hidden">
+              <Card key={place.id} className="group flex flex-col overflow-hidden transition-all hover:shadow-lg">
                  <CardContent className="p-0">
-                    <div className="aspect-video overflow-hidden">
+                    <div className="aspect-[4/3] overflow-hidden">
                         <Image
                         src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
                         alt={place.tags.name}
                         width={600}
-                        height={400}
-                        className="h-full w-full object-cover"
+                        height={450}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
                         data-ai-hint="building location"
                         />
                     </div>
                 </CardContent>
-                <CardHeader>
-                  <CardTitle>{place.tags.name}</CardTitle>
-                  <CardDescription>{place.tags.description}</CardDescription>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-base font-semibold">{place.tags.name}</CardTitle>
+                  <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
-                <CardFooter className="mt-auto flex justify-end gap-2 p-4">
+                <CardFooter className="mt-auto flex justify-end gap-2 p-2 pt-0">
                   <Button variant="outline" size="sm" onClick={() => handleEdit(place)}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
+                    <Edit className="mr-2 h-3 w-3" /> Edit
                   </Button>
                    <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" size="sm">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            <Trash2 className="mr-2 h-3 w-3" /> Delete
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
