@@ -44,13 +44,13 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
         <Carousel
           opts={{
             align: "start",
-            loop: places.length > 4,
+            loop: places.length > 5,
           }}
           className="w-full"
         >
           <CarouselContent className="-ml-2">
             {places.map((place) => (
-              <CarouselItem key={place.id} className="sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5 pl-2">
+              <CarouselItem key={place.id} className="basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5 pl-2">
                 <div className="p-1 h-full">
                   <Card className="group h-full flex flex-col overflow-hidden transition-all hover:shadow-lg">
                     <CardContent className="p-0">
@@ -65,8 +65,8 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                            />
                          </div>
                     </CardContent>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm font-semibold truncate">{place.tags.name}</CardTitle>
+                    <CardHeader className="p-3 pb-2">
+                      <CardTitle className="text-base font-semibold truncate">{place.tags.name}</CardTitle>
                       {place.tags.description && <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>}
                     </CardHeader>
                     <CardFooter className="mt-auto flex justify-end gap-2 p-3 pt-0">
@@ -89,4 +89,3 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
     </section>
   );
 }
-

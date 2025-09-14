@@ -85,11 +85,11 @@ export default function MyContributionsPage() {
                         />
                     </div>
                 </CardContent>
-                <CardHeader className="p-4 pb-2">
+                <CardHeader className="p-3 pb-2">
                   <CardTitle className="text-base font-semibold">{place.tags.name}</CardTitle>
                   <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
-                <CardFooter className="mt-auto flex flex-col gap-2 p-4 pt-2">
+                <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
                    <Button asChild size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
                         <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
                             <MapPin className="mr-2 h-4 w-4" />
