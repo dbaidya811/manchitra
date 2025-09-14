@@ -90,7 +90,7 @@ export default function MyContributionsPage() {
                   <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto flex flex-col gap-2 p-4 pt-2">
-                   <Button asChild size="sm" variant="outline" className="w-full">
+                   <Button asChild size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
                         <Link href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lon}`} target="_blank" rel="noopener noreferrer">
                             <MapPin className="mr-2 h-4 w-4" />
                             Directions
