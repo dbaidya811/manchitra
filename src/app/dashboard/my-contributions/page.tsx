@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MapPin } from "lucide-react";
 import Image from "next/image";
+import { MobileNav } from "@/components/dashboard/mobile-nav";
 
 export default function MyContributionsPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function MyContributionsPage() {
         </Button>
         <h1 className="text-xl font-semibold">All Places</h1>
       </header>
-      <main className="flex-1 space-y-8 p-4 md:p-6">
+      <main className="flex-1 space-y-8 p-4 md:p-6 pb-24">
         {places.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center h-[50vh]">
                 <p className="text-lg text-muted-foreground">No places have been added yet.</p>
@@ -76,6 +77,7 @@ export default function MyContributionsPage() {
           </div>
         )}
       </main>
+      <MobileNav />
     </div>
     </>
   );
