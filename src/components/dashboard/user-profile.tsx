@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Loader2 } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Loader2, Heart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Place } from "@/lib/types";
@@ -52,6 +52,11 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
     router.push("/dashboard/report-issue");
   };
 
+  const handleContributions = () => {
+    // Placeholder for contributions page/modal
+    console.log("Navigating to contributions");
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -78,6 +83,10 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           <DropdownMenuItem onClick={handleAddPlace}>
             <MapPin className="mr-2 h-4 w-4" />
             <span>Add Place</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleContributions}>
+            <Heart className="mr-2 h-4 w-4" />
+            <span>My Contributions</span>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleReportIssue}>
             <ShieldAlert className="mr-2 h-4 w-4" />
