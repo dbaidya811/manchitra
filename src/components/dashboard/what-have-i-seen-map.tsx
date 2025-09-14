@@ -16,10 +16,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
+function MapUpdater({ center, zoom }: { center: [number, number], zoom: number }) {
+    const map = useMap();
+    useEffect(() => {
+        map.setView(center, zoom);
+    }, [center, zoom, map]);
+    return null;
+}
+
 
 export default function WhatHaveISeenMap() {
     const [places, setPlaces] = useState<Place[]>([]);
-    const [initialCenter, setInitialCenter] = useState<[number, number]>([20.5937, 78.9629]); // Default to India
+    const [center, setCenter] = useState<[number, number]>([20.5937, 78.9629]); // Default to India
+    const [zoom, setZoom] = useState(5);
     const { toast } = useToast();
 
     useEffect(() => {
@@ -29,7 +38,8 @@ export default function WhatHaveISeenMap() {
             setPlaces(parsedPlaces);
             if(parsedPlaces.length > 0) {
                 // Center map on the first contributed place
-                setInitialCenter([parsedPlaces[0].lat, parsedPlaces[0].lon]);
+                setCenter([parsedPlaces[0].lat, parsedPlaces[0].lon]);
+                setZoom(10);
             }
         }
     }, []);
@@ -39,7 +49,8 @@ export default function WhatHaveISeenMap() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
-                        setInitialCenter([position.coords.latitude, position.coords.longitude]);
+                        setCenter([position.coords.latitude, position.coords.longitude]);
+                        setZoom(13);
                     },
                     (error) => {
                         console.warn(`Could not get geolocation: ${error.message}`);
@@ -55,11 +66,12 @@ export default function WhatHaveISeenMap() {
     }
     
     return (
-        <MapContainer center={initialCenter} zoom={places.length > 0 ? 10 : 5} style={{ height: "100%", width: "100%" }}>
+        <MapContainer center={center} zoom={zoom} style={{ height: "100%", width: "100%" }}>
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
+            <MapUpdater center={center} zoom={zoom} />
             {places.map((place) => (
                 <Marker key={place.id} position={[place.lat, place.lon]}>
                     <Popup>
