@@ -13,8 +13,11 @@ import { Skeleton } from "../ui/skeleton";
 import Image from "next/image";
 import { Place } from "@/lib/types";
 import { Button } from "../ui/button";
-import { MapPin } from "lucide-react";
+import { MapPin, Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface PoiCarouselProps {
   title: string;
@@ -24,9 +27,43 @@ interface PoiCarouselProps {
 
 export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   const router = useRouter();
+  const { toast } = useToast();
+  const [seenIds, setSeenIds] = useState<number[]>([]);
+  const [showLoveAnim, setShowLoveAnim] = useState(false);
+  const [canPortal, setCanPortal] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("seen-places");
+      setSeenIds(raw ? JSON.parse(raw) : []);
+    } catch (_) {}
+    setCanPortal(typeof window !== 'undefined');
+  }, []);
 
   const handleShowOnMap = (place: Place) => {
     router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+  };
+  const handleMarkSeen = (place: Place) => {
+    try {
+      const raw = localStorage.getItem("seen-places");
+      const ids: number[] = raw ? JSON.parse(raw) : [];
+      if (!ids.includes(place.id)) {
+        const next = [place.id, ...ids].slice(0, 200);
+        localStorage.setItem("seen-places", JSON.stringify(next));
+        toast({ title: "Saved", description: `Added to What I've Seen` });
+        setSeenIds(next);
+        setShowLoveAnim(true);
+        setTimeout(() => {
+          setShowLoveAnim(false);
+          router.push("/dashboard/what-have-i-seen");
+        }, 1000);
+      } else {
+        toast({ title: "Already added", description: `This place is already in What I've Seen` });
+        router.push("/dashboard/what-have-i-seen");
+      }
+    } catch (_) {
+      // ignore
+    }
   };
   
   return (
@@ -50,13 +87,24 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
           opts={{
             align: "start",
             loop: places.length > 5,
+            dragFree: true,
+            containScroll: "trimSnaps",
           }}
-          className="w-full"
+          className="w-full touch-pan-x"
         >
           <CarouselContent className="-ml-2">
+            {showLoveAnim && canPortal && createPortal(
+              <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
+                <div className="relative">
+                  <div className="absolute -inset-6 rounded-full bg-red-400/40 animate-ping" />
+                  <Heart className="h-20 w-20 text-red-500 drop-shadow-2xl" />
+                </div>
+              </div>,
+              document.body
+            )}
             {places.map((place) => (
-              <CarouselItem key={place.id} className="basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5 pl-2">
-                <div className="p-1 h-full">
+              <CarouselItem key={place.id} className="basis-[55%] sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5 pl-2 snap-start">
+                <div className="p-1 h-full max-w-[300px] sm:max-w-none">
                   <Card className="group h-full flex flex-col overflow-hidden transition-all hover:shadow-lg">
                     <CardContent className="p-0">
                          <div className="aspect-[4/3] overflow-hidden">
@@ -70,11 +118,20 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                            />
                          </div>
                     </CardContent>
-                    <CardHeader className="p-3 pb-2">
-                      <CardTitle className="text-base font-semibold truncate">{place.tags.name}</CardTitle>
+                    <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
+                      <CardTitle className="text-sm sm:text-base font-semibold truncate">{place.tags.name}</CardTitle>
                       {place.tags.description && <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>}
                     </CardHeader>
-                    <CardFooter className="mt-auto flex justify-end gap-2 p-3 pt-0">
+                    <CardFooter className="mt-auto flex justify-end gap-2 p-2 sm:p-3 pt-0">
+                      <Button
+                        onClick={() => handleMarkSeen(place)}
+                        size="icon"
+                        variant="outline"
+                        className={`shrink-0 ${seenIds.includes(place.id) ? 'border-red-500 text-red-500' : ''}`}
+                        title="Love"
+                      >
+                        <Heart className={`h-4 w-4 ${seenIds.includes(place.id) ? 'text-red-500' : ''}`} />
+                      </Button>
                       <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
                           <MapPin className="mr-2 h-4 w-4" />
                           Directions

@@ -1,31 +1,37 @@
 import { NextResponse } from 'next/server';
 import { otpStore } from '@/lib/otp-store';
+import { sendMail } from '@/lib/mailer';
+import { otpEmailHtml } from '@/lib/email-templates';
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email: rawEmail, name } = await request.json();
 
-    if (!email) {
+    if (!rawEmail) {
       return NextResponse.json({ message: 'Email is required.' }, { status: 400 });
     }
+    const email = String(rawEmail).trim().toLowerCase();
 
     // In a real application, you would generate a truly random OTP.
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
 
-    // Store the OTP
+    // Store the OTP (use normalized email key)
     otpStore[email] = { otp, expires };
-    
-    console.log(`OTP for ${email}: ${otp}`); // Log for testing
 
-    // In a real application, you would use a service like Nodemailer to send the email.
-    // await sendEmail({ to: email, subject: 'Your OTP Code', text: `Your OTP is: ${otp}` });
+    // Send the OTP via email (do not expose it in the API response)
+    await sendMail({
+      to: email,
+      subject: 'Your One-Time Password (OTP) - Manchitra',
+      text: `Hello${name ? ' ' + name : ''},\n\nYour OTP is: ${otp}. It will expire in 5 minutes.\n\nIf you did not request this, please ignore this email.`,
+      html: otpEmailHtml({ name, otp }),
+    });
 
-    // We return the OTP here for demonstration purposes. In a real app, you would not do this.
-    return NextResponse.json({ message: 'OTP sent successfully.', otp: otp }, { status: 200 });
+    return NextResponse.json({ message: 'OTP sent successfully.' }, { status: 200 });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('OTP Error:', error);
-    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+    const msg = typeof error?.message === 'string' ? error.message : 'Internal Server Error';
+    return NextResponse.json({ message: `Failed to send OTP: ${msg}` }, { status: 500 });
   }
 }

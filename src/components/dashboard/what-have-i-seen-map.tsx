@@ -31,21 +31,21 @@ export default function WhatHaveISeenMap() {
 
     useEffect(() => {
         const storedPlaces = localStorage.getItem("user-places");
-        if (storedPlaces) {
-            try {
-                const parsedPlaces = JSON.parse(storedPlaces) as Place[];
-                if (Array.isArray(parsedPlaces)) {
-                    setPlaces(parsedPlaces);
-                    if(parsedPlaces.length > 0) {
-                        // Center map on the first contributed place
-                        setCenter([parsedPlaces[0].lat, parsedPlaces[0].lon]);
-                        setZoom(10);
-                    }
-                }
-            } catch (e) {
-                console.error("Failed to parse places from localStorage", e);
-                setPlaces([]);
+        const seenRaw = localStorage.getItem("seen-places");
+        try {
+            const parsedPlaces = storedPlaces ? (JSON.parse(storedPlaces) as Place[]) : [];
+            const seenIds = seenRaw ? (JSON.parse(seenRaw) as number[]) : [];
+            const loved = Array.isArray(seenIds) && seenIds.length > 0
+                ? parsedPlaces.filter(p => seenIds.includes(p.id))
+                : [];
+            setPlaces(loved);
+            if (loved.length > 0) {
+                setCenter([loved[0].lat, loved[0].lon]);
+                setZoom(10);
             }
+        } catch (e) {
+            console.error("Failed to parse places/seen from localStorage", e);
+            setPlaces([]);
         }
     }, []);
 

@@ -12,9 +12,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { LogOut, MapPin, ShieldAlert, Loader2, Heart, Eye } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Place } from "@/lib/types";
+import { useSession, signOut } from "next-auth/react";
 
 interface UserProfileProps {
   onPlaceSubmit?: (place: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => void;
@@ -22,28 +23,41 @@ interface UserProfileProps {
 
 export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [userName, setUserName] = useState("Guest");
   const [isAddPlaceOpen, setIsAddPlaceOpen] = useState(false);
+  const [guestName, setGuestName] = useState<string>("");
+  const [guestEmail, setGuestEmail] = useState<string>("");
 
+  const isLoading = status === "loading";
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      const { name } = JSON.parse(userData);
-      if (name) {
-        setUserName(name);
+    // Fallback for Guest login: read name/email from localStorage set by OTP flow
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored) as { name?: string; email?: string };
+        setGuestName(parsed.name || "");
+        setGuestEmail(parsed.email || "");
+      } else {
+        setGuestName("");
+        setGuestEmail("");
       }
+    } catch (_) {
+      // ignore parse errors
     }
-  }, []);
+  }, [status]);
+
+  const userName = isLoading ? "Loading..." : (session?.user?.name || guestName || "Guest");
+  const userEmail = isLoading ? "" : (session?.user?.email || guestEmail || "");
+  const userImage = isLoading ? "" : (session?.user?.image || "");
 
   const handleLogout = () => {
     setIsLoggingOut(true);
-    localStorage.removeItem("user");
-    // Also clear places on logout
+    // Clear any local data if you still use it
     localStorage.removeItem("user-places");
-    setTimeout(() => {
-      router.push("/");
-    }, 1000);
+    localStorage.removeItem("user");
+    // Sign out via NextAuth and return to home
+    signOut({ callbackUrl: "/" });
   };
   
   const handleAddPlace = () => {
@@ -72,7 +86,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           >
             <div className="rounded-full p-0.5 ring-2 ring-primary">
               <Avatar className="h-8 w-8">
-                <AvatarImage src="" alt={userName} />
+                <AvatarImage src={userImage} alt={userName} />
                 <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
             </div>
@@ -82,6 +96,9 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">{userName}</p>
+              {userEmail && (
+                <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+              )}
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

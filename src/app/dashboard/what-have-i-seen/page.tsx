@@ -2,13 +2,49 @@
 
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, HeartOff, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { Place } from "@/lib/types";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import Image from "next/image";
+import { useToast } from "@/hooks/use-toast";
 
 export default function WhatHaveISeenPage() {
     const router = useRouter();
+    const { toast } = useToast();
+    const [places, setPlaces] = useState<Place[]>([]);
+    const [seenIds, setSeenIds] = useState<number[]>([]);
+    const lovedPlaces = useMemo(
+        () => places.filter(p => seenIds.includes(p.id)),
+        [places, seenIds]
+    );
+
+    useEffect(() => {
+        try {
+            const storedPlaces = localStorage.getItem("user-places");
+            const seenRaw = localStorage.getItem("seen-places");
+            setPlaces(storedPlaces ? JSON.parse(storedPlaces) : []);
+            setSeenIds(seenRaw ? JSON.parse(seenRaw) : []);
+        } catch (_) {
+            setPlaces([]);
+            setSeenIds([]);
+        }
+    }, []);
+
+    const handleUnlove = (placeId: number) => {
+        try {
+            const next = seenIds.filter(id => id !== placeId);
+            setSeenIds(next);
+            localStorage.setItem("seen-places", JSON.stringify(next));
+            toast({ title: "Removed", description: "Removed from What I've Seen" });
+        } catch (_) {}
+    };
+
+    const handleDirections = (place: Place) => {
+        router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+    };
     
     return (
         <div className="relative h-screen flex flex-col">
@@ -29,11 +65,51 @@ export default function WhatHaveISeenPage() {
                 <UserProfile />
                 </div>
             </header>
-            <main className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold text-muted-foreground">Map Coming Soon</h2>
-                    <p className="text-muted-foreground">This is where your visited locations will be visualized.</p>
-                </div>
+            <main className="flex-1 p-4 md:p-6 space-y-6">
+                {lovedPlaces.length === 0 ? (
+                    <div className="h-full flex items-center justify-center">
+                        <div className="text-center">
+                            <h2 className="text-2xl font-bold text-muted-foreground">No loved places yet</h2>
+                            <p className="text-muted-foreground">Tap the heart on any card to add it here.</p>
+                        </div>
+                    </div>
+                ) : (
+                    <section>
+                        <h2 className="text-2xl font-bold tracking-tight mb-4">Loved Places</h2>
+                        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                            {lovedPlaces.map(place => (
+                                <Card key={place.id} className="group flex flex-col overflow-hidden">
+                                    <CardContent className="p-0">
+                                        <div className="aspect-[4/3] overflow-hidden">
+                                            <Image
+                                              src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
+                                              alt={place.tags.name}
+                                              width={600}
+                                              height={450}
+                                              className="h-full w-full object-cover"
+                                            />
+                                        </div>
+                                    </CardContent>
+                                    <CardHeader className="p-2">
+                                        <CardTitle className="text-sm font-semibold truncate">{place.tags.name}</CardTitle>
+                                        {place.tags.description && (
+                                            <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
+                                        )}
+                                    </CardHeader>
+                                    <CardFooter className="mt-auto flex gap-2 p-2 pt-0">
+                                        <Button onClick={() => handleUnlove(place.id)} size="sm" variant="outline" className="shrink-0">
+                                            <HeartOff className="h-4 w-4" />
+                                        </Button>
+                                        <Button onClick={() => handleDirections(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
+                                            <MapPin className="mr-2 h-4 w-4" />
+                                            Directions
+                                        </Button>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    </section>
+                )}
             </main>
             <MobileNav />
         </div>

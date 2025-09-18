@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
 import { useRouter } from "next/navigation";
 import { LoginDialog } from "@/components/login-dialog";
+import { signIn } from "next-auth/react";
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -66,6 +67,16 @@ export default function Home() {
     router.push("/dashboard");
   };
 
+  const handleFacebookLogin = async () => {
+    // Triggers NextAuth Facebook OAuth flow and redirects to /dashboard on success
+    await signIn("facebook", { callbackUrl: "/dashboard" });
+  };
+
+  const handleGoogleLogin = async () => {
+    // Triggers NextAuth Google OAuth flow and redirects to /dashboard on success
+    await signIn("google", { callbackUrl: "/dashboard", prompt: "select_account" });
+  };
+
   const collageImages = [
     "https://i.pinimg.com/736x/b4/90/d0/b490d035caa62b7115306e27c3ddea74.jpg",
     "https://i.pinimg.com/1200x/36/42/35/3642357207110498b34eab1298d99e71.jpg",
@@ -82,12 +93,18 @@ export default function Home() {
         <h1 className="animate-fade-in-up bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-8xl font-bold text-transparent drop-shadow-lg md:text-9xl">
           Manchitra
         </h1>
+        <p
+          className="mt-3 animate-fade-in-up bg-gradient-to-r from-yellow-100/90 to-orange-200/90 bg-clip-text text-transparent text-lg font-semibold md:text-2xl"
+          style={{ animationDelay: '0.25s', animationFillMode: 'backwards' }}
+        >
+          your hoping patner
+        </p>
         <div className="mt-8 flex animate-fade-in-up flex-col gap-4 sm:flex-row" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-           <Button size="lg" variant="secondary" onClick={handleGuestLogin}>
+           <Button size="lg" variant="secondary" onClick={handleGoogleLogin}>
             <GoogleIcon className="mr-2 h-5 w-5" />
             Login with Google
           </Button>
-          <Button size="lg" variant="secondary" onClick={handleGuestLogin} className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90">
+          <Button size="lg" variant="secondary" onClick={handleFacebookLogin} className="bg-[#1877F2] text-white hover:bg-[#1877F2]/90">
             <FacebookIcon className="mr-2 h-5 w-5" />
             Login with Facebook
           </Button>

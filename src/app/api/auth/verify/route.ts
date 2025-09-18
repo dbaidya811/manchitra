@@ -4,10 +4,19 @@ import { otpStore } from '@/lib/otp-store';
 
 export async function POST(request: Request) {
   try {
-    const { email, otp } = await request.json();
+    const body = await request.json();
+    const rawEmail = String(body?.email || '').trim();
+    const rawOtp = String(body?.otp || '').trim();
 
-    if (!email || !otp) {
+    if (!rawEmail || !rawOtp) {
       return NextResponse.json({ message: 'Email and OTP are required.' }, { status: 400 });
+    }
+
+    const email = rawEmail.toLowerCase();
+    const otp = rawOtp.replace(/\s+/g, '');
+
+    if (!/^\d{6}$/.test(otp)) {
+      return NextResponse.json({ message: 'Invalid OTP format. Please enter the 6-digit code.' }, { status: 400 });
     }
 
     const storedOtpData = otpStore[email];

@@ -47,7 +47,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       const response = await fetch('/api/auth/otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, name }),
       });
 
       const data = await response.json();
@@ -58,8 +58,8 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
 
       setStep(2);
       toast({
-        title: "OTP Sent (Mock)",
-        description: `For testing, your OTP is ${data.otp}. In a real app, this would be sent to your email.`,
+        title: "OTP Sent",
+        description: "We have emailed a 6-digit OTP to your inbox. Please check your email and enter the code here.",
       });
     } catch (error: any) {
       toast({

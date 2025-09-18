@@ -24,14 +24,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LocateFixed, Upload } from "lucide-react";
+import { Loader2, LocateFixed, Upload, MapPin as MapPinIcon, Search } from "lucide-react";
 import Image from "next/image";
 import { Place } from "@/lib/types";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Name is required." }),
   description: z.string().min(1, { message: "Description is required." }),
-  area: z.string().optional(),
+  area: z.string().min(1, { message: "Area is required." }),
   location: z.string().min(1, { message: "Location is required." }),
   photos: z.array(z.any()).optional(),
 });
@@ -52,6 +52,16 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
   const [previews, setPreviews] = useState<(string | null)[]>(Array(5).fill(null));
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const isEditing = !!placeToEdit;
+  // Leaflet map refs
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const leafletRef = useRef<any>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  // Note: We only show suggestions under the Location search, not Name
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -85,6 +95,124 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
     }
   }, [placeToEdit, isEditing, form, open]);
 
+  // We no longer drive search from Name field per request
+
+  // Initialize Leaflet map when dialog opens
+  useEffect(() => {
+    async function initMap() {
+      if (!open) return;
+      try {
+        if (!leafletRef.current) {
+          // Dynamic import to avoid SSR issues
+          const L = await import("leaflet");
+          // Fix default icon paths when bundling
+          // @ts-ignore
+          L.Icon.Default.mergeOptions({
+            iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+            iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+            shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+          });
+          leafletRef.current = L;
+        }
+        const L = leafletRef.current;
+        if (!mapRef.current && mapContainerRef.current) {
+          // Determine initial center
+          const loc = form.getValues("location");
+          const [latStr = "22.5726", lonStr = "88.3639"] = (loc || "").split(",").map((s) => s.trim());
+          const lat = parseFloat(latStr) || 22.5726; // Kolkata default
+          const lon = parseFloat(lonStr) || 88.3639;
+
+          mapRef.current = L.map(mapContainerRef.current).setView([lat, lon], 13);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; OpenStreetMap contributors',
+          }).addTo(mapRef.current);
+          // Make sure the map renders correctly inside a dialog
+          setTimeout(() => {
+            try { mapRef.current?.invalidateSize(); } catch (_) {}
+          }, 50);
+
+          const customIcon = L.divIcon({
+            className: 'leaflet-custom-marker',
+            html: '',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+          });
+          markerRef.current = L.marker([lat, lon], { draggable: true, icon: customIcon }).addTo(mapRef.current);
+          markerRef.current.on("dragend", async () => {
+            const pos = markerRef.current.getLatLng();
+            const newLoc = `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;
+            form.setValue("location", newLoc, { shouldValidate: true });
+            // Reverse geocode to suggest name/area
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.lat}&lon=${pos.lng}`);
+              const data = await res.json();
+              // Intentionally do not auto-fill name/area per request
+            } catch (e) {
+              // ignore errors
+            }
+          });
+          // Allow setting by clicking on the map
+          mapRef.current.on('click', async (e: any) => {
+            const { lat: clat, lng: clon } = e.latlng;
+            if (markerRef.current) markerRef.current.setLatLng([clat, clon]);
+            form.setValue("location", `${clat.toFixed(6)}, ${clon.toFixed(6)}`, { shouldValidate: true });
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${clat}&lon=${clon}`);
+              const data = await res.json();
+              // Do not auto-fill name/area per request
+            } catch (_) {}
+          });
+        }
+      } catch (_) {
+        // Leaflet may not be available; ignore silently
+      }
+    }
+    initMap();
+    return () => {
+      // Do not destroy on every rerender; cleanup when dialog closes handled below
+    };
+  }, [open, form]);
+
+  // Keep marker in sync if user types location manually
+  useEffect(() => {
+    const loc = form.watch("location");
+    if (!loc || !markerRef.current || !leafletRef.current) return;
+    const [latStr, lonStr] = loc.split(",").map((s) => s.trim());
+    const lat = parseFloat(latStr);
+    const lon = parseFloat(lonStr);
+    if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+      markerRef.current.setLatLng([lat, lon]);
+      if (mapRef.current) mapRef.current.setView([lat, lon]);
+    }
+  }, [form]);
+
+  // Search suggestions using Nominatim
+  useEffect(() => {
+    const controller = new AbortController();
+    const q = searchQuery.trim();
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    setIsSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=5`, { signal: controller.signal });
+        const data = await res.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+      } catch (_) {
+        setSuggestions([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
+  }, [searchQuery]);
+
+  // No auto-pick from Name
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
@@ -109,12 +237,16 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
       reader.readAsDataURL(file);
     }
   };
-  
+
   const handleGetCurrentLocation = () => {
       if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition((position) => {
               const { latitude, longitude } = position.coords;
               form.setValue("location", `${latitude}, ${longitude}`);
+              if (markerRef.current) {
+                markerRef.current.setLatLng([latitude, longitude]);
+                if (mapRef.current) mapRef.current.setView([latitude, longitude]);
+              }
           }, (error) => {
               toast({
                   variant: "destructive",
@@ -164,12 +296,22 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
   const resetAndClose = () => {
       form.reset();
       setPreviews(Array(5).fill(null));
+      setSearchQuery("");
+      setSuggestions([]);
+      // Destroy map instance to avoid leaks
+      if (mapRef.current) {
+        try {
+          mapRef.current.remove();
+        } catch (_) {}
+      }
+      mapRef.current = null;
+      markerRef.current = null;
       onOpenChange(false);
   }
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
+      <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Place" : "Add a New Place"}</DialogTitle>
           <DialogDescription>
@@ -226,76 +368,186 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location (Lat, Lng) <span className="text-destructive">*</span></FormLabel>
-                  <div className="flex gap-2">
-                    <FormControl>
-                      <Input placeholder="e.g., 40.782, -73.965" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
-                    </FormControl>
-                    <Button type="button" variant="outline" size="icon" onClick={handleGetCurrentLocation} className="bg-white/20 border-none hover:bg-white/30">
-                        <LocateFixed className="h-4 w-4" />
-                    </Button>
+                  <FormLabel>Location <span className="text-destructive">*</span></FormLabel>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={handleGetCurrentLocation} className="bg-white/20 border-none hover:bg-white/30">
+                        <LocateFixed className="h-4 w-4 mr-2" /> Use my location
+                      </Button>
+                      <span className="text-xs text-white/80">Selected: {field.value || '—'}</span>
+                    </div>
+                    {/* Location search with suggestions below */}
+                    <div className="relative z-30">
+                      <div className="flex items-center gap-2">
+                        <Search className="h-4 w-4 text-white/70" />
+                        <Input
+                          placeholder="Search place name (powered by OSM)"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              try {
+                                let target = suggestions[0];
+                                if (!target) {
+                                  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(searchQuery)}&addressdetails=1&limit=1`);
+                                  const data = await res.json();
+                                  target = Array.isArray(data) && data.length > 0 ? data[0] : null;
+                                }
+                                if (target) {
+                                  const lat = parseFloat(target.lat);
+                                  const lon = parseFloat(target.lon);
+                                  form.setValue("location", `${lat.toFixed(6)}, ${lon.toFixed(6)}`, { shouldValidate: true });
+                                  if (markerRef.current) markerRef.current.setLatLng([lat, lon]);
+                                  if (mapRef.current) mapRef.current.setView([lat, lon], 14);
+                                  setSuggestions([]);
+                                }
+                              } catch (_) {}
+                            }
+                          }}
+                          className="bg-white/10 border-white/20 placeholder:text-white/70"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="bg-white/10 hover:bg-white/20"
+                          onClick={async () => {
+                            try {
+                              let target = suggestions[0];
+                              if (!target) {
+                                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(searchQuery)}&addressdetails=1&limit=1`);
+                                const data = await res.json();
+                                target = Array.isArray(data) && data.length > 0 ? data[0] : null;
+                              }
+                              if (target) {
+                                const lat = parseFloat(target.lat);
+                                const lon = parseFloat(target.lon);
+                                form.setValue("location", `${lat.toFixed(6)}, ${lon.toFixed(6)}`, { shouldValidate: true });
+                                if (markerRef.current) markerRef.current.setLatLng([lat, lon]);
+                                if (mapRef.current) mapRef.current.setView([lat, lon], 14);
+                                setSuggestions([]);
+                              }
+                            } catch (_) {}
+                          }}
+                        >
+                          Go
+                        </Button>
+                      </div>
+                      {suggestions.length > 0 && (
+                        <div className="absolute mt-2 w-full rounded-md bg-background/95 border border-white/20 shadow-xl max-h-60 overflow-auto">
+                          {suggestions.map((s) => (
+                            <button
+                              key={s.place_id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 hover:bg-white/10"
+                              onClick={() => {
+                                setSearchQuery(s.display_name);
+                                const lat = parseFloat(s.lat);
+                                const lon = parseFloat(s.lon);
+                                form.setValue("location", `${lat.toFixed(6)}, ${lon.toFixed(6)}`, { shouldValidate: true });
+                                if (markerRef.current) markerRef.current.setLatLng([lat, lon]);
+                                if (mapRef.current) mapRef.current.setView([lat, lon], 14);
+                                setSuggestions([]);
+                              }}
+                            >
+                              <div className="text-sm font-medium truncate flex items-center gap-2"><MapPinIcon className="h-4 w-4" /> {s.display_name}</div>
+                            </button>
+                          ))}
+                          {isSearching && (
+                            <div className="px-3 py-2 text-xs text-white/70">Searching...</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {/* Mini Map */}
+                    <div ref={mapContainerRef} className="h-48 w-full rounded-md overflow-hidden ring-1 ring-white/20" />
                   </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
-             <FormField
+            <FormField
               control={form.control}
               name="photos"
               render={() => (
                 <FormItem>
-                    <FormLabel>Photos</FormLabel>
-                    <FormControl>
-                        <div className="grid grid-cols-5 gap-2">
-                            {previews.map((preview, index) => (
-                                <div key={index} className="relative group">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    ref={el => fileInputRefs.current[index] = el}
-                                    onChange={(e) => handleFileChange(e, index)}
-                                    className="hidden"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full aspect-square flex items-center justify-center flex-col gap-1 bg-white/10 border border-dashed border-white/40 hover:bg-white/20 hover:border-white/60 p-0 overflow-hidden"
-                                    onClick={() => fileInputRefs.current[index]?.click()}
-                                >
-                                    {preview ? (
-                                    <Image
-                                        src={preview}
-                                        alt={`Preview ${index + 1}`}
-                                        fill
-                                        className="object-cover transition-transform group-hover:scale-105"
-                                    />
-                                    ) : (
-                                    <>
-                                        <Upload className="h-5 w-5 text-white/70" />
-                                        <span className="text-xs text-white/70">Upload</span>
-                                    </>
-                                    )}
-                                </Button>
-                                </div>
-                            ))}
+                  <FormLabel>Photo (optional)</FormLabel>
+                  <FormControl>
+                    <div className="space-y-2">
+                      <div className="relative w-full aspect-video rounded-md overflow-hidden bg-white/10 border border-dashed border-white/40">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          ref={(el) => { fileInputRefs.current[0] = el; }}
+                          onChange={(e) => handleFileChange(e, 0)}
+                          className="hidden"
+                        />
+                        {previews[0] ? (
+                          <Image
+                            src={previews[0] as string}
+                            alt="Preview"
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="absolute inset-0 flex items-center justify-center flex-col gap-2 hover:bg-white/10"
+                            onClick={() => fileInputRefs.current[0]?.click()}
+                          >
+                            <Upload className="h-5 w-5 text-white/70" />
+                            <span className="text-xs text-white/70">Upload photo</span>
+                          </button>
+                        )}
+                      </div>
+                      {previews[0] && (
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const copy = [...previews];
+                              copy[0] = null;
+                              setPreviews(copy);
+                              form.setValue("photos", []);
+                            }}
+                            className="text-white/80 hover:text-white hover:bg-white/10"
+                          >
+                            Remove photo
+                          </Button>
                         </div>
-                    </FormControl>
+                      )}
+                    </div>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={resetAndClose} className="hover:bg-white/20 hover:text-white">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEditing ? 'Update Place' : 'Submit Place'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={resetAndClose} className="hover:bg-white/20 hover:text-white">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600 text-white font-bold">
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? 'Update Place' : 'Submit Place'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </Form>
+      {/* Custom marker style */}
+      <style jsx global>{`
+        .leaflet-custom-marker {
+          width: 14px;
+          height: 14px;
+          background: #f59e0b; /* amber-500 */
+          border: 2px solid #ffffff;
+          border-radius: 50%;
+          box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+        }
+      `}</style>
+    </DialogContent>
+  </Dialog>
   );
 }

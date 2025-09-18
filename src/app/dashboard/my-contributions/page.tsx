@@ -7,13 +7,16 @@ import { useRouter } from "next/navigation";
 import { Place } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, MapPin, Pencil, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 
 export default function MyContributionsPage() {
   const router = useRouter();
   const [places, setPlaces] = useState<Place[]>([]);
+  const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   useEffect(() => {
     const storedPlaces = localStorage.getItem("user-places");
@@ -24,6 +27,27 @@ export default function MyContributionsPage() {
   
   const handleShowOnMap = (place: Place) => {
     router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+  };
+
+  const handleEdit = (place: Place) => {
+    setPlaceToEdit(place);
+    setIsEditDialogOpen(true);
+  };
+
+  const handlePlaceUpdate = (updatedPlace: Place) => {
+    const updated = places.map((p) => (p.id === updatedPlace.id ? updatedPlace : p));
+    setPlaces(updated);
+    localStorage.setItem("user-places", JSON.stringify(updated));
+    setPlaceToEdit(null);
+    setIsEditDialogOpen(false);
+  };
+
+  const handleDelete = (place: Place) => {
+    const ok = typeof window !== "undefined" ? window.confirm(`Delete "${place.tags.name}"? This cannot be undone.`) : true;
+    if (!ok) return;
+    const remaining = places.filter((p) => p.id !== place.id);
+    setPlaces(remaining);
+    localStorage.setItem("user-places", JSON.stringify(remaining));
   };
 
 
@@ -67,10 +91,18 @@ export default function MyContributionsPage() {
                   <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
+                   <div className="flex gap-2">
+                      <Button onClick={() => handleEdit(place)} size="sm" variant="outline" className="w-1/2">
+                        <Pencil className="mr-2 h-4 w-4" /> Edit
+                      </Button>
+                      <Button onClick={() => handleDelete(place)} size="sm" variant="destructive" className="w-1/2">
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </Button>
+                   </div>
                    <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
                         <MapPin className="mr-2 h-4 w-4" />
                         Directions
-                    </Button>
+                   </Button>
                 </CardFooter>
               </Card>
             ))}
@@ -79,6 +111,12 @@ export default function MyContributionsPage() {
       </main>
       <MobileNav />
     </div>
+    <AddPlaceDialog
+      open={isEditDialogOpen}
+      onOpenChange={setIsEditDialogOpen}
+      placeToEdit={placeToEdit}
+      onPlaceUpdate={handlePlaceUpdate}
+    />
     </>
   );
 }
