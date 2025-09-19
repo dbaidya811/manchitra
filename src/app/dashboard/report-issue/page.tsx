@@ -17,9 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -36,6 +36,7 @@ const formSchema = z.object({
 export default function ReportIssuePage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [showSuccess, setShowSuccess] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -57,13 +58,33 @@ export default function ReportIssuePage() {
     }
   }, [form]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    toast({
-      title: "Report Submitted",
-      description: "Thank you for your feedback! We will get back to you shortly.",
-    });
-    form.reset();
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.ok === false) {
+        throw new Error(data?.error || `Failed to submit report (${res.status})`);
+      }
+
+      toast({
+        title: "Report Submitted",
+        description: "Thank you! We have received your report and sent a confirmation email.",
+      });
+      form.reset();
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 1500);
+    } catch (error: any) {
+      toast({
+        title: "Submission failed",
+        description: error?.message || "Could not send your report. Please try again later.",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
@@ -135,15 +156,29 @@ export default function ReportIssuePage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" size="lg">
+                  <Button type="submit" className="w-full" size="lg" disabled={form.formState.isSubmitting}>
                     <Send className="mr-2 h-4 w-4" />
-                    Submit Report
+                    {form.formState.isSubmitting ? "Submitting..." : "Submit Report"}
                   </Button>
                 </form>
               </Form>
             </CardContent>
           </Card>
       </div>
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-10 shadow-xl dark:bg-neutral-900">
+            <div className="relative">
+              <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-emerald-400/40" style={{ width: 96, height: 96 }} />
+              <CheckCircle2 className="h-24 w-24 text-emerald-500" />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-semibold">Report Submitted</p>
+              <p className="text-sm text-muted-foreground">Thanks for helping us improve Manchitra!</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

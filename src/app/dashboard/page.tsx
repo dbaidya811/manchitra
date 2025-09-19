@@ -27,10 +27,21 @@ export default function DashboardPage() {
   const [showWelcomeAnim, setShowWelcomeAnim] = useState(false);
 
   useEffect(() => {
-    const storedPlaces = localStorage.getItem("user-places");
-    if (storedPlaces) {
-      setPlaces(JSON.parse(storedPlaces));
-    }
+    // Load global feed from API for everyone; fallback to localStorage
+    const load = async () => {
+      try {
+        const res = await fetch("/api/places", { cache: "no-store" });
+        const data = await res.json();
+        if (res.ok && data?.ok && Array.isArray(data.places)) {
+          setPlaces(data.places as Place[]);
+          return;
+        }
+      } catch (_) {}
+      // fallback on error
+      const storedPlaces = localStorage.getItem("user-places");
+      if (storedPlaces) setPlaces(JSON.parse(storedPlaces));
+    };
+    load();
     try {
       const rawSeen = localStorage.getItem("seen-places");
       setSeenIds(rawSeen ? JSON.parse(rawSeen) : []);
@@ -67,7 +78,7 @@ export default function DashboardPage() {
     prevStatusRef.current = status;
   }, [status]);
   
-  const handleAddPlace = (newPlace: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => {
+  const handleAddPlace = async (newPlace: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => {
     // Validate location
     if (!newPlace.location) {
       toast({
@@ -105,16 +116,37 @@ export default function DashboardPage() {
 
     const updatedPlaces = [...places, placeToAdd];
     setPlaces(updatedPlaces);
-    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+    try {
+      await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(placeToAdd),
+      });
+    } catch (_) {
+      // fallback to localStorage on error
+      localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+    }
     // Show card created animation
     setShowCreateAnim(true);
     setTimeout(() => setShowCreateAnim(false), 1000);
   }
 
-  const handleUpdatePlace = (updatedPlace: Place) => {
+  const handleUpdatePlace = async (updatedPlace: Place) => {
     const updatedPlaces = places.map(p => p.id === updatedPlace.id ? updatedPlace : p);
     setPlaces(updatedPlaces);
-    localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+    try {
+      if (status === "authenticated") {
+        await fetch("/api/places", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedPlace),
+        });
+      } else {
+        localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+      }
+    } catch (_) {
+      localStorage.setItem("user-places", JSON.stringify(updatedPlaces));
+    }
     setPlaceToEdit(null);
     setIsEditDialogOpen(false);
   };

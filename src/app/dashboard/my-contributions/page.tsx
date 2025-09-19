@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,19 +9,33 @@ import { ArrowLeft, MapPin, Pencil, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
+import { useSession } from "next-auth/react";
 
 export default function MyContributionsPage() {
   const router = useRouter();
+  const { status, data: session } = useSession();
   const [places, setPlaces] = useState<Place[]>([]);
   const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   useEffect(() => {
-    const storedPlaces = localStorage.getItem("user-places");
-    if (storedPlaces) {
-      setPlaces(JSON.parse(storedPlaces));
-    }
-  }, []);
+    const load = async () => {
+      try {
+        if (status === "authenticated") {
+          const res = await fetch("/api/places?mine=1", { cache: "no-store" });
+          const data = await res.json();
+          if (res.ok && data?.ok && Array.isArray(data.places)) {
+            setPlaces(data.places as Place[]);
+            return;
+          }
+        }
+      } catch (_) {}
+      // Fallback for guests or API error
+      const storedPlaces = localStorage.getItem("user-places");
+      if (storedPlaces) setPlaces(JSON.parse(storedPlaces));
+    };
+    load();
+  }, [status]);
   
   const handleShowOnMap = (place: Place) => {
     router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
@@ -34,20 +46,45 @@ export default function MyContributionsPage() {
     setIsEditDialogOpen(true);
   };
 
-  const handlePlaceUpdate = (updatedPlace: Place) => {
+  const handlePlaceUpdate = async (updatedPlace: Place) => {
     const updated = places.map((p) => (p.id === updatedPlace.id ? updatedPlace : p));
     setPlaces(updated);
-    localStorage.setItem("user-places", JSON.stringify(updated));
+    try {
+      const res = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedPlace),
+      });
+      if (!res.ok) {
+        throw new Error("Update failed");
+      }
+    } catch (_) {
+      // fallback if unauthenticated
+      localStorage.setItem("user-places", JSON.stringify(updated));
+    }
     setPlaceToEdit(null);
     setIsEditDialogOpen(false);
   };
 
-  const handleDelete = (place: Place) => {
+  const handleDelete = async (place: Place) => {
     const ok = typeof window !== "undefined" ? window.confirm(`Delete "${place.tags.name}"? This cannot be undone.`) : true;
     if (!ok) return;
-    const remaining = places.filter((p) => p.id !== place.id);
-    setPlaces(remaining);
-    localStorage.setItem("user-places", JSON.stringify(remaining));
+    try {
+      const res = await fetch("/api/places", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: place.id }),
+      });
+      if (!res.ok) {
+        throw new Error("Delete failed");
+      }
+      const remaining = places.filter((p) => p.id !== place.id);
+      setPlaces(remaining);
+    } catch (_) {
+      const remaining = places.filter((p) => p.id !== place.id);
+      setPlaces(remaining);
+      localStorage.setItem("user-places", JSON.stringify(remaining));
+    }
   };
 
 

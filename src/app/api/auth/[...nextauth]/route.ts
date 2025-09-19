@@ -1,8 +1,9 @@
-import NextAuth from "next-auth";
+import NextAuth, { type AuthOptions } from "next-auth";
 import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
+import { getDb } from "@/lib/mongodb";
 
-const handler = NextAuth({
+export const authOptions: AuthOptions = {
   providers: [
     Facebook({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
@@ -41,6 +42,26 @@ const handler = NextAuth({
       return session;
     },
   },
-});
+  events: {
+    async signIn({ user }: any) {
+      try {
+        const db = await getDb();
+        const users = db.collection("users");
+        if (user?.email) {
+          await users.updateOne(
+            { email: user.email },
+            { $set: { name: user.name || "", email: user.email, image: (user as any).image || "", updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+            { upsert: true }
+          );
+        }
+      } catch (e) {
+        // Log and continue; do not block sign-in
+        console.error("users upsert failed", e);
+      }
+    },
+  },
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

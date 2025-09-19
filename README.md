@@ -104,7 +104,68 @@ npm run build     # production build
 npm run start     # run production server
 ```
 
+## Email Reports & Notifications
+
+When a user submits the form at `src/app/dashboard/report-issue/page.tsx`, the app sends:
+- An email to the admin inbox (`EMAIL_ADMIN`).
+- A confirmation email to the reporting user.
+
+This is powered by a server route at `src/app/api/report/route.ts` using Nodemailer.
+To enable email delivery, configure SMTP in your environment:
+
+Create a `.env.local` file in the project root with:
+
+```env
+# SMTP transport settings
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_SECURE=false           # true if you use port 465
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+
+# From address and admin recipient
+EMAIL_FROM=Manchitra <no-reply@yourdomain.com>
+EMAIL_ADMIN=you@yourdomain.com
+```
+
+Restart the dev server after adding environment variables.
+
+### Testing
+- Open `http://localhost:9002/dashboard/report-issue`.
+- Submit the form; you should receive an admin email and the user should receive a confirmation.
+- Check server logs for `/api/report` if delivery fails.
+
 ## Notes
 
 - The app uses client-side storage to prototype contributions and favorites. If you clear browser storage, lists will reset.
 - You can fine-tune the animation duration by changing the `setTimeout(..., 1000)` calls in relevant components.
+
+## MongoDB Setup
+
+To store submitted reports, the app connects to MongoDB using `src/lib/mongodb.ts` and persists to the `reports` collection from the API route `src/app/api/report/route.ts`.
+
+1. Add the following to `.env.local`:
+
+```env
+# MongoDB
+MONGODB_URI=mongodb+srv://<USERNAME>:<PASSWORD>@cluster0.ldgilhn.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB=manchitra
+```
+
+Important: If your password contains special characters like `@`, `:` or `/`, URL‑encode them. For example, replace `@` with `%40`.
+
+Example with the provided credentials (password contains `@`):
+
+```
+MONGODB_URI=mongodb+srv://dbaidya811:dbaidya811%402006@cluster0.ldgilhn.mongodb.net/?retryWrites=true&w=majority
+```
+
+2. Install the MongoDB Node.js driver:
+
+```bash
+npm install mongodb
+```
+
+3. Restart the dev server.
+
+Now, every report submission will be saved in the `reports` collection of the `manchitra` database.
