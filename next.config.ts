@@ -43,6 +43,13 @@ const nextConfig: NextConfig = {
       }
     ],
   },
+  async rewrites() {
+    return [
+      // Normalize trailing slash for OAuth callbacks
+      { source: '/api/auth/callback/facebook/', destination: '/api/auth/callback/facebook' },
+      { source: '/api/auth/callback/google/', destination: '/api/auth/callback/google' },
+    ];
+  },
 };
 
 export default nextConfig;
