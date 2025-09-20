@@ -38,7 +38,27 @@ export default function MyContributionsPage() {
   }, [status]);
   
   const handleShowOnMap = (place: Place) => {
-    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+    // Prefer explicit location string if available
+    if (place.location && place.location.includes(',')) {
+      const [latStr, lonStr] = place.location.split(',').map(s => s.trim());
+      const latNum = parseFloat(latStr);
+      const lonNum = parseFloat(lonStr);
+      if (!Number.isNaN(latNum) && !Number.isNaN(lonNum)) {
+        router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
+        return;
+      }
+    }
+    // Next, use numeric lat/lon fields
+    if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+      router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+      return;
+    }
+    // Finally, fall back to address
+    const addressParts = [place.tags?.name, place.area].filter(Boolean);
+    if (addressParts.length > 0) {
+      const address = addressParts.join(', ');
+      router.push(`/dashboard/map?address=${address}`);
+    }
   };
 
   const handleEdit = (place: Place) => {
@@ -101,7 +121,8 @@ export default function MyContributionsPage() {
         </Button>
         <h1 className="text-xl font-semibold">All Places</h1>
       </header>
-      <main className="flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+1px)]">
+      <main className="flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+20px)]">
+        
         {places.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center h-[50vh]">
                 <p className="text-lg text-muted-foreground">No places have been added yet.</p>

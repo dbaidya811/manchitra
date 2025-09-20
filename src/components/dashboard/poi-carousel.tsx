@@ -41,7 +41,34 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   }, []);
 
   const handleShowOnMap = (place: Place) => {
-    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+    // Prefer explicit location string if available (handle both "lat,lon" and "lon,lat")
+    if (place.location && place.location.includes(',')) {
+      const parts = place.location.split(',').map(s => s.trim());
+      const a = parseFloat(parts[0] || '');
+      const b = parseFloat(parts[1] || '');
+      if (!Number.isNaN(a) && !Number.isNaN(b)) {
+        let latNum = a;
+        let lonNum = b;
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+          latNum = a; lonNum = b;
+        } else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
+          latNum = b; lonNum = a;
+        }
+        router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
+        return;
+      }
+    }
+    // Next, use numeric lat/lon fields
+    if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+      router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+      return;
+    }
+    // Finally, fall back to address
+    const addressParts = [place.tags?.name, place.area].filter(Boolean);
+    if (addressParts.length > 0) {
+      const address = addressParts.join(", ");
+      router.push(`/dashboard/map?address=${encodeURIComponent(address)}`);
+    }
   };
   const handleMarkSeen = (place: Place) => {
     try {

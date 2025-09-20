@@ -22,15 +22,34 @@ export default function WhatHaveISeenPage() {
     );
 
     useEffect(() => {
-        try {
-            const storedPlaces = localStorage.getItem("user-places");
-            const seenRaw = localStorage.getItem("seen-places");
-            setPlaces(storedPlaces ? JSON.parse(storedPlaces) : []);
-            setSeenIds(seenRaw ? JSON.parse(seenRaw) : []);
-        } catch (_) {
-            setPlaces([]);
-            setSeenIds([]);
-        }
+        const load = async () => {
+            const fallback = () => {
+                try {
+                    const storedPlaces = localStorage.getItem("user-places");
+                    setPlaces(storedPlaces ? JSON.parse(storedPlaces) : []);
+                } catch (_) {
+                    setPlaces([]);
+                }
+            };
+            try {
+                const res = await fetch("/api/places", { cache: "no-store" });
+                const data = await res.json();
+                if (res.ok && data?.ok && Array.isArray(data.places)) {
+                    setPlaces(data.places as Place[]);
+                } else {
+                    fallback();
+                }
+            } catch (_) {
+                fallback();
+            }
+            try {
+                const seenRaw = localStorage.getItem("seen-places");
+                setSeenIds(seenRaw ? JSON.parse(seenRaw) : []);
+            } catch (_) {
+                setSeenIds([]);
+            }
+        };
+        load();
     }, []);
 
     const handleUnlove = (placeId: number) => {
@@ -43,7 +62,36 @@ export default function WhatHaveISeenPage() {
     };
 
     const handleDirections = (place: Place) => {
-        router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+        // Prefer explicit location string if available (handle both "lat,lon" and "lon,lat")
+        if (place.location && place.location.includes(',')) {
+            const parts = place.location.split(',').map(s => s.trim());
+            const a = parseFloat(parts[0] || '');
+            const b = parseFloat(parts[1] || '');
+            if (!Number.isNaN(a) && !Number.isNaN(b)) {
+                // lat ∈ [-90, 90], lon ∈ [-180, 180]
+                let latNum = a;
+                let lonNum = b;
+                if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+                    latNum = a; lonNum = b;
+                } else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
+                    latNum = b; lonNum = a;
+                }
+                router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
+                return;
+            }
+        }
+        // Next, use numeric lat/lon fields if present
+        if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+            router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+            return;
+        }
+        // Finally, fall back to address (do not pre-encode; map page will encode)
+        const addressParts = [place.tags?.name, place.area].filter(Boolean);
+        if (addressParts.length > 0) {
+            const address = addressParts.join(", ");
+            router.push(`/dashboard/map?address=${address}`);
+            return;
+        }
     };
     
     return (
@@ -65,7 +113,7 @@ export default function WhatHaveISeenPage() {
                 <UserProfile />
                 </div>
             </header>
-            <main className="flex-1 p-4 md:p-6 space-y-6">
+            <main className="flex-1 p-4 md:p-6 space-y-6 pb-[calc(4.5rem+20px)]">
                 {lovedPlaces.length === 0 ? (
                     <div className="h-full flex items-center justify-center">
                         <div className="text-center">

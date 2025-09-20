@@ -75,3 +75,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    const body = await req.json().catch(() => ({}));
+    const { id } = body || {};
+    if (typeof id !== "number") {
+      return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
+    }
+
+    const db = await getDb();
+    const existing = await db.collection("places").findOne({ id });
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    const owner: string | null = existing.userEmail ?? null;
+    const current: string | null = session?.user?.email ?? null;
+    if (!owner || owner !== current) {
+      return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const res = await db.collection("places").deleteOne({ id });
+    if (res.deletedCount !== 1) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    console.error("DELETE /api/places error", e);
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+  }
+}

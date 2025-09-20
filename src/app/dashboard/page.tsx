@@ -152,7 +152,36 @@ export default function DashboardPage() {
   };
 
   const handleShowOnMap = (place: Place) => {
-    router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+    // Prefer explicit location if provided ("lat,lon" string)
+    if (place.location && place.location.includes(',')) {
+      const parts = place.location.split(',').map(s => s.trim());
+      const a = parseFloat(parts[0] || '');
+      const b = parseFloat(parts[1] || '');
+      if (!Number.isNaN(a) && !Number.isNaN(b)) {
+        // Detect ordering: lat must be within [-90, 90], lon within [-180, 180]
+        let latNum = a;
+        let lonNum = b;
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+          latNum = a; lonNum = b;
+        } else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
+          latNum = b; lonNum = a;
+        }
+        router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
+        return;
+      }
+    }
+    // Next, use numeric lat/lon fields if available
+    if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+      router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
+      return;
+    }
+    // Finally, try address from tags.name + area
+    const addressParts = [place.tags?.name, place.area].filter(Boolean);
+    if (addressParts.length > 0) {
+      const address = encodeURIComponent(addressParts.join(", "));
+      router.push(`/dashboard/map?address=${address}`);
+      return;
+    }
   };
 
   const handleMarkSeen = (place: Place) => {
@@ -209,7 +238,7 @@ export default function DashboardPage() {
           <UserProfile onPlaceSubmit={handleAddPlace} />
         </div>
       </header>
-      <main className="relative flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+1px)]">
+      <main className="relative flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+20px)]">
         {showLoveAnim && (
           <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
             <div className="relative">

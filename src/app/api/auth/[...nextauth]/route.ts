@@ -8,10 +8,12 @@ export const authOptions: AuthOptions = {
     Facebook({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+      httpOptions: { timeout: 10000 },
     }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      httpOptions: { timeout: 10000 },
       authorization: {
         params: {
           // Force Google to show the account picker instead of silent SSO
