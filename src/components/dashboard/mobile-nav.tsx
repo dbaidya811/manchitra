@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Home, Map, ShieldAlert } from "lucide-react";
+import { Home, Map, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from 'next/navigation'
 
@@ -12,7 +12,7 @@ export function MobileNav() {
   const pathname = usePathname();
   const getActiveTab = () => {
     if (pathname.includes('/map')) return 'map';
-    if (pathname.includes('/report-issue')) return 'report';
+    if (pathname.includes('/feed')) return 'feed';
     return 'home';
   }
   const [activeTab, setActiveTab] = useState(getActiveTab());
@@ -20,7 +20,7 @@ export function MobileNav() {
   const navItems = [
     { id: "home", icon: Home, label: "Home", href: "/dashboard" },
     { id: "map", icon: Map, label: "Map", href: "/dashboard/map" },
-    { id: "report", icon: ShieldAlert, label: "Report", href: "/dashboard/report-issue" },
+    { id: "feed", icon: Newspaper, label: "Feed", href: "/dashboard/feed" },
   ];
 
   const activeIndex = navItems.findIndex(item => item.id === activeTab);

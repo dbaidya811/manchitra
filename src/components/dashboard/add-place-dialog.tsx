@@ -311,9 +311,14 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-md bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg md:max-w-xl bg-white/70 dark:bg-neutral-900/70 backdrop-blur-xl border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white shadow-2xl rounded-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Place" : "Add a New Place"}</DialogTitle>
+          <DialogTitle>
+            <div className="flex items-center gap-2">
+              <MapPinIcon className="h-5 w-5 text-orange-500" />
+              <span className="font-semibold">{isEditing ? "Edit Place" : "Add a New Place"}</span>
+            </div>
+          </DialogTitle>
           <DialogDescription>
             {isEditing ? "Update the details for this point of interest." : "Contribute to the map by adding a new point of interest."}
           </DialogDescription>
@@ -327,7 +332,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                 <FormItem>
                   <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
+                    <Input placeholder="e.g., Central Park Cafe" {...field} className="bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -342,7 +347,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                   <FormControl>
                     <Textarea
                       placeholder="A short description of the place."
-                      className="resize-none bg-white/20 border-none placeholder:text-white/70"
+                      className="resize-none bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50"
                       {...field}
                     />
                   </FormControl>
@@ -357,7 +362,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                 <FormItem>
                   <FormLabel>Area (e.g., City, Neighborhood)</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., New York City" {...field} className="bg-white/20 border-none placeholder:text-white/70" />
+                    <Input placeholder="e.g., New York City" {...field} className="bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -371,15 +376,15 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                   <FormLabel>Location <span className="text-destructive">*</span></FormLabel>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={handleGetCurrentLocation} className="bg-white/20 border-none hover:bg-white/30">
+                      <Button type="button" variant="outline" size="sm" onClick={handleGetCurrentLocation} className="bg-orange-500/90 text-white border-none hover:bg-orange-600">
                         <LocateFixed className="h-4 w-4 mr-2" /> Use my location
                       </Button>
-                      <span className="text-xs text-white/80">Selected: {field.value || '—'}</span>
+                      <span className="text-xs text-neutral-700 dark:text-white/80">Selected: {field.value || '—'}</span>
                     </div>
                     {/* Location search with suggestions below */}
                     <div className="relative z-30">
                       <div className="flex items-center gap-2">
-                        <Search className="h-4 w-4 text-white/70" />
+                        <Search className="h-4 w-4 text-neutral-600 dark:text-white/70" />
                         <Input
                           placeholder="Search place name (powered by OSM)"
                           value={searchQuery}
@@ -405,13 +410,13 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                               } catch (_) {}
                             }
                           }}
-                          className="bg-white/10 border-white/20 placeholder:text-white/70"
+                          className="bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50"
                         />
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="bg-white/10 hover:bg-white/20"
+                          className="bg-white/70 dark:bg-white/10 hover:bg-white/90 dark:hover:bg-white/20 border border-black/10 dark:border-white/10"
                           onClick={async () => {
                             try {
                               let target = suggestions[0];
@@ -435,12 +440,12 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                         </Button>
                       </div>
                       {suggestions.length > 0 && (
-                        <div className="absolute mt-2 w-full rounded-md bg-background/95 border border-white/20 shadow-xl max-h-60 overflow-auto">
+                        <div className="absolute mt-2 w-full rounded-lg bg-white/90 dark:bg-neutral-900/90 backdrop-blur border border-black/10 dark:border-white/10 shadow-2xl max-h-64 overflow-auto">
                           {suggestions.map((s) => (
                             <button
                               key={s.place_id}
                               type="button"
-                              className="w-full text-left px-3 py-2 hover:bg-white/10"
+                              className="w-full text-left px-3 py-2 hover:bg-orange-500/10 focus:bg-orange-500/10 flex items-center gap-2"
                               onClick={() => {
                                 setSearchQuery(s.display_name);
                                 const lat = parseFloat(s.lat);
@@ -451,17 +456,17 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                                 setSuggestions([]);
                               }}
                             >
-                              <div className="text-sm font-medium truncate flex items-center gap-2"><MapPinIcon className="h-4 w-4" /> {s.display_name}</div>
+                              <div className="text-sm font-medium truncate flex items-center gap-2"><MapPinIcon className="h-4 w-4 text-orange-500" /> {s.display_name}</div>
                             </button>
                           ))}
                           {isSearching && (
-                            <div className="px-3 py-2 text-xs text-white/70">Searching...</div>
+                            <div className="px-3 py-2 text-xs text-neutral-600 dark:text-white/70">Searching...</div>
                           )}
                         </div>
                       )}
                     </div>
                     {/* Mini Map */}
-                    <div ref={mapContainerRef} className="h-48 w-full rounded-md overflow-hidden ring-1 ring-white/20" />
+                    <div ref={mapContainerRef} className="h-48 w-full rounded-lg overflow-hidden ring-1 ring-black/10 dark:ring-white/10 shadow-lg" />
                   </div>
                   <FormMessage />
                 </FormItem>
@@ -475,7 +480,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                   <FormLabel>Photo (optional)</FormLabel>
                   <FormControl>
                     <div className="space-y-2">
-                      <div className="relative w-full aspect-video rounded-md overflow-hidden bg-white/10 border border-dashed border-white/40">
+                      <div className="relative w-full h-24 rounded-md overflow-hidden bg-gradient-to-br from-white/85 to-white/60 dark:from-white/10 dark:to-white/5 border border-dashed border-orange-300/50 dark:border-orange-300/30 shadow-sm">
                         <input
                           type="file"
                           accept="image/*"
@@ -493,16 +498,17 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                         ) : (
                           <button
                             type="button"
-                            className="absolute inset-0 flex items-center justify-center flex-col gap-2 hover:bg-white/10"
+                            className="absolute inset-0 flex items-center justify-center flex-col gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
                             onClick={() => fileInputRefs.current[0]?.click()}
                           >
-                            <Upload className="h-5 w-5 text-white/70" />
-                            <span className="text-xs text-white/70">Upload photo</span>
+                            <Upload className="h-4 w-4 text-orange-500" />
+                            <span className="text-[11px] text-neutral-600 dark:text-white/70">Upload photo</span>
                           </button>
                         )}
                       </div>
                       {previews[0] && (
-                        <div className="flex justify-end">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] text-neutral-500 dark:text-white/60">Tap to replace</span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -513,7 +519,7 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                               setPreviews(copy);
                               form.setValue("photos", []);
                             }}
-                            className="text-white/80 hover:text-white hover:bg-white/10"
+                            className="text-neutral-700 dark:text-white/80 hover:text-neutral-900 hover:bg-black/5 dark:hover:bg-white/10"
                           >
                             Remove photo
                           </Button>

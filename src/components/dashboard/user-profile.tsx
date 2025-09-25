@@ -82,47 +82,56 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 shadow-md hover:shadow-lg transition"
           >
-            <div className="rounded-full p-0.5 ring-2 ring-primary">
+            <div className="rounded-full p-0.5 ring-2 ring-primary/90 bg-white/70 dark:bg-black/50 backdrop-blur">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={userImage} alt={userName} />
+                <AvatarImage
+                  src={userImage}
+                  alt={userName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    // If the image fails (network/CORS), blank it so fallback renders
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.src = '';
+                  }}
+                />
                 <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
               </Avatar>
             </div>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-56" align="end" forceMount>
+        <DropdownMenuContent className="w-64 rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-2xl p-2" align="end" forceMount>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{userName}</p>
+              <p className="text-sm font-semibold leading-none">{userName}</p>
               {userEmail && (
                 <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
               )}
             </div>
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleAddPlace}>
-            <MapPin className="mr-2 h-4 w-4" />
+          <DropdownMenuSeparator className="my-1" />
+          <DropdownMenuItem onClick={handleAddPlace} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <MapPin className="mr-2 h-4 w-4 text-orange-600" />
             <span>Add Place</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleContributions}>
-            <Heart className="mr-2 h-4 w-4" />
+          <DropdownMenuItem onClick={handleContributions} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <Heart className="mr-2 h-4 w-4 text-rose-600" />
             <span>My Contributions</span>
           </DropdownMenuItem>
-           <DropdownMenuItem onClick={handleWhatIHaveSeen}>
-            <Eye className="mr-2 h-4 w-4" />
+           <DropdownMenuItem onClick={handleWhatIHaveSeen} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <Eye className="mr-2 h-4 w-4 text-emerald-600" />
             <span>What I've Seen</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleReportIssue}>
-            <ShieldAlert className="mr-2 h-4 w-4" />
+          <DropdownMenuItem onClick={handleReportIssue} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <ShieldAlert className="mr-2 h-4 w-4 text-amber-600" />
             <span>Report Issue</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut}>
+          <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
             {isLoggingOut ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin text-red-600" />
             ) : (
-              <LogOut className="mr-2 h-4 w-4" />
+              <LogOut className="mr-2 h-4 w-4 text-red-600" />
             )}
             <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
           </DropdownMenuItem>

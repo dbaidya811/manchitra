@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, User as UserIcon, Mail } from "lucide-react";
 
 interface LoginDialogProps {
   open: boolean;
@@ -122,59 +122,72 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       if(!isOpen) resetFlow();
       else onOpenChange(true);
     }}>
-      <DialogContent className="sm:max-w-[425px] bg-white/10 backdrop-blur-lg border-white/20 text-white shadow-2xl">
-        <DialogHeader className="text-center">
-          <DialogTitle className="text-2xl font-bold">Guest Login</DialogTitle>
-          <DialogDescription className="text-white/80">
+      <DialogContent className="sm:max-w-[500px] rounded-3xl bg-white/85 dark:bg-neutral-900/70 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-2xl p-0 overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-300/25 via-orange-300/20 to-rose-300/25 px-6 py-5">
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-yellow-500 to-rose-500 bg-clip-text text-transparent">Login Email</DialogTitle>
+            <DialogDescription className="text-neutral-700 dark:text-neutral-200">
             {step === 1
               ? "Enter your details to receive an OTP."
               : "Enter the OTP sent to your email."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${step===1? 'bg-orange-500 text-white' : 'bg-black/5 dark:bg-white/10 text-neutral-700 dark:text-neutral-200'}`}>Step 1</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${step===2? 'bg-orange-500 text-white' : 'bg-black/5 dark:bg-white/10 text-neutral-700 dark:text-neutral-200'}`}>Step 2</span>
+          </div>
+        </div>
+        <div className="space-y-4 px-6 py-6">
           {step === 1 && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-white/90">
+                <Label htmlFor="name" className="text-neutral-800 dark:text-neutral-200">
                   Name
                 </Label>
-                <Input id="name" placeholder="Enter your name" className="bg-white/20 border-none placeholder:text-white/70" value={name} onChange={(e) => setName(e.target.value)} />
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <Input id="name" placeholder="Enter your name" className="pl-9 bg-white/70 dark:bg-white/10 border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 rounded-xl focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-white/90">
+                <Label htmlFor="email" className="text-neutral-800 dark:text-neutral-200">
                   Email
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter your email"
-                  className="bg-white/20 border-none placeholder:text-white/70"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    className="pl-9 bg-white/70 dark:bg-white/10 border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 rounded-xl focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">We’ll only use your email to send the OTP. No spam, promise.</p>
             </>
           )}
           {step === 2 && (
              <div className="space-y-2">
-                <Label htmlFor="otp" className="text-white/90">
+                <Label htmlFor="otp" className="text-neutral-800 dark:text-neutral-200">
                   OTP
                 </Label>
-                <Input id="otp" placeholder="Enter your OTP" className="bg-white/20 border-none placeholder:text-white/70" value={otp} onChange={(e) => setOtp(e.target.value)} />
+                <Input id="otp" placeholder="Enter your OTP" className="bg-white/70 dark:bg-white/10 border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 rounded-xl tracking-[0.35em] text-center focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" value={otp} onChange={(e) => setOtp(e.target.value)} />
               </div>
           )}
         </div>
-        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0">
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0 px-6 pb-6">
           {step === 1 && (
-            <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold">
+            <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
               {isSendingOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Get OTP
             </Button>
           )}
            {step === 2 && (
             <>
-                <Button variant="outline" onClick={() => setStep(1)} className="w-full bg-transparent hover:bg-white/20 text-white">Back</Button>
-                <Button onClick={handleLogin} disabled={isVerifying} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold">
+                <Button variant="outline" onClick={() => setStep(1)} className="w-full rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-neutral-800 dark:text-white border border-black/10 dark:border-white/15">Back</Button>
+                <Button onClick={handleLogin} disabled={isVerifying} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
                    {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                    Go to Dashboard
                 </Button>

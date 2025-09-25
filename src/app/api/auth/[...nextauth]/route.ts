@@ -1,15 +1,9 @@
 import NextAuth, { type AuthOptions } from "next-auth";
-import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
 import { getDb } from "@/lib/mongodb";
 
 export const authOptions: AuthOptions = {
   providers: [
-    Facebook({
-      clientId: process.env.FACEBOOK_CLIENT_ID!,
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-      httpOptions: { timeout: 10000 },
-    }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,

@@ -14,8 +14,10 @@ const RL = {
   Polyline: dynamic(() => import('react-leaflet').then(m => m.Polyline), { ssr: false }),
   Marker: dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false }),
   Tooltip: dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false }),
+  Circle: dynamic(() => import('react-leaflet').then(m => m.Circle), { ssr: false }),
   useMap: undefined as any,
 } as const;
+
 import 'leaflet/dist/leaflet.css';
 
 export default function DashboardMapPage() {
@@ -34,23 +36,183 @@ export default function DashboardMapPage() {
   const [liveUpdate] = useState<boolean>(true);
   const [destIcon, setDestIcon] = useState<any>(null);
   const [myPlaceIcon, setMyPlaceIcon] = useState<any>(null);
+  const [otherPlaceIcon, setOtherPlaceIcon] = useState<any>(null);
   const [autoRouted, setAutoRouted] = useState(false);
   const mapRef = useRef<any>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
-  const [routeSteps, setRouteSteps] = useState<Array<{ text: string; type?: string; modifier?: string }>>([]);
+  const [routeSteps, setRouteSteps] = useState<Array<{ text: string; type?: string; modifier?: string; location?: [number, number]; distance?: number }>>([]);
   const [poiMarkers, setPoiMarkers] = useState<Array<{ id: string | number; lat: number; lon: number; title?: string; userEmail?: string | null }>>([]);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [autoFollow, setAutoFollow] = useState<boolean>(true);
+  const [journeyCompleted, setJourneyCompleted] = useState<boolean>(false);
+  const [showOffRouteScreen, setShowOffRouteScreen] = useState<boolean>(false);
+  // Voice guidance
+  const [voiceOn, setVoiceOn] = useState<boolean>(false);
+  const currentStepIdxRef = useRef<number>(0);
+  const spokenRef = useRef<Record<number, { pre?: boolean; final?: boolean }>>({});
+  const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  // Routing control refs
+  const routeAbortRef = useRef<AbortController | null>(null);
+  const lastRouteAtRef = useRef<number>(0);
+  const geoWatchRef = useRef<number | null>(null);
   // Draggable, collapsible panel state
   const [panelCollapsed, setPanelCollapsed] = useState<boolean>(false);
   const [panelPos, setPanelPos] = useState<{ x: number; y: number }>({ x: 16, y: 120 });
   const [dragging, setDragging] = useState<boolean>(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Compass heading
+  const [orientationHandler, setOrientationHandler] = useState<((e: DeviceOrientationEvent) => void) | null>(null);
 
   useEffect(() => {
     // Defer mount to avoid Leaflet double init in StrictMode/HMR
     setMounted(true);
     const id = requestAnimationFrame(() => setMapKey(Date.now().toString(36) + Math.random().toString(36).slice(2)));
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Enable compass when component mounts
+  useEffect(() => {
+    const enableCompass = async () => {
+      try {
+        const hasDO = typeof window !== 'undefined' && 'DeviceOrientationEvent' in window;
+        if (!hasDO) return;
+        
+        const anyDO: any = (window as any).DeviceOrientationEvent;
+        if (anyDO && typeof anyDO.requestPermission === 'function') {
+          try {
+            const perm = await anyDO.requestPermission();
+            if (perm !== 'granted') return;
+          } catch (_) {
+            return;
+          }
+        }
+        
+        const handler = (e: DeviceOrientationEvent) => {
+          let heading: number | null = null as any;
+          const webkitHeading = (e as any).webkitCompassHeading;
+          if (typeof webkitHeading === 'number') {
+            heading = webkitHeading;
+          } else if (typeof e.alpha === 'number') {
+            const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number')
+              ? screen.orientation.angle
+              : (window as any).orientation || 0;
+            heading = (360 - e.alpha + (screenAngle || 0)) % 360;
+          }
+          if (heading != null && !Number.isNaN(heading)) {
+            setUserHeading(prevH => {
+              if (prevH == null) return heading!;
+              const alpha = 0.25;
+              let diff = ((heading! - prevH + 540) % 360) - 180;
+              return (prevH + alpha * diff + 360) % 360;
+            });
+          }
+        };
+  
+  // Speech synthesis helper (top-level)
+  const speak = (text: string) => {
+    try {
+      if (!voiceOn) return;
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.pitch = 1.15; // slightly higher pitch for a more feminine tone
+      utter.lang = 'en-US';
+      if (voiceRef.current) utter.voice = voiceRef.current;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {}
+  };
+
+  // Load voices and prefer a female-sounding one
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const pickVoice = () => {
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (!voices.length) return;
+      // Heuristic preference order by common female voice names
+      const preferred = [
+        'Google US English',
+        'Google UK English Female',
+        'Microsoft Zira',
+        'Microsoft Aria',
+        'Samantha',
+        'Victoria',
+        'Veena',
+      ];
+      // Try exact preferred
+      for (const name of preferred) {
+        const v = voices.find(v => v.name.toLowerCase().includes(name.toLowerCase()) && v.lang.toLowerCase().startsWith('en'));
+        if (v) { voiceRef.current = v; return; }
+      }
+      // Try any English voice with female-ish name keywords
+      const femaleKeywords = ['female', 'zira', 'aria', 'samantha', 'victoria', 'jenny', 'linda'];
+      const v2 = voices.find(v => v.lang.toLowerCase().startsWith('en') && femaleKeywords.some(k => v.name.toLowerCase().includes(k)));
+      if (v2) { voiceRef.current = v2; return; }
+      // Fallback: first English voice
+      const v3 = voices.find(v => v.lang.toLowerCase().startsWith('en'));
+      if (v3) voiceRef.current = v3;
+    };
+    pickVoice();
+    window.speechSynthesis.onvoiceschanged = () => pickVoice();
+    return () => {
+      if (window.speechSynthesis.onvoiceschanged) {
+        window.speechSynthesis.onvoiceschanged = null as any;
+      }
+    };
+  }, []);
+
+  // Turn-by-turn voice: monitor distance to next maneuver and speak
+  useEffect(() => {
+    if (!voiceOn) return;
+    if (!userPos || routeSteps.length === 0) return;
+    let idx = currentStepIdxRef.current;
+    if (idx >= routeSteps.length) return;
+    const step = routeSteps[idx];
+    if (!step?.location) return;
+    const d = haversine([userPos.lat, userPos.lon], step.location);
+    const rec = spokenRef.current[idx] || {};
+    // Pre-alert around 100m
+    if (!rec.pre && d <= 120 && d > 35) {
+      const turn = step.modifier ? step.modifier.toLowerCase() : '';
+      if (step.type && step.type.toLowerCase().includes('arrive')) {
+        speak('In one hundred meters, you will arrive at your destination.');
+      } else if (turn) {
+        speak(`In one hundred meters, turn ${turn}.`);
+      } else {
+        speak('In one hundred meters, continue.');
+      }
+      spokenRef.current[idx] = { ...rec, pre: true };
+    }
+    // Final alert close to maneuver
+    if (!rec.final && d <= 25) {
+      const turn = step.modifier ? step.modifier.toLowerCase() : '';
+      if (step.type && step.type.toLowerCase().includes('arrive')) {
+        speak('You have arrived at your destination.');
+      } else if (turn) {
+        speak(`Turn ${turn} now.`);
+      } else {
+        speak('Proceed.');
+      }
+      spokenRef.current[idx] = { ...rec, final: true };
+      currentStepIdxRef.current = Math.min(idx + 1, routeSteps.length);
+    }
+  }, [userPos, routeSteps, voiceOn]);
+        
+        window.addEventListener('deviceorientation', handler as any, { passive: true } as any);
+        setOrientationHandler(() => handler);
+      } catch (_) {
+        // Silently fail if compass can't be enabled
+      }
+    };
+    
+    enableCompass();
+    
+    return () => {
+      if (orientationHandler) {
+        window.removeEventListener('deviceorientation', orientationHandler as any);
+      }
+    };
   }, []);
 
   // Auto-center to user's current location when page opens
@@ -68,15 +230,6 @@ export default function DashboardMapPage() {
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }, [mounted]);
-
-  // Initialize panel collpased state and default position based on screen
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const isSmall = window.matchMedia('(max-width: 768px)').matches;
-    if (isSmall) setPanelCollapsed(true);
-    // Default near bottom-left
-    setPanelPos({ x: 16, y: Math.max(80, window.innerHeight - 220) });
-  }, []);
 
   // Load all places and extract lon/lat for markers
   useEffect(() => {
@@ -124,6 +277,57 @@ export default function DashboardMapPage() {
       mapRef.current.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [40, 100] });
     } catch {}
   }, [routeCoords, startPos, dest]);
+
+  // Click on map to set destination and draw route from user's current location
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map: any = mapRef.current;
+    const onClick = (e: any) => {
+      try {
+        const to = { lat: e.latlng.lat, lon: e.latlng.lng };
+        setDest(to);
+        setCenter([to.lat, to.lon]);
+        setZoom(15);
+        if (userPos) {
+          setStartPos(userPos);
+          fetchRoute(userPos, to);
+        } else if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+              setUserPos(me);
+              setStartPos(me);
+              fetchRoute(me, to);
+            },
+            () => {
+              const [clat, clon] = center;
+              const from = { lat: clat, lon: clon };
+              setStartPos(from);
+              fetchRoute(from, to);
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+          );
+        } else {
+          const [clat, clon] = center;
+          const from = { lat: clat, lon: clon };
+          setStartPos(from);
+          fetchRoute(from, to);
+        }
+      } catch {}
+    };
+    map.on('click', onClick);
+    return () => {
+      try { map.off('click', onClick); } catch {}
+    };
+  }, [mapRef, userPos, center]);
+
+  // Auto-start routing when destination is set (will use geolocation or map-center fallback)
+  useEffect(() => {
+    if (!autoRouted && dest) {
+      startNavigation();
+      setAutoRouted(true);
+    }
+  }, [dest, autoRouted]);
 
   // Small helper to render a maneuver icon
   const renderStepIcon = (type?: string, modifier?: string) => {
@@ -175,22 +379,39 @@ export default function DashboardMapPage() {
   // Bearing and user arrow icon
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [userIcon, setUserIcon] = useState<any>(null);
+  const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   useEffect(() => {
     if (!mounted) return;
     (async () => {
       const L = await import('leaflet');
-      const size: [number, number] = [28, 28];
-      const anchor: [number, number] = [14, 14];
-      const rot = (userHeading ?? 0);
-      const html = `
-        <div style="transform: rotate(${rot}deg); transform-origin: 50% 50%;">
-          <svg width="28" height="28" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2l6 12-6-3-6 3 6-12z" fill="#2563eb" stroke="#1e3a8a" stroke-width="0.6"/>
-          </svg>
-        </div>`;
-      setUserIcon(L.divIcon({ className: 'user-arrow', html, iconSize: size, iconAnchor: anchor }));
+      const icon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/1077/1077114.png',
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+      });
+      setUserIcon(icon);
     })();
-  }, [mounted, userHeading]);
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        setUserPos(me);
+        setUserAccuracy(pos.coords.accuracy);
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [mounted]);
+
+  // Auto-follow map to user position in real-time (no reload needed)
+  useEffect(() => {
+    if (!autoFollow || !userPos) return;
+    setCenter([userPos.lat, userPos.lon]);
+    setZoom((z) => Math.max(z, 16));
+  }, [userPos, autoFollow]);
 
   // Compute approximate distance (meters) between two lat/lon
   const haversine = (a: [number, number], b: [number, number]) => {
@@ -233,7 +454,7 @@ export default function DashboardMapPage() {
   // Update heading and on-route check on live updates
   const [onRoute, setOnRoute] = useState<boolean>(true);
   const [offRouteMeters, setOffRouteMeters] = useState<number>(0);
-  const [offRoutePopup, setOffRoutePopup] = useState<boolean>(false);
+  const [offRoutePopup, setOffRoutePopup] = useState<boolean>(false); // lightweight chip (kept), drives screen notice via showOffRouteScreen
   const prevUserRef = useRef<{ lat: number; lon: number } | null>(null);
   useEffect(() => {
     if (!userPos) return;
@@ -262,15 +483,29 @@ export default function DashboardMapPage() {
       setOffRouteMeters(dMin);
       setOnRoute(dMin < 35);
     }
+    // Arrival detection: within 20m of destination
+    if (dest) {
+      const dToDest = haversine([userPos.lat, userPos.lon], [dest.lat, dest.lon]);
+      if (dToDest <= 20 && !journeyCompleted) {
+        setJourneyCompleted(true);
+        // stop watching if we started a dedicated watch in startNavigation
+        try { if (geoWatchRef.current != null) { navigator.geolocation.clearWatch(geoWatchRef.current); geoWatchRef.current = null; } } catch {}
+        speak('You have arrived at your destination.');
+      }
+    }
   }, [userPos, routeCoords]);
 
   // Off-route popup controller
   useEffect(() => {
     let timer: any;
     if (!onRoute && offRouteMeters > 35) {
-      timer = setTimeout(() => setOffRoutePopup(true), 3000);
+      timer = setTimeout(() => {
+        setOffRoutePopup(true);
+        setShowOffRouteScreen(true);
+      }, 3000);
     } else {
       setOffRoutePopup(false);
+      setShowOffRouteScreen(false);
     }
     return () => timer && clearTimeout(timer);
   }, [onRoute, offRouteMeters]);
@@ -355,16 +590,83 @@ export default function DashboardMapPage() {
     })();
   }, [mounted]);
 
+  // Create custom icon for other people's places (green pin image)
+  useEffect(() => {
+    if (!mounted) return;
+    (async () => {
+      const L = await import('leaflet');
+      const icon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/2776/2776067.png',
+        iconSize: [26, 26],
+        iconAnchor: [13, 26],
+      });
+      setOtherPlaceIcon(icon);
+    })();
+  }, [mounted]);
+
   useEffect(() => {
     const lat = searchParams.get('lat');
     const lon = searchParams.get('lon');
     const address = searchParams.get('address');
+    const fromLat = searchParams.get('fromLat');
+    const fromLon = searchParams.get('fromLon');
+    // Helper to auto start a route to a known destination
+    const autoStartTo = (to: { lat: number; lon: number }) => {
+      // If fromLat/fromLon are provided via query, respect them and avoid prompting for geolocation
+      if (fromLat && fromLon) {
+        const fLat = parseFloat(fromLat);
+        const fLon = parseFloat(fromLon);
+        if (!Number.isNaN(fLat) && !Number.isNaN(fLon)) {
+          const from = { lat: fLat, lon: fLon };
+          setUserPos(from);
+          setStartPos(from);
+          fetchRoute(from, to);
+          // Keep center towards the route; don't force center to from to avoid abrupt jump if already set
+          return;
+        }
+      }
+      // Try immediate geolocation; if denied/timeouts, fall back to current map center
+      if (!navigator.geolocation) {
+        const [clat, clon] = center;
+        let from = { lat: clat, lon: clon };
+        const sameAsDest = Math.hypot((from.lat - to.lat), (from.lon - to.lon)) < 0.0005;
+        if (sameAsDest) {
+          from = { lat: to.lat + 0.005, lon: to.lon + 0.005 };
+        }
+        setStartPos(from);
+        fetchRoute(from, to);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          setUserPos(me);
+          setStartPos(me);
+          fetchRoute(me, to);
+          setCenter([me.lat, me.lon]);
+          setZoom(14);
+        },
+        () => {
+          const [clat, clon] = center;
+          let from = { lat: clat, lon: clon };
+          const sameAsDest = Math.hypot((from.lat - to.lat), (from.lon - to.lon)) < 0.0005;
+          if (sameAsDest) {
+            from = { lat: to.lat + 0.005, lon: to.lon + 0.005 };
+          }
+          setStartPos(from);
+          fetchRoute(from, to);
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    };
     if (lat && lon) {
       const latNum = parseFloat(lat);
       const lonNum = parseFloat(lon);
       setDest({ lat: latNum, lon: lonNum });
       setCenter([latNum, lonNum]);
       setZoom(15);
+      // Start route immediately
+      autoStartTo({ lat: latNum, lon: lonNum });
     } else if (address) {
       // Geocode address using Nominatim
       const geocode = async () => {
@@ -379,6 +681,8 @@ export default function DashboardMapPage() {
               setDest({ lat: latNum, lon: lonNum });
               setCenter([latNum, lonNum]);
               setZoom(15);
+              // Start route immediately
+              autoStartTo({ lat: latNum, lon: lonNum });
             }
           }
         } catch (_) {
@@ -403,56 +707,170 @@ export default function DashboardMapPage() {
     setBrowsePos({ lat, lon });
   };
 
-  // Request a route from userPos -> dest via OSRM
+  // Request a route from userPos -> dest via OSRM with multi-endpoint fallback
   const fetchRoute = async (from: { lat: number; lon: number }, to: { lat: number; lon: number }) => {
     try {
+      // Throttle consecutive requests (avoid double-click or GPS jitter)
+      const now = Date.now();
+      if (now - lastRouteAtRef.current < 900) return;
+      lastRouteAtRef.current = now;
+      // Abort any previous request
+      try { routeAbortRef.current?.abort(); } catch {}
+      const ctrl = new AbortController();
+      routeAbortRef.current = ctrl;
+      const timeoutId = setTimeout(() => { try { ctrl.abort(); } catch {} }, 7000);
+
       setRouting(true);
-      const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson&steps=true`;
-      const res = await fetch(url);
-      const data = await res.json();
-      const route = data?.routes?.[0];
-      const coords = route?.geometry?.coordinates as Array<[number, number]> | undefined;
+      setRouteError(null);
+      const endpoints = [
+        `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson&steps=true`,
+        `https://routing.openstreetmap.de/routed-car/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson&steps=true`,
+        `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson&steps=true`,
+      ];
+
+      let coords: Array<[number, number]> | undefined;
+      let route: any = null;
+      let distance: number | null = null;
+      let duration: number | null = null;
+      let stepsOut: Array<{ text: string; type?: string; modifier?: string; location?: [number, number]; distance?: number }> = [];
+
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, { signal: ctrl.signal });
+          if (!res.ok) continue;
+          const data = await res.json();
+          route = data?.routes?.[0];
+          coords = route?.geometry?.coordinates as Array<[number, number]> | undefined;
+          if (Array.isArray(coords)) {
+            distance = typeof route?.distance === 'number' ? route.distance : null;
+            duration = typeof route?.duration === 'number' ? route.duration : null;
+            const legs = route?.legs || [];
+            stepsOut = [];
+            for (const leg of legs) {
+              for (const st of leg.steps || []) {
+                const type = st?.maneuver?.type || 'Proceed';
+                const modTxt = st?.maneuver?.modifier ? ` ${st.maneuver.modifier}` : '';
+                const road = st?.name || 'road';
+                const loc = Array.isArray(st?.maneuver?.location) && st.maneuver.location.length === 2
+                  ? [st.maneuver.location[1], st.maneuver.location[0]] as [number, number]
+                  : undefined;
+                stepsOut.push({
+                  text: `${type}${modTxt} onto ${road}`.trim(),
+                  type: st?.maneuver?.type,
+                  modifier: st?.maneuver?.modifier,
+                  location: loc,
+                  distance: typeof st?.distance === 'number' ? st.distance : undefined,
+                });
+              }
+            }
+            break;
+          }
+        } catch {}
+      }
+
       if (Array.isArray(coords)) {
         // OSRM returns [lon,lat], convert to [lat,lon]
         const latlng: Array<[number, number]> = coords.map(([x, y]) => [y, x]);
         setRouteCoords(latlng);
-        setRouteDistance(typeof route?.distance === 'number' ? route.distance : null);
-        setRouteDuration(typeof route?.duration === 'number' ? route.duration : null);
-        const legs = route?.legs || [];
-        const steps: Array<{ text: string; type?: string; modifier?: string }> = [];
-        for (const leg of legs) {
-          for (const st of leg.steps || []) {
-            const type = st?.maneuver?.type || 'Proceed';
-            const mod = st?.maneuver?.modifier ? ` ${st.maneuver.modifier}` : '';
-            const road = st?.name || 'road';
-            steps.push({ text: `${type}${mod} onto ${road}`.trim(), type: st?.maneuver?.type, modifier: st?.maneuver?.modifier });
-          }
-        }
-        setRouteSteps(steps);
+        setRouteDistance(distance);
+        setRouteDuration(duration);
+        setRouteSteps(stepsOut);
+        setRouteError(null);
+        // reset voice trackers
+        currentStepIdxRef.current = 0;
+        spokenRef.current = {};
       } else {
         setRouteCoords([]);
         setRouteDistance(null);
         setRouteDuration(null);
         setRouteSteps([]);
+        setRouteError('No route found');
       }
-    } catch (_) {
+    } catch (e) {
       setRouteCoords([]);
       setRouteDistance(null);
       setRouteDuration(null);
       setRouteSteps([]);
+      setRouteError('Routing failed');
     } finally {
       setRouting(false);
+      try { routeAbortRef.current = null; } catch {}
+      // Clear any running timeout on the controller if still pending
+      // Note: timeout cleared when abort fires; nothing extra needed here
     }
   };
 
+  // Voice guidance: speech helper and guidance effect
+  const speak = (text: string) => {
+    try {
+      if (!voiceOn) return;
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      utter.lang = 'en-US';
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!voiceOn) return;
+    if (!userPos || routeSteps.length === 0) return;
+    let idx = currentStepIdxRef.current;
+    if (idx >= routeSteps.length) return;
+    const step = routeSteps[idx];
+    if (!step?.location) return;
+    const d = haversine([userPos.lat, userPos.lon], step.location);
+    const rec = spokenRef.current[idx] || {};
+    if (!rec.pre && d <= 120 && d > 35) {
+      const turn = step.modifier ? step.modifier.toLowerCase() : '';
+      if (step.type && step.type.toLowerCase().includes('arrive')) {
+        speak('In one hundred meters, you will arrive at your destination.');
+      } else if (turn) {
+        speak(`In one hundred meters, turn ${turn}.`);
+      } else {
+        speak('In one hundred meters, continue.');
+      }
+      spokenRef.current[idx] = { ...rec, pre: true };
+    }
+    if (!rec.final && d <= 25) {
+      const turn = step.modifier ? step.modifier.toLowerCase() : '';
+      if (step.type && step.type.toLowerCase().includes('arrive')) {
+        speak('You have arrived at your destination.');
+      } else if (turn) {
+        speak(`Turn ${turn} now.`);
+      } else {
+        speak('Proceed.');
+      }
+      spokenRef.current[idx] = { ...rec, final: true };
+      currentStepIdxRef.current = Math.min(idx + 1, routeSteps.length);
+    }
+  }, [userPos, routeSteps, voiceOn]);
+
   const startNavigation = () => {
     if (!dest) return;
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      // Fallback: use current map center as start
+      const [lat, lon] = center;
+      let from = { lat, lon };
+      // If center is same as destination (e.g., opened map centered on dest), nudge start slightly
+      const sameAsDest = Math.hypot((from.lat - dest.lat), (from.lon - dest.lon)) < 0.0005; // ~50m
+      if (sameAsDest) {
+        from = { lat: dest.lat + 0.005, lon: dest.lon + 0.005 }; // ~500m offset
+      }
+      setStartPos(from);
+      fetchRoute(from, dest);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         if (typeof pos.coords.heading === 'number' && !Number.isNaN(pos.coords.heading)) {
           setUserHeading(((pos.coords.heading % 360) + 360) % 360);
+        }
+        if (typeof pos.coords.accuracy === 'number' && !Number.isNaN(pos.coords.accuracy)) {
+          setUserAccuracy(pos.coords.accuracy);
         }
         setStartPos(me);
         setUserPos(me);
@@ -468,16 +886,33 @@ export default function DashboardMapPage() {
               if (typeof upd.coords.heading === 'number' && !Number.isNaN(upd.coords.heading)) {
                 setUserHeading(((upd.coords.heading % 360) + 360) % 360);
               }
+              if (typeof upd.coords.accuracy === 'number' && !Number.isNaN(upd.coords.accuracy)) {
+                setUserAccuracy(upd.coords.accuracy);
+              }
               fetchRoute(cur, dest);
+              // Auto-follow: center map to the user's current position
+              setCenter([cur.lat, cur.lon]);
+              setZoom((z) => Math.max(z, 16));
             },
             () => {},
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 1000 }
           );
+          geoWatchRef.current = watchId as any;
           // Stop watching when leaving page
           window.addEventListener('beforeunload', () => navigator.geolocation.clearWatch(watchId), { once: true });
         }
       },
-      () => {},
+      // On error (denied/timeouts), route from current map center
+      () => {
+        const [lat, lon] = center;
+        let from = { lat, lon };
+        const sameAsDest = Math.hypot((from.lat - dest.lat), (from.lon - dest.lon)) < 0.0005; // ~50m
+        if (sameAsDest) {
+          from = { lat: dest.lat + 0.005, lon: dest.lon + 0.005 };
+        }
+        setStartPos(from);
+        fetchRoute(from, dest);
+      },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   };
@@ -485,10 +920,10 @@ export default function DashboardMapPage() {
   const { data: session } = useSession();
 
   return (
-    <div className="relative h-screen">
-       <header className="absolute top-0 left-0 right-0 z-[2000] flex h-16 shrink-0 items-center justify-between gap-4 px-4 md:px-6 bg-transparent">
+    <div className="relative h-screen bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+       <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
         <div className="flex items-center gap-2 md:flex-1">
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl font-bold text-transparent drop-shadow-md">
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
             Manchitra
           </h1>
         </div>
@@ -499,8 +934,9 @@ export default function DashboardMapPage() {
           <UserProfile />
         </div>
       </header>
-      <main className="relative h-full w-full z-0">
+      <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
         {mounted && mapKey && (
+          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10">
           <RL.MapContainer
             key={mapKey}
             center={center}
@@ -518,16 +954,13 @@ export default function DashboardMapPage() {
             {browsePos && (
               <RL.CircleMarker center={[browsePos.lat, browsePos.lon]} radius={4} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1 }} />
             )}
-            {startPos && (
-              <RL.CircleMarker center={[startPos.lat, startPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
-            )}
-            {userPos && userIcon && (
-              <RL.Marker position={[userPos.lat, userPos.lon]} icon={userIcon} />
+            {userPos && (
+              <RL.CircleMarker center={[userPos.lat, userPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
             )}
             {routeCoords.length > 0 && (
               <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 4, opacity: 0.9 }} />
             )}
-            {/* All saved places markers: custom icon for mine, orange dot for others */}
+            {/* All saved places markers: custom icon for mine, green pin for others, with labels */}
             {poiMarkers.map((poi) => {
               const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
               if (mine && myPlaceIcon) {
@@ -543,19 +976,43 @@ export default function DashboardMapPage() {
                         setZoom(15);
                         if (userPos) {
                           fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
+                        } else if (navigator.geolocation) {
+                          navigator.geolocation.getCurrentPosition(
+                            (pos) => {
+                              const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                              setUserPos(me);
+                              setStartPos(me);
+                              fetchRoute(me, { lat: poi.lat, lon: poi.lon });
+                            },
+                            () => {
+                              const [lat, lon] = center; // fallback from current map center
+                              const from = { lat, lon };
+                              setStartPos(from);
+                              fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                            },
+                            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                          );
+                        } else {
+                          const [lat, lon] = center; // final fallback
+                          const from = { lat, lon };
+                          setStartPos(from);
+                          fetchRoute(from, { lat: poi.lat, lon: poi.lon });
                         }
                       },
                     }}
-                  />
+                  >
+                    <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
+                      {poi.title || 'Place'}
+                    </RL.Tooltip>
+                  </RL.Marker>
                 );
               }
-              // Others: orange circle marker
+              // Others: green location pin with label
               return (
-                <RL.CircleMarker
+                <RL.Marker
                   key={`poi-${poi.id}`}
-                  center={[poi.lat, poi.lon]}
-                  radius={4}
-                  pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1 }}
+                  position={[poi.lat, poi.lon]}
+                  icon={otherPlaceIcon || undefined}
                   eventHandlers={{
                     click: () => {
                       setDest({ lat: poi.lat, lon: poi.lon });
@@ -563,35 +1020,118 @@ export default function DashboardMapPage() {
                       setZoom(15);
                       if (userPos) {
                         fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
+                      } else if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                            setUserPos(me);
+                            setStartPos(me);
+                            fetchRoute(me, { lat: poi.lat, lon: poi.lon });
+                          },
+                          () => {
+                            const [lat, lon] = center; // fallback from current map center
+                            const from = { lat, lon };
+                            setStartPos(from);
+                            fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                          },
+                          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                        );
+                      } else {
+                        const [lat, lon] = center; // final fallback
+                        const from = { lat, lon };
+                        setStartPos(from);
+                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
                       }
                     },
                   }}
-                />
+                >
+                  <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
+                    {poi.title || 'Place'}
+                  </RL.Tooltip>
+                </RL.Marker>
               );
             })}
           </RL.MapContainer>
+          </div>
         )}
         {/* Auto-fit bounds when route updates */}
         {/* Floating in-app navigation button */}
         {dest && (
-          <div className="absolute bottom-24 right-4 z-[1500] text-right">
+          <div className="absolute bottom-28 right-5 z-[1500] text-right">
             <button
               onClick={startNavigation}
-              className="rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-lg hover:from-yellow-500 hover:to-orange-600 focus:outline-none focus:ring-2 focus:ring-yellow-300 px-4 py-2 text-sm font-semibold"
+              className="rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-xl hover:from-yellow-500 hover:to-orange-600 focus:outline-none focus:ring-4 focus:ring-yellow-300/50 px-5 py-2.5 text-sm font-semibold transform transition active:scale-[0.98]"
               title="Start in-app directions"
             >
               {routing ? 'Routing…' : 'Start Directions'}
             </button>
           </div>
         )}
+        {/* Voice guidance toggle (icon button) */}
+        <div className="absolute bottom-28 left-5 z-[1500]">
+          <button
+            onClick={() => { const next = !voiceOn; setVoiceOn(next); if (next) speak('Voice guidance on'); else if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel(); }}
+            className={`h-11 w-11 flex items-center justify-center rounded-full border backdrop-blur shadow-xl focus:outline-none focus:ring-4 ${voiceOn ? 'bg-blue-600 text-white border-blue-500/60 focus:ring-blue-300/40' : 'bg-white/80 text-neutral-800 border-black/10 dark:bg-black/40 dark:text-white'}`}
+            title="Toggle voice guidance"
+            aria-label="Toggle voice guidance"
+          >
+            {/* Speaker icon */}
+            {voiceOn ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                <path d="M3 9v6h4l5 4V5L7 9H3z"/>
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.06c1.48-.74 2.5-2.26 2.5-4.03z"/>
+                <path d="M14 3.23v2.06c2.89 1 5 3.77 5 6.71s-2.11 5.71-5 6.71v2.06c4.01-1.1 7-4.79 7-8.77s-2.99-7.67-7-8.77z"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                <path d="M3 9v6h4l5 4V5L7 9H3z"/>
+                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.06c1.48-.74 2.5-2.26 2.5-4.03z" opacity=".35"/>
+                <path d="M14 3.23v2.06c2.89 1 5 3.77 5 6.71s-2.11 5.71-5 6.71v2.06c4.01-1.1 7-4.79 7-8.77s-2.99-7.67-7-8.77z" opacity=".2"/>
+                <line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            )}
+          </button>
+        </div>
         {/* On-route status chip */}
         {(routeCoords.length > 0 && userPos) && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1500]">
-            <div className={`rounded-full border shadow px-3 py-1 text-xs font-medium ${onRoute ? 'bg-emerald-500/90 border-emerald-600 text-white' : 'bg-red-500/90 border-red-600 text-white'}`}>
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1500]">
+            <div className={`rounded-full border shadow-lg px-3 py-1.5 text-xs font-semibold backdrop-blur ${onRoute ? 'bg-emerald-500/90 border-emerald-600 text-white' : 'bg-red-500/90 border-red-600 text-white'}`}>
               {onRoute ? 'On route' : `Off route ~${Math.round(offRouteMeters)} m`}
             </div>
           </div>
         )}
+
+        {/* Journey Completed overlay */}
+        {journeyCompleted && (
+          <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
+            <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10">
+              <div className="text-2xl font-bold text-emerald-600 mb-2">Journey Completed</div>
+              <div className="text-sm opacity-80 mb-4">You have arrived at your destination.</div>
+              <div className="flex gap-2 justify-center">
+                <button onClick={() => setJourneyCompleted(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* Off-route full-screen notice with re-route option */}
+      {showOffRouteScreen && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
+          <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10">
+            <div className="text-lg font-semibold text-red-600 mb-2">You are off the route</div>
+            <div className="text-sm opacity-80 mb-4">About {Math.round(offRouteMeters)} m away from the planned path.</div>
+            <div className="flex gap-2 justify-center">
+              <button onClick={() => setShowOffRouteScreen(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800">Dismiss</button>
+              <button
+                onClick={() => { if (userPos && dest) { fetchRoute({ lat: userPos.lat, lon: userPos.lon }, dest); setShowOffRouteScreen(false); } }}
+                className="px-4 py-2 rounded-lg bg-orange-500 text-white"
+              >
+                Re-route
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         {/* Route summary and steps panel (modern style) - draggable & collapsible */}
         {(routeDistance != null || routeDuration != null || routeSteps.length > 0) && (
           <div
@@ -618,11 +1158,11 @@ export default function DashboardMapPage() {
                 <button onClick={() => setPanelCollapsed(false)} className="ml-2 text-xs px-2 py-1 rounded-full bg-black/10 dark:bg-white/10">Open</button>
               </div>
             ) : (
-              <div className="relative rounded-2xl border border-white/20 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-xl overflow-hidden">
+              <div className="relative rounded-2xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-2xl overflow-hidden">
                 <div
                   onMouseDown={onMouseDownHeader}
                   onTouchStart={onTouchStartHeader}
-                  className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-yellow-400/20 to-orange-500/20 cursor-move"
+                  className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-yellow-300/20 to-orange-500/25 cursor-move"
                 >
                   <div className="flex items-center gap-2">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/90 text-white text-xs font-bold">R</span>
