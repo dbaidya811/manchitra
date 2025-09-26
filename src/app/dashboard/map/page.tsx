@@ -18,7 +18,8 @@ const RL = {
   useMap: undefined as any,
 } as const;
 
-import 'leaflet/dist/leaflet.css';
+// Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
+import { Loader } from "@/components/ui/loader";
 
 export default function DashboardMapPage() {
   const searchParams = useSearchParams();
@@ -935,7 +936,11 @@ export default function DashboardMapPage() {
         </div>
       </header>
       <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
-        {mounted && mapKey && (
+        {!mounted || !mapKey ? (
+          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] grid place-items-center">
+            <Loader />
+          </div>
+        ) : (
           <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10">
           <RL.MapContainer
             key={mapKey}

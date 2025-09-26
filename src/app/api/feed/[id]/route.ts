@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { cardName, text, photos } = body || {};
 
     const db = await getDb();
-    const existing = await db.collection("feed_posts").findOne({ id });
+    const existing = await db.collection("feed").findOne({ id });
     if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
     const owner: string | null = existing.ownerEmail ?? null;
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (typeof text === 'string') updates.text = text;
     if (Array.isArray(photos)) updates.photos = photos.slice(0, 5);
 
-    await db.collection("feed_posts").updateOne({ id }, { $set: updates });
+    await db.collection("feed").updateOne({ id }, { $set: updates });
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -47,7 +47,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const { id } = params;
 
     const db = await getDb();
-    const existing = await db.collection("feed_posts").findOne({ id });
+    const existing = await db.collection("feed").findOne({ id });
     if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
     const owner: string | null = existing.ownerEmail ?? null;
@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
 
-    await db.collection("feed_posts").deleteOne({ id });
+    await db.collection("feed").deleteOne({ id });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("DELETE /api/feed/[id] error", e);

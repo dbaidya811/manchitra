@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, LocateFixed, Upload, MapPin as MapPinIcon, Search } from "lucide-react";
 import Image from "next/image";
 import { Place } from "@/lib/types";
+import { Loader } from "@/components/ui/loader";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Name is required." }),
@@ -62,6 +63,9 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   // Note: We only show suggestions under the Location search, not Name
+  // Area suggestions
+  const [allAreas, setAllAreas] = useState<string[]>([]);
+  const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -94,6 +98,26 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
       setPreviews(Array(5).fill(null));
     }
   }, [placeToEdit, isEditing, form, open]);
+
+  // Load all areas from DB once when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/places');
+        const data = await res.json();
+        const areas: string[] = Array.isArray(data?.places)
+          ? data.places
+              .map((p: any) => (typeof p?.area === 'string' ? p.area.trim() : ''))
+              .filter((a: string) => a.length > 0)
+          : [];
+        const uniq = Array.from(new Set(areas)).sort((a, b) => a.localeCompare(b));
+        setAllAreas(uniq);
+      } catch (_) {
+        setAllAreas([]);
+      }
+    })();
+  }, [open]);
 
   // We no longer drive search from Name field per request
 
@@ -361,9 +385,39 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Area (e.g., City, Neighborhood)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., New York City" {...field} className="bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50" />
-                  </FormControl>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        placeholder="e.g., New York City"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          const q = e.target.value.trim().toLowerCase();
+                          if (!q) { setAreaSuggestions([]); return; }
+                          const matches = allAreas.filter(a => a.toLowerCase().includes(q)).slice(0, 8);
+                          setAreaSuggestions(matches);
+                        }}
+                        className="bg-white/70 dark:bg-white/10 border border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 dark:placeholder:text-white/60 focus-visible:ring-2 focus-visible:ring-orange-400/50"
+                      />
+                    </FormControl>
+                    {areaSuggestions.length > 0 && (
+                      <div className="absolute mt-2 w-full rounded-lg bg-white/90 dark:bg-neutral-900/90 backdrop-blur border border-black/10 dark:border-white/10 shadow-2xl max-h-56 overflow-auto z-40">
+                        {areaSuggestions.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            className="w-full text-left px-3 py-2 hover:bg-orange-500/10"
+                            onClick={() => { form.setValue('area', name, { shouldValidate: true }); setAreaSuggestions([]); }}
+                          >
+                            <div className="text-sm font-medium truncate">{name}</div>
+                          </button>
+                        ))}
+                        {areaSuggestions.length === 0 && (
+                          <div className="px-3 py-2 text-xs text-neutral-600 dark:text-white/70">No matches</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -460,8 +514,11 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                             </button>
                           ))}
                           {isSearching && (
-                            <div className="px-3 py-2 text-xs text-neutral-600 dark:text-white/70">Searching...</div>
-                          )}
+                          <div className="px-3 py-2 flex items-center gap-2 text-xs text-neutral-600 dark:text-white/70">
+                            <Loader />
+                            <span>Searching…</span>
+                          </div>
+                        )}
                         </div>
                       )}
                     </div>

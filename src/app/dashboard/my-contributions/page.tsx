@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Place } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, MapPin, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin, Pencil, Trash2, Heart } from "lucide-react";
 import Image from "next/image";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
@@ -15,6 +15,17 @@ export default function MyContributionsPage() {
   const router = useRouter();
   const { status, data: session } = useSession();
   const [places, setPlaces] = useState<Place[]>([]);
+  type Post = {
+    id: string;
+    author?: string;
+    avatarUrl?: string | null;
+    cardName: string;
+    text: string;
+    photos: string[];
+    createdAt: number | string | Date;
+    likes: number;
+  };
+  const [posts, setPosts] = useState<Post[]>([]);
   const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
@@ -22,15 +33,33 @@ export default function MyContributionsPage() {
     const load = async () => {
       try {
         if (status === "authenticated") {
-          const res = await fetch("/api/places?mine=1", { cache: "no-store" });
-          const data = await res.json();
-          if (res.ok && data?.ok && Array.isArray(data.places)) {
-            setPlaces(data.places as Place[]);
-            return;
+          // Load places owned by user
+          const [resPlaces, resPosts] = await Promise.all([
+            fetch("/api/places?mine=1", { cache: "no-store" }),
+            fetch("/api/feed?mine=1", { cache: "no-store" }),
+          ]);
+          const dataPlaces = await resPlaces.json();
+          const dataPosts = await resPosts.json();
+          if (resPlaces.ok && dataPlaces?.ok && Array.isArray(dataPlaces.places)) {
+            setPlaces(dataPlaces.places as Place[]);
           }
+          if (resPosts.ok && dataPosts?.ok && Array.isArray(dataPosts.posts)) {
+            const list: Post[] = dataPosts.posts.map((p: any) => ({
+              id: String(p.id),
+              author: p.author || undefined,
+              avatarUrl: p.avatarUrl || null,
+              cardName: String(p.cardName),
+              text: p.text || "",
+              photos: Array.isArray(p.photos) ? p.photos : [],
+              createdAt: p.createdAt || Date.now(),
+              likes: typeof p.likes === 'number' ? p.likes : 0,
+            }));
+            setPosts(list);
+          }
+          return;
         }
       } catch (_) {}
-      // Fallback for guests or API error
+      // Fallback for guests or API error (places only)
       const storedPlaces = localStorage.getItem("user-places");
       if (storedPlaces) setPlaces(JSON.parse(storedPlaces));
     };
@@ -112,17 +141,65 @@ export default function MyContributionsPage() {
     <>
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm md:px-6">
-        <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            >
-            <ArrowLeft className="h-6 w-6" />
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-6 w-6" />
         </Button>
-        <h1 className="text-xl font-semibold">All Places</h1>
+        <h1 className="text-xl font-semibold">My Contributions</h1>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+20px)]">
-        
+        {/* My Posts */}
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">My Posts</h2>
+          </div>
+          {posts.length === 0 ? (
+            <div className="text-sm text-muted-foreground border border-dashed rounded-2xl p-6 text-center">No posts yet.</div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {posts.map((p) => (
+                <Card key={p.id} className="group flex flex-col overflow-hidden transition-all hover:shadow-lg">
+                  <CardContent className="p-0">
+                    <div className="aspect-[4/3] overflow-hidden bg-black/5">
+                      {p.photos?.[0] ? (
+                        <Image src={p.photos[0]} alt={p.cardName} width={600} height={450} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                      ) : (
+                        <div className="h-full w-full grid place-items-center text-sm text-muted-foreground">No photo</div>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardHeader className="p-3 pb-2">
+                    <CardTitle className="text-base font-semibold truncate">{p.cardName}</CardTitle>
+                    {p.text && <CardDescription className="text-xs line-clamp-2">{p.text}</CardDescription>}
+                  </CardHeader>
+                  <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {p.likes}</div>
+                      <div>{new Date(p.createdAt as any).toLocaleDateString()}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" className="w-1/2" onClick={() => { try { localStorage.setItem('feed_edit_post_id', p.id); } catch {} router.push('/dashboard/feed'); }}>
+                        <Pencil className="mr-2 h-4 w-4" /> Edit
+                      </Button>
+                      <Button size="sm" variant="destructive" className="w-1/2" onClick={async () => {
+                        const ok = window.confirm('Delete this post?');
+                        if (!ok) return;
+                        try {
+                          const res = await fetch(`/api/feed/${p.id}`, { method: 'DELETE' });
+                          if (!res.ok) throw new Error('Delete failed');
+                          setPosts((prev) => prev.filter((x) => x.id !== p.id));
+                        } catch (_) {}
+                      }}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* My Places */}
         {places.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center h-[50vh]">
                 <p className="text-lg text-muted-foreground">No places have been added yet.</p>

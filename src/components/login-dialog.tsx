@@ -14,7 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, User as UserIcon, Mail } from "lucide-react";
+import { User as UserIcon, Mail } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 
 interface LoginDialogProps {
   open: boolean;
@@ -180,7 +181,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
         <DialogFooter className="flex flex-col gap-2 sm:flex-col sm:space-x-0 px-6 pb-6">
           {step === 1 && (
             <Button onClick={handleGetOtp} disabled={isSendingOtp} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
-              {isSendingOtp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSendingOtp && <Loader size="sm" />}
               Get OTP
             </Button>
           )}
@@ -188,7 +189,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             <>
                 <Button variant="outline" onClick={() => setStep(1)} className="w-full rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-neutral-800 dark:text-white border border-black/10 dark:border-white/15">Back</Button>
                 <Button onClick={handleLogin} disabled={isVerifying} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
-                   {isVerifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                   {isVerifying && <Loader size="sm" />}
                    Go to Dashboard
                 </Button>
             </>

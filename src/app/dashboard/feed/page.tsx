@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
-import { Heart } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
+import { Heart, PenLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
  
 
@@ -31,8 +33,67 @@ export default function FeedPage() {
   const [photos, setPhotos] = useState<string[]>([]); // data URLs
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [overlayLikedId, setOverlayLikedId] = useState<string | null>(null);
+  const [overlayPopId, setOverlayPopId] = useState<string | null>(null);
   const [editPostId, setEditPostId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [realtimeOn] = useState(true);
+  const [lastFeedHash, setLastFeedHash] = useState<string>("");
+
+  // Per-post Instagram-like media carousel
+  const PostMedia: React.FC<{ photos: string[]; onDoubleLike: () => void }> = ({ photos, onDoubleLike }) => {
+    const [api, setApi] = useState<CarouselApi | null>(null);
+    const [index, setIndex] = useState(0);
+    const lastTapRef = useRef<number>(0);
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      const now = Date.now();
+      if (now - lastTapRef.current < 280) {
+        e.preventDefault();
+        onDoubleLike();
+      }
+      lastTapRef.current = now;
+    };
+    useEffect(() => {
+      if (!api) return;
+      const onSelect = () => setIndex(api.selectedScrollSnap());
+      api.on('select', onSelect);
+      onSelect();
+      return () => { try { api.off('select', onSelect); } catch {} };
+    }, [api]);
+    if (!photos || photos.length === 0) return (
+      <div className="relative w-full aspect-square overflow-hidden bg-black/5">
+        <img src="https://i.pinimg.com/736x/95/71/da/9571da0d80045d4c10d0fae897de6bab.jpg" alt="post" className="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    );
+    return (
+      <div className="relative w-full">
+        {photos.length > 1 ? (
+          <Carousel opts={{ align: 'start', loop: true }} setApi={setApi} className="w-full">
+            <CarouselContent>
+              {photos.map((src, i) => (
+                <CarouselItem key={i} className="basis-full">
+                  <div className="relative w-full aspect-square select-none" onDoubleClick={onDoubleLike} onTouchEnd={handleTouchEnd}>
+                    <Image src={src} alt={`post-${i + 1}`} fill className="object-cover" />
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="hidden sm:flex !left-2 top-1/2 -translate-y-1/2" />
+            <CarouselNext className="hidden sm:flex !right-2 top-1/2 -translate-y-1/2" />
+          </Carousel>
+        ) : (
+          <div className="relative w-full aspect-square select-none" onDoubleClick={onDoubleLike} onTouchEnd={handleTouchEnd}>
+            <Image src={photos[0]} alt="post" fill className="object-cover" />
+          </div>
+        )}
+        {photos.length > 1 && (
+          <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/60 text-white text-[11px] px-2 py-0.5">
+            {index + 1}/{photos.length}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   type Post = {
     id: string;
@@ -82,6 +143,61 @@ export default function FeedPage() {
   useEffect(() => {
     fetchPosts();
   }, []);
+
+  // Compute a small hash from feed to detect changes (ids + updatedAt + likes)
+  const computeFeedHash = (items: Post[]): string => {
+    try {
+      const key = items
+        .map((p) => `${p.id}:${p.updatedAt ?? ''}:${p.likes}`)
+        .join('|');
+      let h = 0;
+      for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+      return String(h);
+    } catch { return String(Date.now()); }
+  };
+
+  // Realtime polling every 10s when visible and dialog not open
+  useEffect(() => {
+    if (!realtimeOn) return;
+    let timer: any;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      if (document.hidden || open) { schedule(); return; }
+      try {
+        const res = await fetch('/api/feed?limit=100', { cache: 'no-store' });
+        const data = await res.json();
+        if (res.ok && data?.ok && Array.isArray(data.posts)) {
+          const list: Post[] = data.posts.map((p: any) => ({
+            id: String(p.id),
+            author: p.author || undefined,
+            avatarUrl: p.avatarUrl || null,
+            cardName: String(p.cardName),
+            text: p.text || '',
+            photos: Array.isArray(p.photos) ? p.photos : [],
+            createdAt: p.createdAt ? Date.parse(p.createdAt) : Date.now(),
+            likes: typeof p.likes === 'number' ? p.likes : 0,
+            likedBy: Array.isArray(p.likedBy) ? p.likedBy : [],
+            likedByMe: false,
+            ownerEmail: p.ownerEmail ?? null,
+            edited: !!p.edited,
+            updatedAt: p.updatedAt ? Date.parse(p.updatedAt) : null,
+          }));
+          const newHash = computeFeedHash(list);
+          if (newHash !== lastFeedHash) {
+            setPosts(list);
+            setLastFeedHash(newHash);
+          }
+        }
+      } catch {}
+      schedule();
+    };
+    const schedule = () => { timer = setTimeout(tick, 10000); };
+    schedule();
+    const onVisibility = () => { /* restart schedule immediately */ if (timer) clearTimeout(timer); schedule(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { stopped = true; if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
+  }, [realtimeOn, open, lastFeedHash]);
 
   // If another page requests to edit a post, open composer prefilled
   useEffect(() => {
@@ -184,7 +300,8 @@ export default function FeedPage() {
 
   function handlePostSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canPost) return;
+    if (!canPost || submitting) return;
+    setSubmitting(true);
     (async () => {
       try {
         if (editPostId) {
@@ -224,6 +341,7 @@ export default function FeedPage() {
       } catch (err) {
         toast({ title: 'Error', description: 'Something went wrong. Please try again.', variant: 'destructive' });
       } finally {
+        setSubmitting(false);
         setOpen(false);
         resetComposer();
         setEditPostId(null);
@@ -232,7 +350,14 @@ export default function FeedPage() {
   }
 
   function toggleLike(id: string) {
+    const wasLiked = posts.find((pp) => pp.id === id)?.likedByMe;
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: !p.likedByMe, likes: p.likes + (p.likedByMe ? -1 : 1) } : p)));
+    if (!wasLiked) {
+      setOverlayLikedId(id);
+      setOverlayPopId(id);
+      setTimeout(() => setOverlayLikedId((x) => (x === id ? null : x)), 700);
+      setTimeout(() => setOverlayPopId((x) => (x === id ? null : x)), 450);
+    }
     // Fire and forget
     fetch(`/api/feed/${id}/like`, { method: 'POST' }).catch(() => {});
   }
@@ -260,9 +385,15 @@ export default function FeedPage() {
                 <div className="flex items-center justify-between px-3 py-2">
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar className="h-8 w-8">
-                      {p.avatarUrl ? (
-                        <AvatarImage src={p.avatarUrl} alt={p.author || 'user'} />
-                      ) : null}
+                      <AvatarImage
+                        src={p.avatarUrl || authorAvatar || ''}
+                        alt={p.author || 'user'}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const t = e.currentTarget as HTMLImageElement;
+                          t.src = '';
+                        }}
+                      />
                       <AvatarFallback>{(p.author || 'U').slice(0,2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
@@ -279,55 +410,35 @@ export default function FeedPage() {
                 </div>
 
                 {/* Media */}
-                {(p.photos && p.photos.length > 0) ? (
-                  <div
-                    className="relative w-full bg-black/5"
-                    onDoubleClick={() => {
+                <div className="relative w-full bg-black/5">
+                  <PostMedia
+                    photos={p.photos || []}
+                    onDoubleLike={() => {
                       toggleLike(p.id);
                       setOverlayLikedId(p.id);
+                      setOverlayPopId(p.id);
                       setTimeout(() => setOverlayLikedId((x) => (x === p.id ? null : x)), 700);
+                      setTimeout(() => setOverlayPopId((x) => (x === p.id ? null : x)), 450);
                     }}
-                  >
-                    <div className="relative w-full aspect-square">
-                      <Image src={p.photos[0]} alt="post" fill className="object-cover" />
+                  />
+                  {/* Heart overlay */}
+                  <div className={`pointer-events-none absolute inset-0 ${overlayLikedId === p.id ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}> 
+                    <div className="absolute inset-0 grid place-items-center">
+                      <Heart className="h-20 w-20 text-amber-400 drop-shadow-[0_6px_12px_rgba(249,115,22,0.45)] fill-amber-400 animate-heart-pop" />
                     </div>
-                    {/* Heart overlay */}
-                    <div className={`pointer-events-none absolute inset-0 grid place-items-center ${overlayLikedId === p.id ? 'opacity-100 animate-heart-pop' : 'opacity-0'}`}>
-                      <Heart className="h-20 w-20 text-white drop-shadow-[0_6px_12px_rgba(0,0,0,0.35)] fill-white" />
-                    </div>
-                    {/* Thumbnails if more than one */}
-                    {p.photos.length > 1 && (
-                      <div className="grid grid-cols-3 gap-1 p-1 bg-black/10">
-                        {p.photos.slice(1, 7).map((src, i) => (
-                          <div key={i} className="relative aspect-square overflow-hidden rounded-sm">
-                            <Image src={src} alt={`thumb-${i + 2}`} fill className="object-cover" />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Gradient ripple */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.45),rgba(253,186,116,0.35),rgba(249,115,22,0.2),rgba(253,186,116,0)_65%)] animate-like-ripple" />
+                    {/* Confetti burst */}
+                    {[...Array(10)].map((_, i) => (
+                      <span key={i} className={`confetti confetti-${i} ${overlayLikedId === p.id ? 'animate-confetti' : ''}`} />
+                    ))}
                   </div>
-                ) : (
-                  <div
-                    className="relative w-full bg-black/5"
-                    onDoubleClick={() => {
-                      toggleLike(p.id);
-                      setOverlayLikedId(p.id);
-                      setTimeout(() => setOverlayLikedId((x) => (x === p.id ? null : x)), 700);
-                    }}
-                  >
-                    <div className="relative w-full aspect-square overflow-hidden">
-                      <img src="https://i.pinimg.com/736x/95/71/da/9571da0d80045d4c10d0fae897de6bab.jpg" alt="post" className="absolute inset-0 h-full w-full object-cover" />
-                    </div>
-                    <div className={`pointer-events-none absolute inset-0 grid place-items-center ${overlayLikedId === p.id ? 'opacity-100 animate-heart-pop' : 'opacity-0'}`}>
-                      <Heart className="h-20 w-20 text-white drop-shadow-[0_6px_12px_rgba(0,0,0,0.35)] fill-white" />
-                    </div>
-                  </div>
-                )}
+                </div>
 
                 {/* Actions */}
                 <div className="px-3 py-2 flex items-center gap-3 justify-between">
                   <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
-                    <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''}`} />
+                    <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
                   </button>
                   {currentUserEmail && p.ownerEmail === currentUserEmail && (
                     <div className="flex items-center gap-2">
@@ -348,11 +459,17 @@ export default function FeedPage() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => {
+                        onClick={async () => {
                           const ok = window.confirm('Delete this post?');
                           if (!ok) return;
-                          setPosts((prev) => prev.filter((x) => x.id !== p.id));
-                          toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                          try {
+                            const res = await fetch(`/api/feed/${p.id}`, { method: 'DELETE' });
+                            if (!res.ok) throw new Error('Delete failed');
+                            toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                            await fetchPosts();
+                          } catch (_) {
+                            toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                          }
                         }}
                       >
                         Delete
@@ -393,12 +510,13 @@ export default function FeedPage() {
         >
           <button
             onClick={() => setOpen(true)}
-            className="h-12 w-12 rounded-full text-white shadow-xl grid place-items-center hover:bg-[#e76e00] focus:outline-none relative bg-[#ff7a00]"
+            className="h-14 w-14 rounded-full text-white grid place-items-center relative select-none bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-[0_12px_24px_rgba(234,88,12,0.35)] ring-1 ring-white/40 focus:outline-none focus:ring-4 focus:ring-orange-300/40 transition-transform duration-200 ease-out hover:scale-105 active:scale-100"
             style={{ pointerEvents: 'auto' }}
             aria-label="Create post"
+            title="Create post"
           >
             <span className="relative inline-flex items-center justify-center">
-              <img src="https://cdn-icons-png.flaticon.com/512/4075/4075591.png" alt="Create" width={22} height={22} />
+              <PenLine className="h-6 w-6" />
             </span>
           </button>
         </div>
@@ -463,11 +581,55 @@ export default function FeedPage() {
           0%, 100% { transform: scale(1, 1); }
           50% { transform: scale(1.2, 1); }
         }
+
+        /* Like animations - orange/yellow theme */
+        @keyframes heart-pop {
+          0% { transform: scale(0.7) rotate(-8deg); filter: drop-shadow(0 8px 20px rgba(249,115,22,0.35)); }
+          60% { transform: scale(1.18) rotate(0deg); filter: drop-shadow(0 10px 24px rgba(251,191,36,0.5)); }
+          100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 6px 14px rgba(249,115,22,0.35)); }
+        }
+        .animate-heart-pop { animation: heart-pop 600ms cubic-bezier(.2,.8,.2,1); }
+
+        @keyframes like-ripple {
+          0% { opacity: .9; transform: translate(-50%, -50%) scale(0.6); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
+        }
+        .animate-like-ripple { animation: like-ripple 650ms ease-out forwards; }
+
+        @keyframes like-pop {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.35); }
+          100% { transform: scale(1); }
+        }
+        .animate-like-pop { animation: like-pop 380ms cubic-bezier(.2,.8,.2,1); }
+
+        .confetti { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 9999px; opacity: 0.95; }
+        @keyframes confetti-burst {
+          0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.95; }
+          80% { opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(1); opacity: 0; }
+        }
+        .animate-confetti { animation: confetti-burst 700ms ease-out forwards; }
+        /* 10 colorful pieces in orange/yellow directions */
+        .confetti-0 { --tx: -120px; --ty: -60px; background: #f59e0b; }
+        .confetti-1 { --tx: 110px; --ty: -50px; background: #fbbf24; }
+        .confetti-2 { --tx: -90px; --ty: 40px; background: #f97316; }
+        .confetti-3 { --tx: 70px; --ty: 80px; background: #f59e0b; }
+        .confetti-4 { --tx: -60px; --ty: 100px; background: #fde047; }
+        .confetti-5 { --tx: 140px; --ty: 20px; background: #fb923c; }
+        .confetti-6 { --tx: 40px; --ty: -110px; background: #f59e0b; }
+        .confetti-7 { --tx: -140px; --ty: 10px; background: #fdba74; }
+        .confetti-8 { --tx: 95px; --ty: -95px; background: #fbbf24; }
+        .confetti-9 { --tx: 10px; --ty: 130px; background: #f97316; }
       `}</style>
 
       {/* Compose Dialog */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetComposer(); }}>
-        <DialogContent className="sm:max-w-md bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-2xl animate-dialog-slide-in-right">
+      <Dialog open={open} onOpenChange={(o) => { if (submitting) return; setOpen(o); if (!o) resetComposer(); }}>
+        <DialogContent
+          className="sm:max-w-md bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-3xl shadow-2xl shadow-black/10 dark:shadow-black/40 animate-dialog-slide-in-right"
+          onInteractOutside={(e) => { if (submitting) e.preventDefault(); }}
+          onEscapeKeyDown={(e) => { if (submitting) e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">Create Post</DialogTitle>
           </DialogHeader>
@@ -475,7 +637,7 @@ export default function FeedPage() {
             <div className="grid grid-cols-1 gap-3">
               {isLoadingCards && (
                 <div className="py-4 flex items-center justify-center">
-                  <span className="loader" />
+                  <Loader />
                 </div>
               )}
               <div className="relative">
@@ -483,11 +645,11 @@ export default function FeedPage() {
                   placeholder="Search existing card name"
                   value={cardQuery || cardName}
                   onChange={(e) => { setCardQuery(e.target.value); setCardName(""); }}
-                  className="bg-white/80 dark:bg-white/10"
-                  disabled={isLoadingCards}
+                  className="bg-white/80 dark:bg-white/10 rounded-xl ring-1 ring-black/10 dark:ring-white/10 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:border-emerald-500"
+                  disabled={isLoadingCards || submitting}
                 />
                 {cardQuery && suggestions.length > 0 && (
-                  <div className="absolute mt-2 w-full rounded-lg bg-white/95 dark:bg-neutral-900/95 backdrop-blur border border-black/10 dark:border-white/10 shadow-2xl max-h-64 overflow-auto z-50">
+                  <div className="absolute mt-2 w-full rounded-xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur border border-black/10 dark:border-white/10 shadow-xl max-h-64 overflow-auto z-50">
                     {suggestions.map((name) => (
                       <button
                         key={name}
@@ -505,12 +667,12 @@ export default function FeedPage() {
                   <p className="mt-1 text-xs text-neutral-500">Selected: {cardName || "—"}</p>
                 )}
               </div>
-              <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something..." rows={4} className="resize-none bg-white/80 dark:bg-white/10" />
+              <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something..." rows={4} className="resize-none bg-white/80 dark:bg-white/10 rounded-xl ring-1 ring-black/10 dark:ring-white/10 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:border-emerald-500" disabled={submitting} />
               <div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-neutral-600 dark:text-neutral-300">Photos (optional) • {photos.length}/5</p>
-                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={photos.length >= 5} className="bg-orange-500/90 text-white hover:bg-orange-600 border-none">
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={photos.length >= 5 || submitting} className="bg-orange-500 text-white hover:bg-orange-600 border-none rounded-xl shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
                     Add photos
                   </Button>
                 </div>
@@ -533,8 +695,26 @@ export default function FeedPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetComposer(); }} className="hover:bg-white/20">Cancel</Button>
-              <Button type="submit" disabled={!canPost} className="bg-orange-500 hover:bg-orange-600 text-white">Post</Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { if (submitting) return; setOpen(false); resetComposer(); }}
+                className="rounded-xl hover:bg-neutral-100/60 dark:hover:bg-white/10"
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!canPost || submitting}
+                className="rounded-xl bg-orange-500 hover:bg-orange-600 text-white shadow-sm disabled:opacity-60 disabled:cursor-not-allowed min-w-[96px]"
+              >
+                {submitting ? (
+                  <span className="inline-flex items-center gap-2"><Loader size="sm" /> {editPostId ? 'Updating...' : 'Posting...'}</span>
+                ) : (
+                  editPostId ? 'Update' : 'Post'
+                )}
+              </Button>
             </div>
           </form>
         </DialogContent>

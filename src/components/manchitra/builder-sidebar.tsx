@@ -25,9 +25,9 @@ import {
   Download,
   Github,
   Home,
-  Loader2,
 } from "lucide-react";
 import type { Section } from "@/lib/types";
+import { Loader } from "@/components/ui/loader";
 import { ContentSuggestions } from "./content-suggestions";
 import { exportWebsite } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -196,8 +196,8 @@ export function BuilderSidebar({
         <Button onClick={handleExport} className="w-full" disabled={isExporting}>
           {isExporting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Exporting...
+              <Loader size="sm" />
+              <span className="ml-2">Exporting...</span>
             </>
           ) : (
             <>

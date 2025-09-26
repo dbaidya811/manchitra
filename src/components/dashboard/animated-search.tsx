@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, Loader2, MapPin, LocateFixed } from "lucide-react";
+import { Search, X, MapPin, LocateFixed } from "lucide-react";
+import { Loader } from "@/components/ui/loader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -170,7 +171,11 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
             />
-             {(isLoading) && <Loader2 className="absolute right-12 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-muted-foreground" />}
+             {isLoading && (
+               <span className="absolute right-12 top-1/2 -translate-y-1/2">
+                 <Loader size="sm" />
+               </span>
+             )}
             <Button
                 variant="ghost"
                 size="icon"

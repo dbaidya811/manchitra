@@ -304,13 +304,12 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                     {isMobile ? (
                       <>
                         <div className="relative">
-                          <div className="overflow-hidden rounded-2xl">
+                          <div className="relative aspect-square overflow-hidden rounded-2xl">
                             <Image
                               src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
                               alt={place.tags.name}
-                              width={600}
-                              height={450}
-                              className="h-48 w-full object-cover"
+                              fill
+                              className="object-cover"
                               data-ai-hint="building"
                             />
                           </div>
@@ -371,13 +370,12 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                     ) : (
                       <>
                         <CardContent className="p-0">
-                          <div className="aspect-[4/3] overflow-hidden relative">
+                          <div className="relative aspect-square overflow-hidden">
                             <Image
                               src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
                               alt={place.tags.name}
-                              width={600}
-                              height={450}
-                              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              fill
+                              className="object-cover transition-transform group-hover:scale-105"
                               data-ai-hint="building"
                             />
                             {/* Like button overlay (top-right) */}

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
+// import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
 export const metadata: Metadata = {

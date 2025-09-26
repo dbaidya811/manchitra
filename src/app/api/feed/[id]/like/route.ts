@@ -13,20 +13,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const { id } = params;
 
     const db = await getDb();
-    const doc = await db.collection("feed_posts").findOne({ id });
+    const doc = await db.collection("feed").findOne({ id });
     if (!doc) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
     // If user logged in, toggle membership in likedBy, else just increment likes once per request
     if (email) {
       const hasLiked = Array.isArray(doc.likedBy) && doc.likedBy.includes(email);
       if (hasLiked) {
-        await db.collection("feed_posts").updateOne(
+        await db.collection("feed").updateOne(
           { id },
           { $inc: { likes: -1 }, $pull: { likedBy: email } } as any
         );
         return NextResponse.json({ ok: true, liked: false });
       } else {
-        await db.collection("feed_posts").updateOne(
+        await db.collection("feed").updateOne(
           { id },
           { $inc: { likes: 1 }, $addToSet: { likedBy: email } } as any
         );
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     } else {
       // anonymous like - simple increment
-      await db.collection("feed_posts").updateOne({ id }, { $inc: { likes: 1 } });
+      await db.collection("feed").updateOne({ id }, { $inc: { likes: 1 } });
       return NextResponse.json({ ok: true, liked: true });
     }
   } catch (e: any) {

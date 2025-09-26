@@ -11,23 +11,92 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Loader2, Heart, Eye } from "lucide-react";
-import { useEffect, useState } from "react";
+import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { Place } from "@/lib/types";
 import { useSession, signOut } from "next-auth/react";
+import { Loader } from "@/components/ui/loader";
 
 interface UserProfileProps {
   onPlaceSubmit?: (place: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => void;
 }
 
+// Slide-to-confirm call control
+const SlideToCall: React.FC<{ label: string; onConfirm: () => void }> = ({ label, onConfirm }) => {
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if (!dragging || !trackRef.current) return;
+      const track = trackRef.current.getBoundingClientRect();
+      const clientX = (e as TouchEvent).touches ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+      const handleWidth = 56;
+      let x = Math.max(0, Math.min(clientX - track.left - 28, track.width - handleWidth));
+      setDragX(x);
+    };
+    const onUp = () => {
+      if (!dragging || !trackRef.current) return;
+      const track = trackRef.current.getBoundingClientRect();
+      const handleWidth = 56;
+      const threshold = (track.width - handleWidth) * 0.75;
+      if (dragX >= threshold) onConfirm();
+      setDragging(false);
+      setDragX(0);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove as any, { passive: false } as any);
+    document.addEventListener('touchend', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove as any);
+      document.removeEventListener('touchend', onUp);
+    };
+  }, [dragging, dragX, onConfirm]);
+
+  const startDrag = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  return (
+    <div className="select-none">
+      <div ref={trackRef} className="relative h-12 rounded-xl bg-gradient-to-r from-red-600 to-orange-500 shadow-inner overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center px-24 sm:px-20">
+          <span className="text-white font-semibold text-xs sm:text-sm tracking-normal text-center">{label}</span>
+        </div>
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-10 w-14 rounded-xl bg-white text-red-600 grid place-items-center shadow-lg border border-red-200 active:scale-95"
+          style={{ left: 8 + dragX }}
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+          role="button"
+          aria-label="Slide to call"
+        >
+          <PhoneCall className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="mt-1 text-[10px] text-center text-muted-foreground">Slide right to call</div>
+    </div>
+  );
+};
+
 export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isAddPlaceOpen, setIsAddPlaceOpen] = useState(false);
+  const [isSosOpen, setIsSosOpen] = useState(false);
   const [guestName, setGuestName] = useState<string>("");
   const [guestEmail, setGuestEmail] = useState<string>("");
+  const [guestImage, setGuestImage] = useState<string>("");
 
   const isLoading = status === "loading";
   useEffect(() => {
@@ -35,12 +104,14 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
     try {
       const stored = localStorage.getItem("user");
       if (stored) {
-        const parsed = JSON.parse(stored) as { name?: string; email?: string };
+        const parsed = JSON.parse(stored) as { name?: string; email?: string; image?: string };
         setGuestName(parsed.name || "");
         setGuestEmail(parsed.email || "");
+        setGuestImage(parsed.image || "");
       } else {
         setGuestName("");
         setGuestEmail("");
+        setGuestImage("");
       }
     } catch (_) {
       // ignore parse errors
@@ -49,7 +120,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
 
   const userName = isLoading ? "Loading..." : (session?.user?.name || guestName || "Guest");
   const userEmail = isLoading ? "" : (session?.user?.email || guestEmail || "");
-  const userImage = isLoading ? "" : (session?.user?.image || "");
+  const userImage = isLoading ? "" : (session?.user?.image || guestImage || "");
 
   const handleLogout = () => {
     setIsLoggingOut(true);
@@ -74,6 +145,54 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   
   const handleWhatIHaveSeen = () => {
     router.push("/dashboard/what-have-i-seen");
+  };
+
+  // SOS utilities
+  const getLocation = (): Promise<{ lat: number; lon: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    });
+  };
+  const buildMapsLink = (coords: { lat: number; lon: number } | null) => {
+    if (!coords) return "https://www.google.com/maps";
+    const { lat, lon } = coords;
+    return `https://www.google.com/maps?q=${lat},${lon}`;
+  };
+  const sosCall = () => { window.location.href = "tel:112"; };
+  const sosCallNumber = (num: string) => { window.location.href = `tel:${num}`; };
+  const sosShare = async () => {
+    try {
+      const coords = await getLocation();
+      const url = buildMapsLink(coords);
+      const text = `SOS: I need help. My current location: ${url}`;
+      if (navigator.share) {
+        await navigator.share({ title: "SOS", text, url });
+      } else {
+        await navigator.clipboard.writeText(text);
+        toast({ title: "Copied", description: "SOS message copied. Paste anywhere to share." });
+      }
+    } catch {
+      toast({ title: "Share failed", description: "Could not share right now.", variant: "destructive" });
+    }
+  };
+  const sosWhatsApp = async () => {
+    const coords = await getLocation();
+    const url = buildMapsLink(coords);
+    const txt = encodeURIComponent(`SOS: I need help. My current location: ${url}`);
+    window.open(`https://wa.me/?text=${txt}`, "_blank");
+  };
+  const sosCopy = async () => {
+    const coords = await getLocation();
+    const url = buildMapsLink(coords);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Copied", description: "Location link copied to clipboard." });
+    } catch {}
   };
 
   return (
@@ -111,6 +230,10 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator className="my-1" />
+          <DropdownMenuItem onClick={() => setIsSosOpen(true)} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <AlertTriangle className="mr-2 h-4 w-4 text-red-600" />
+            <span>SOS</span>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleAddPlace} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
             <MapPin className="mr-2 h-4 w-4 text-orange-600" />
             <span>Add Place</span>
@@ -129,7 +252,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
             {isLoggingOut ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin text-red-600" />
+              <span className="mr-2 inline-flex"><Loader size="sm" /></span>
             ) : (
               <LogOut className="mr-2 h-4 w-4 text-red-600" />
             )}
@@ -138,6 +261,48 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
         </DropdownMenuContent>
       </DropdownMenu>
       <AddPlaceDialog open={isAddPlaceOpen} onOpenChange={setIsAddPlaceOpen} onPlaceSubmit={onPlaceSubmit} />
+
+      {/* SOS Dialog */}
+      <Dialog open={isSosOpen} onOpenChange={setIsSosOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Emergency SOS</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <SlideToCall label="Emergency" onConfirm={sosCall} />
+            <Button onClick={sosShare} className="w-full bg-orange-500 hover:bg-orange-600">
+              <Share2 className="h-4 w-4 mr-2" /> Share current location
+            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                onClick={sosWhatsApp}
+                className="h-10 w-full justify-center rounded-xl bg-[#25D366] hover:bg-[#21c15c] text-white border-0"
+              >
+                <Share2 className="h-4 w-4 mr-2" /> WhatsApp
+              </Button>
+              <Button
+                onClick={sosCopy}
+                className="h-10 w-full justify-center rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white border-0"
+              >
+                <ClipboardCopy className="h-4 w-4 mr-2" /> Copy link
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground flex items-center"><MapPin className="h-3.5 w-3.5 mr-1" /> We’ll try to attach your GPS location if permission is granted.</p>
+
+            {/* Quick Emergency Numbers (slide to confirm) */}
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <SlideToCall label="Police" onConfirm={() => sosCallNumber('100')} />
+              <SlideToCall label="Fire" onConfirm={() => sosCallNumber('101')} />
+              <SlideToCall label="Traffic" onConfirm={() => sosCallNumber('1073')} />
+              <SlideToCall label="Cyber Crime" onConfirm={() => sosCallNumber('1930')} />
+              <SlideToCall label="Women Helpline" onConfirm={() => sosCallNumber('1091')} />
+              <SlideToCall label="Child" onConfirm={() => sosCallNumber('1098')} />
+              <SlideToCall label="Missing (Helpline)" onConfirm={() => sosCallNumber('9163737373')} />
+              <SlideToCall label="Missing (Police)" onConfirm={() => sosCallNumber('22141835')} />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

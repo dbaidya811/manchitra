@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Home, Map, Newspaper } from "lucide-react";
+import { Home, Map, Newspaper, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from 'next/navigation'
 
@@ -13,6 +13,7 @@ export function MobileNav() {
   const getActiveTab = () => {
     if (pathname.includes('/map')) return 'map';
     if (pathname.includes('/feed')) return 'feed';
+    if (pathname.includes('/planning-ai')) return 'plan';
     return 'home';
   }
   const [activeTab, setActiveTab] = useState(getActiveTab());
@@ -21,6 +22,7 @@ export function MobileNav() {
     { id: "home", icon: Home, label: "Home", href: "/dashboard" },
     { id: "map", icon: Map, label: "Map", href: "/dashboard/map" },
     { id: "feed", icon: Newspaper, label: "Feed", href: "/dashboard/feed" },
+    { id: "plan", icon: Sparkles, label: "Planning AI", href: "/planning-ai" },
   ];
 
   const activeIndex = navItems.findIndex(item => item.id === activeTab);
@@ -43,7 +45,7 @@ export function MobileNav() {
           </Link>
         ))}
         <div
-          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc((100%-1rem)/3)] rounded-full bg-primary"
+          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc((100%-1rem)/4)] rounded-full bg-primary"
           style={{
             transform: `translateX(${activeIndex * 100}%)`,
             transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',

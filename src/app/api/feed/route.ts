@@ -10,11 +10,17 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const limit = Math.max(1, Math.min(parseInt(url.searchParams.get("limit") || "50", 10), 200));
+    const mine = url.searchParams.get("mine");
+    const session = await getServerSession(authOptions);
 
     const db = await getDb();
+    const query: any = {};
+    if (mine && session?.user?.email) {
+      query.ownerEmail = session.user.email;
+    }
     const posts = await db
       .collection("feed")
-      .find({})
+      .find(query)
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit)
       .project({ _id: 0 })
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest) {
     const doc = {
       id,
       author: typeof author === 'string' ? author : null,
-      avatarUrl: typeof avatarUrl === 'string' ? avatarUrl : null,
+      avatarUrl: typeof avatarUrl === 'string' && avatarUrl.trim() ? avatarUrl : (session?.user?.image || null),
       cardName: String(cardName),
       text: typeof text === 'string' ? text : '',
       photos: Array.isArray(photos) ? photos.slice(0, 5) : [],
