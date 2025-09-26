@@ -39,6 +39,29 @@ export default function FeedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [realtimeOn] = useState(true);
   const [lastFeedHash, setLastFeedHash] = useState<string>("");
+  const FEED_REFRESH_MS = 500; // 0.5s auto-refresh
+  // Track liked posts per email locally to keep UI state consistent during polling
+  const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
+  // Throttle guard to avoid rapid double toggles
+  const lastToggleAtRef = useRef<Record<string, number>>({});
+
+  const likedKey = (email: string | null) => email ? `liked_posts_${email}` : '';
+  const loadLikedSet = (email: string | null): Set<string> => {
+    try {
+      if (!email) return new Set();
+      const raw = localStorage.getItem(likedKey(email));
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr.map(String));
+      return new Set();
+    } catch { return new Set(); }
+  };
+  const saveLikedSet = (email: string | null, setVal: Set<string>) => {
+    try {
+      if (!email) return;
+      localStorage.setItem(likedKey(email), JSON.stringify(Array.from(setVal)));
+    } catch {}
+  };
 
   // Per-post Instagram-like media carousel
   const PostMedia: React.FC<{ photos: string[]; onDoubleLike: () => void }> = ({ photos, onDoubleLike }) => {
@@ -115,6 +138,28 @@ export default function FeedPage() {
 
   // No author prefill needed anymore
 
+  // Helpers to render a proper display name when author is missing
+  const nameFromEmail = (email?: string | null): string | null => {
+    if (!email) return null;
+    try {
+      const local = String(email).split('@')[0] || '';
+      if (!local) return null;
+      const cleaned = local.replace(/[._-]+/g, ' ').trim();
+      if (!cleaned) return null;
+      return cleaned
+        .split(' ')
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+    } catch { return null; }
+  };
+  const displayNameForPost = (p: Post): string => {
+    const a = (p.author || '').trim();
+    if (a) return a;
+    const derived = nameFromEmail(p.ownerEmail);
+    return derived || 'User';
+  };
+
   // Load posts from API (public feed)
   async function fetchPosts() {
     try {
@@ -136,19 +181,27 @@ export default function FeedPage() {
           edited: !!p.edited,
           updatedAt: p.updatedAt ? Date.parse(p.updatedAt) : null,
         }));
-        setPosts(list);
+        // Merge with local liked set for current user so UI reflects liked state
+        const setLocal = loadLikedSet(currentUserEmail);
+        setLikedSet(setLocal);
+        const withLiked = list.map((pp) => ({
+          ...pp,
+          likedByMe: (Array.isArray(pp.likedBy) ? pp.likedBy.includes(currentUserEmail || '') : false) || setLocal.has(pp.id),
+        }));
+        setPosts(withLiked);
       }
     } catch (_) {}
   }
+  // Fetch posts once the user email (if any) is known, so likedByMe is computed correctly
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [currentUserEmail]);
 
   // Compute a small hash from feed to detect changes (ids + updatedAt + likes)
   const computeFeedHash = (items: Post[]): string => {
     try {
       const key = items
-        .map((p) => `${p.id}:${p.updatedAt ?? ''}:${p.likes}`)
+        .map((p) => `${p.id}:${p.updatedAt ?? ''}:${p.likes}:${p.likedByMe ? 1 : 0}`)
         .join('|');
       let h = 0;
       for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
@@ -183,16 +236,29 @@ export default function FeedPage() {
             edited: !!p.edited,
             updatedAt: p.updatedAt ? Date.parse(p.updatedAt) : null,
           }));
-          const newHash = computeFeedHash(list);
+          const setLocal = loadLikedSet(currentUserEmail);
+          setLikedSet(setLocal);
+          const withLiked = list.map((pp) => {
+            const serverLiked = Array.isArray(pp.likedBy) ? pp.likedBy.includes(currentUserEmail || '') : false;
+            const localLiked = setLocal.has(pp.id);
+            const likedByMe = serverLiked || localLiked;
+            const likesAdj = localLiked && !serverLiked ? 1 : 0;
+            return {
+              ...pp,
+              likedByMe,
+              likes: (typeof pp.likes === 'number' ? pp.likes : 0) + likesAdj,
+            };
+          });
+          const newHash = computeFeedHash(withLiked);
           if (newHash !== lastFeedHash) {
-            setPosts(list);
+            setPosts(withLiked);
             setLastFeedHash(newHash);
           }
         }
       } catch {}
       schedule();
     };
-    const schedule = () => { timer = setTimeout(tick, 10000); };
+    const schedule = () => { timer = setTimeout(tick, FEED_REFRESH_MS); };
     schedule();
     const onVisibility = () => { /* restart schedule immediately */ if (timer) clearTimeout(timer); schedule(); };
     document.addEventListener('visibilitychange', onVisibility);
@@ -228,10 +294,17 @@ export default function FeedPage() {
     } catch {}
   }, []);
 
-  // Compute likedByMe when posts or current user changes
+  // Load likedSet for current user and compute likedByMe when user changes
   useEffect(() => {
+    const setLocal = loadLikedSet(currentUserEmail);
+    setLikedSet(setLocal);
     if (!currentUserEmail) return;
-    setPosts((prev) => prev.map((p) => ({ ...p, likedByMe: Array.isArray(p.likedBy) ? p.likedBy!.includes(currentUserEmail) : p.likedByMe })));
+    setPosts((prev) => prev.map((p) => ({
+      ...p,
+      likedByMe: (Array.isArray(p.likedBy) ? p.likedBy!.includes(currentUserEmail) : false) || setLocal.has(p.id),
+    })));
+    // Force next poll to re-render using new likedByMe by resetting hash
+    setLastFeedHash("");
   }, [currentUserEmail]);
 
   // Load available card names from DB when dialog opens
@@ -321,7 +394,7 @@ export default function FeedPage() {
           const newId = crypto.randomUUID();
           const payload = {
             id: newId,
-            author: authorName || 'User',
+            author: authorName || nameFromEmail(currentUserEmail) || 'User',
             avatarUrl: authorAvatar || null,
             cardName: cardName.trim(),
             text: text.trim(),
@@ -350,16 +423,88 @@ export default function FeedPage() {
   }
 
   function toggleLike(id: string) {
-    const wasLiked = posts.find((pp) => pp.id === id)?.likedByMe;
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: !p.likedByMe, likes: p.likes + (p.likedByMe ? -1 : 1) } : p)));
-    if (!wasLiked) {
-      setOverlayLikedId(id);
-      setOverlayPopId(id);
-      setTimeout(() => setOverlayLikedId((x) => (x === id ? null : x)), 700);
-      setTimeout(() => setOverlayPopId((x) => (x === id ? null : x)), 450);
+    // Throttle per-post to avoid rapid duplicate toggles
+    const now = Date.now();
+    const lastAt = lastToggleAtRef.current[id] || 0;
+    if (now - lastAt < 500) return;
+    lastToggleAtRef.current[id] = now;
+    const target = posts.find((pp) => pp.id === id);
+    if (!currentUserEmail) {
+      toast({ title: 'Login required', description: 'Please login to like posts.', variant: 'destructive' });
+      return;
     }
-    // Fire and forget
-    fetch(`/api/feed/${id}/like`, { method: 'POST' }).catch(() => {});
+    const isLiked = !!target?.likedByMe;
+    if (isLiked) {
+      // Optimistic UNLIKE
+      setPosts((prev) => prev.map((p) => {
+        if (p.id !== id) return p;
+        const nextLikes = Math.max(0, p.likes - 1);
+        const nextLikedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]).filter(e => e !== currentUserEmail) : [];
+        return { ...p, likedByMe: false, likes: nextLikes, likedBy: nextLikedBy };
+      }));
+      // Update local liked set
+      setLikedSet((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        saveLikedSet(currentUserEmail, next);
+        return next;
+      });
+      fetch(`/api/feed/${id}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentUserEmail, unlike: true }),
+      })
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok || data?.ok === false) throw new Error('unlike failed');
+          const liked = !!data?.liked;
+          const likes = typeof data?.likes === 'number' ? data.likes : undefined;
+          setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p)));
+          // liked should be false for unlike
+        })
+        .catch(() => {
+          // rollback local unlike
+          setLikedSet((prev) => {
+            const next = new Set(prev); next.add(id); saveLikedSet(currentUserEmail, next); return next;
+          });
+          setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1 } : p)));
+        });
+      return;
+    }
+    // Optimistic LIKE
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1, likedBy: Array.isArray(p.likedBy) ? Array.from(new Set([...(p.likedBy as string[]), currentUserEmail])) : [currentUserEmail] } : p)));
+    // Update local liked set
+    setLikedSet((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      saveLikedSet(currentUserEmail, next);
+      return next;
+    });
+    // Heart overlays
+    setOverlayLikedId(id);
+    setOverlayPopId(id);
+    setTimeout(() => setOverlayLikedId((x) => (x === id ? null : x)), 700);
+    setTimeout(() => setOverlayPopId((x) => (x === id ? null : x)), 450);
+    // Notify backend like
+    fetch(`/api/feed/${id}/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentUserEmail, unlike: false }),
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || data?.ok === false) throw new Error('like failed');
+        const liked = !!data?.liked;
+        const likes = typeof data?.likes === 'number' ? data.likes : undefined;
+        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p)));
+      })
+      .catch(() => {
+        // rollback local like
+        setLikedSet((prev) => {
+          const next = new Set(prev); next.delete(id); saveLikedSet(currentUserEmail, next); return next;
+        });
+        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: false, likes: Math.max(0, p.likes - 1) } : p)));
+      });
   }
 
   return (
@@ -387,17 +532,17 @@ export default function FeedPage() {
                     <Avatar className="h-8 w-8">
                       <AvatarImage
                         src={p.avatarUrl || authorAvatar || ''}
-                        alt={p.author || 'user'}
+                        alt={displayNameForPost(p)}
                         referrerPolicy="no-referrer"
                         onError={(e) => {
                           const t = e.currentTarget as HTMLImageElement;
                           t.src = '';
                         }}
                       />
-                      <AvatarFallback>{(p.author || 'U').slice(0,2).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback>{displayNameForPost(p).slice(0,2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{p.author || 'User'}</div>
+                      <div className="text-sm font-semibold truncate">{displayNameForPost(p)}</div>
                       <div className="text-[12px] text-neutral-600 dark:text-neutral-300 truncate">{p.cardName}</div>
                     </div>
                   </div>
@@ -414,11 +559,9 @@ export default function FeedPage() {
                   <PostMedia
                     photos={p.photos || []}
                     onDoubleLike={() => {
-                      toggleLike(p.id);
-                      setOverlayLikedId(p.id);
-                      setOverlayPopId(p.id);
-                      setTimeout(() => setOverlayLikedId((x) => (x === p.id ? null : x)), 700);
-                      setTimeout(() => setOverlayPopId((x) => (x === p.id ? null : x)), 450);
+                      if (!p.likedByMe) {
+                        toggleLike(p.id);
+                      }
                     }}
                   />
                   {/* Heart overlay */}
@@ -463,7 +606,8 @@ export default function FeedPage() {
                           const ok = window.confirm('Delete this post?');
                           if (!ok) return;
                           try {
-                            const res = await fetch(`/api/feed/${p.id}`, { method: 'DELETE' });
+                            const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
+                            const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
                             if (!res.ok) throw new Error('Delete failed');
                             toast({ title: 'Deleted', description: 'Your post has been removed.' });
                             await fetchPosts();

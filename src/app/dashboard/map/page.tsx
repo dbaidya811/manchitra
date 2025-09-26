@@ -234,9 +234,13 @@ export default function DashboardMapPage() {
 
   // Load all places and extract lon/lat for markers
   useEffect(() => {
-    (async () => {
+    const REFRESH_MS = 500;
+    let stopped = false;
+    let timer: any;
+    const tick = async () => {
+      if (stopped) return;
       try {
-        const res = await fetch('/api/places');
+        const res = await fetch('/api/places', { cache: 'no-store' });
         const data = await res.json();
         const list = Array.isArray(data?.places) ? data.places : [];
         const out: Array<{ id: string | number; lat: number; lon: number; title?: string; userEmail?: string | null }> = [];
@@ -261,7 +265,12 @@ export default function DashboardMapPage() {
         }
         setPoiMarkers(out);
       } catch {}
-    })();
+      finally {
+        timer = setTimeout(tick, REFRESH_MS);
+      }
+    };
+    tick();
+    return () => { stopped = true; if (timer) clearTimeout(timer); };
   }, []);
 
   // Auto-fit bounds whenever the route updates

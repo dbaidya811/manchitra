@@ -71,26 +71,9 @@ export function RouteStepsDialog({ open, onOpenChange, placeName, steps }: Route
     if (!steps || steps.length === 0) return;
     const current = steps[idx];
     const text = current.detail ? `${current.title}. ${current.detail}.` : current.title;
+    // Speak only the current step and stop when it finishes (no auto-advance)
     speak(text, () => {
-      // auto-advance if still playing
-      setTimeout(() => {
-        setIdx(prev => {
-          const next = prev + 1;
-          if (!playing) return prev;
-          if (next < steps.length) {
-            // queue next
-            const nxt = steps[next];
-            const t2 = nxt.detail ? `${nxt.title}. ${nxt.detail}.` : nxt.title;
-            speak(t2, () => {});
-            return next;
-          } else {
-            // arrival
-            speak(`You have arrived at ${placeName}. Enjoy your visit!`);
-            setPlaying(false);
-            return prev;
-          }
-        });
-      }, 250);
+      setPlaying(false);
     });
   };
 

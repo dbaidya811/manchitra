@@ -9,33 +9,38 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
-    const email = session?.user?.email || null;
+    const body = await req.json().catch(() => ({}));
+    const bodyEmail = typeof body?.email === 'string' ? body.email : null;
+    const unlike = !!body?.unlike;
+    const email = session?.user?.email || bodyEmail;
     const { id } = params;
+
+    if (!email) {
+      return NextResponse.json({ ok: false, error: "Email required to like" }, { status: 401 });
+    }
 
     const db = await getDb();
     const doc = await db.collection("feed").findOne({ id });
     if (!doc) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
-    // If user logged in, toggle membership in likedBy, else just increment likes once per request
-    if (email) {
-      const hasLiked = Array.isArray(doc.likedBy) && doc.likedBy.includes(email);
-      if (hasLiked) {
-        await db.collection("feed").updateOne(
-          { id },
-          { $inc: { likes: -1 }, $pull: { likedBy: email } } as any
-        );
-        return NextResponse.json({ ok: true, liked: false });
-      } else {
-        await db.collection("feed").updateOne(
-          { id },
-          { $inc: { likes: 1 }, $addToSet: { likedBy: email } } as any
-        );
-        return NextResponse.json({ ok: true, liked: true });
-      }
+    const hasLiked = Array.isArray(doc.likedBy) && doc.likedBy.includes(email);
+
+    if (unlike || hasLiked) {
+      // Unlike path: remove email if present, decrement likes but not below 0
+      const newLikes = Math.max(0, (typeof doc.likes === 'number' ? doc.likes : 0) - (hasLiked ? 1 : 0));
+      await db.collection("feed").updateOne(
+        { id },
+        { $set: { likes: newLikes }, $pull: { likedBy: email } } as any
+      );
+      return NextResponse.json({ ok: true, liked: false, likes: newLikes });
     } else {
-      // anonymous like - simple increment
-      await db.collection("feed").updateOne({ id }, { $inc: { likes: 1 } });
-      return NextResponse.json({ ok: true, liked: true });
+      // Like path: add email if missing, increment likes
+      const newLikes = (typeof doc.likes === 'number' ? doc.likes : 0) + 1;
+      await db.collection("feed").updateOne(
+        { id },
+        { $set: { likes: newLikes }, $addToSet: { likedBy: email } } as any
+      );
+      return NextResponse.json({ ok: true, liked: true, likes: newLikes });
     }
   } catch (e: any) {
     console.error("POST /api/feed/[id]/like error", e);

@@ -18,7 +18,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
     const owner: string | null = existing.ownerEmail ?? null;
-    const current: string | null = session?.user?.email ?? null;
+    // authorize via NextAuth session or provided email in body/query
+    const url = new URL(req.url);
+    const queryEmail = url.searchParams.get('email');
+    const bodyEmail = typeof (body?.email) === 'string' ? body.email : null;
+    const current: string | null = session?.user?.email ?? bodyEmail ?? queryEmail;
     if (!owner || owner !== current) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
@@ -51,7 +55,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     if (!existing) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
 
     const owner: string | null = existing.ownerEmail ?? null;
-    const current: string | null = session?.user?.email ?? null;
+    // authorize via NextAuth session or provided email in body/query
+    const url = new URL(req.url);
+    const queryEmail = url.searchParams.get('email');
+    const body = await req.json().catch(() => ({} as any));
+    const bodyEmail = typeof body?.email === 'string' ? body.email : null;
+    const current: string | null = session?.user?.email ?? bodyEmail ?? queryEmail;
     if (!owner || owner !== current) {
       return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
     }
