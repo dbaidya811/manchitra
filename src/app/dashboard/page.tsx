@@ -423,7 +423,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold tracking-tight">Places in {area}</h2>
               </div>
-              <div className="flex gap-2 sm:gap-4 overflow-x-auto touch-pan-x pb-2 -mx-2 px-2 snap-x snap-mandatory sm:mx-0 sm:px-0 sm:overflow-visible sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="flex gap-2 sm:gap-4 overflow-x-auto touch-auto overscroll-x-contain pb-2 -mx-2 px-2 snap-x snap-mandatory sm:mx-0 sm:px-0 sm:overflow-visible sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {areaPlaces.map((place, idx) => (
                   <div
                     key={place.id}

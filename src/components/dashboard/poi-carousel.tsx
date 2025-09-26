@@ -284,10 +284,12 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
             loop: places.length > 5,
             dragFree: true,
             containScroll: "trimSnaps",
+            // Lower angle tolerance so vertical drags bubble to page scroll
+            dragAngleTolerance: isRecent ? 20 : 40,
           }}
-          className="w-full touch-pan-x"
+          className={isRecent ? "w-full touch-pan-y overscroll-x-contain md:touch-auto" : "w-full touch-auto"}
         >
-          <CarouselContent className="-ml-2">
+          <CarouselContent className={isRecent ? "-ml-2 touch-pan-y overscroll-x-contain" : "-ml-2"}>
             {showLoveAnim && canPortal && createPortal(
               <div className="fixed inset-0 z-[9999] pointer-events-none flex items-center justify-center">
                 <div className="relative">

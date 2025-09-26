@@ -15,7 +15,6 @@ const RL = {
   Marker: dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false }),
   Tooltip: dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false }),
   Circle: dynamic(() => import('react-leaflet').then(m => m.Circle), { ssr: false }),
-  useMap: undefined as any,
 } as const;
 
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
@@ -33,6 +32,11 @@ export default function DashboardMapPage() {
   const [startPos, setStartPos] = useState<{ lat: number; lon: number } | null>(null);
   const [browsePos, setBrowsePos] = useState<{ lat: number; lon: number } | null>(null);
   const [routeCoords, setRouteCoords] = useState<Array<[number, number]>>([]);
+  // Route visualization split
+  const [routeAheadCoords, setRouteAheadCoords] = useState<Array<[number, number]>>([]);
+  const [routePastCoords, setRoutePastCoords] = useState<Array<[number, number]>>([]);
+  const [projPointOnRoute, setProjPointOnRoute] = useState<[number, number] | null>(null);
+  const [routeBearingDeg, setRouteBearingDeg] = useState<number | null>(null);
   const [routing, setRouting] = useState<boolean>(false);
   const [liveUpdate] = useState<boolean>(true);
   const [destIcon, setDestIcon] = useState<any>(null);
@@ -40,6 +44,7 @@ export default function DashboardMapPage() {
   const [otherPlaceIcon, setOtherPlaceIcon] = useState<any>(null);
   const [autoRouted, setAutoRouted] = useState(false);
   const mapRef = useRef<any>(null);
+  const [mapReady, setMapReady] = useState<boolean>(false);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
   const [routeSteps, setRouteSteps] = useState<Array<{ text: string; type?: string; modifier?: string; location?: [number, number]; distance?: number }>>([]);
@@ -48,6 +53,8 @@ export default function DashboardMapPage() {
   const [autoFollow, setAutoFollow] = useState<boolean>(true);
   const [journeyCompleted, setJourneyCompleted] = useState<boolean>(false);
   const [showOffRouteScreen, setShowOffRouteScreen] = useState<boolean>(false);
+  // Heading-up toggle
+  const [headingUp, setHeadingUp] = useState<boolean>(true);
   // Voice guidance
   const [voiceOn, setVoiceOn] = useState<boolean>(false);
   const currentStepIdxRef = useRef<number>(0);
@@ -57,6 +64,9 @@ export default function DashboardMapPage() {
   const routeAbortRef = useRef<AbortController | null>(null);
   const lastRouteAtRef = useRef<number>(0);
   const geoWatchRef = useRef<number | null>(null);
+  // Reroute throttling helpers
+  const lastReroutePosRef = useRef<{ lat: number; lon: number } | null>(null);
+  const lastRerouteTimeRef = useRef<number>(0);
   // Draggable, collapsible panel state
   const [panelCollapsed, setPanelCollapsed] = useState<boolean>(false);
   const [panelPos, setPanelPos] = useState<{ x: number; y: number }>({ x: 16, y: 120 });
@@ -234,9 +244,20 @@ export default function DashboardMapPage() {
 
   // Load all places and extract lon/lat for markers
   useEffect(() => {
-    const REFRESH_MS = 500;
+    const REFRESH_MS = 3000;
     let stopped = false;
     let timer: any;
+
+    const scheduleNext = () => {
+      if (stopped) return;
+      if (typeof document !== 'undefined' && document.hidden) {
+        // Check again later when hidden
+        timer = setTimeout(scheduleNext, REFRESH_MS);
+      } else {
+        timer = setTimeout(tick, REFRESH_MS);
+      }
+    };
+
     const tick = async () => {
       if (stopped) return;
       try {
@@ -266,11 +287,31 @@ export default function DashboardMapPage() {
         setPoiMarkers(out);
       } catch {}
       finally {
-        timer = setTimeout(tick, REFRESH_MS);
+        scheduleNext();
       }
     };
+
+    const onVisibility = () => {
+      if (stopped) return;
+      if (!document.hidden) {
+        // Fire immediately when returning to foreground
+        clearTimeout(timer);
+        tick();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
     tick();
-    return () => { stopped = true; if (timer) clearTimeout(timer); };
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+    };
   }, []);
 
   // Auto-fit bounds whenever the route updates
@@ -288,10 +329,10 @@ export default function DashboardMapPage() {
     } catch {}
   }, [routeCoords, startPos, dest]);
 
-  // Click on map to set destination and draw route from user's current location
+  // Bind map click once map is ready
   useEffect(() => {
-    if (!mapRef.current) return;
-    const map: any = mapRef.current;
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current as any;
     const onClick = (e: any) => {
       try {
         const to = { lat: e.latlng.lat, lon: e.latlng.lng };
@@ -329,7 +370,12 @@ export default function DashboardMapPage() {
     return () => {
       try { map.off('click', onClick); } catch {}
     };
-  }, [mapRef, userPos, center]);
+  }, [mapReady, userPos, center]);
+
+  // Mark map as ready once the MapContainer mounts (keyed by mapKey)
+  useEffect(() => {
+    if (mapRef.current) setMapReady(true);
+  }, [mapKey]);
 
   // Auto-start routing when destination is set (will use geolocation or map-center fallback)
   useEffect(() => {
@@ -389,6 +435,7 @@ export default function DashboardMapPage() {
   // Bearing and user arrow icon
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [userIcon, setUserIcon] = useState<any>(null);
+  const [userArrowIcon, setUserArrowIcon] = useState<any>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   useEffect(() => {
     if (!mounted) return;
@@ -403,25 +450,48 @@ export default function DashboardMapPage() {
     })();
   }, [mounted]);
 
+  // Build a navigation arrow icon for the user; rotate to face route direction (fallback to device heading)
   useEffect(() => {
-    if (!mounted) return;
-    navigator.geolocation.watchPosition(
-      (pos) => {
-        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        setUserPos(me);
-        setUserAccuracy(pos.coords.accuracy);
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
-  }, [mounted]);
+    (async () => {
+      const L = await import('leaflet');
+      const size: [number, number] = [36, 36];
+      const anchor: [number, number] = [18, 18];
+      const rotation = (routeBearingDeg ?? userHeading ?? 0);
+      const html = `
+        <div style="transform: rotate(${rotation}deg); width:36px; height:36px; display:grid; place-items:center;">
+          <svg width="26" height="26" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="shadow"><feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity="0.25"/></filter>
+            </defs>
+            <path d="M12 2l6 12-6-3-6 3 6-12z" fill="#2563eb" stroke="#1e40af" stroke-width="1" filter="url(#shadow)"/>
+          </svg>
+        </div>`;
+      const div = L.divIcon({ className: 'user-arrow', html, iconSize: size, iconAnchor: anchor });
+      setUserArrowIcon(div);
+    })();
+  }, [routeBearingDeg, userHeading]);
+
+  // Remove global geolocation watch; we start watching when navigation actually starts
 
   // Auto-follow map to user position in real-time (no reload needed)
   useEffect(() => {
     if (!autoFollow || !userPos) return;
-    setCenter([userPos.lat, userPos.lon]);
+    if (headingUp && userHeading != null) {
+      // Look-ahead center ~80m in heading direction
+      const dMeters = 80;
+      const R = 6371000;
+      const theta = (userHeading * Math.PI) / 180;
+      const latRad = (userPos.lat * Math.PI) / 180;
+      const dLat = (dMeters * Math.cos(theta)) / R;
+      const dLon = (dMeters * Math.sin(theta)) / (R * Math.cos(latRad));
+      const newLat = userPos.lat + (dLat * 180) / Math.PI;
+      const newLon = userPos.lon + (dLon * 180) / Math.PI;
+      setCenter([newLat, newLon]);
+    } else {
+      setCenter([userPos.lat, userPos.lon]);
+    }
     setZoom((z) => Math.max(z, 16));
-  }, [userPos, autoFollow]);
+  }, [userPos, autoFollow, headingUp, userHeading]);
 
   // Compute approximate distance (meters) between two lat/lon
   const haversine = (a: [number, number], b: [number, number]) => {
@@ -460,6 +530,85 @@ export default function DashboardMapPage() {
     }
     return min; // in meters due to scale factors
   };
+
+  // Find the closest point on a polyline and return projection details
+  const projectOnPolyline = (pt: [number, number], line: Array<[number, number]>) => {
+    if (line.length < 2) return { index: 0, point: line[0] as [number, number], distance: Infinity };
+    let best = { index: 0, point: line[0] as [number, number], distance: Infinity };
+    const toXY = (p: [number, number]) => {
+      const x = p[1] * 111320 * Math.cos(((p[0] + pt[0]) / 2) * Math.PI / 180);
+      const y = p[0] * 110540;
+      return [x, y];
+    };
+    const P = toXY(pt);
+    for (let i = 0; i < line.length - 1; i++) {
+      const A = toXY(line[i]);
+      const B = toXY(line[i + 1]);
+      const AB = [B[0] - A[0], B[1] - A[1]] as const;
+      const AP = [P[0] - A[0], P[1] - A[1]] as const;
+      const ab2 = AB[0] * AB[0] + AB[1] * AB[1] || 1;
+      let t = (AP[0] * AB[0] + AP[1] * AB[1]) / ab2;
+      t = Math.max(0, Math.min(1, t));
+      const projXY: [number, number] = [A[0] + AB[0] * t, A[1] + AB[1] * t];
+      const d = Math.hypot(P[0] - projXY[0], P[1] - projXY[1]);
+      if (d < best.distance) {
+        // Convert back to lat,lon approximately
+        const toLatLon = (xy: [number, number]): [number, number] => {
+          const lon = xy[0] / (111320 * Math.cos(((line[i][0] + pt[0]) / 2) * Math.PI / 180));
+          const lat = xy[1] / 110540;
+          return [lat, lon];
+        };
+        best = { index: i, point: toLatLon(projXY), distance: d };
+      }
+    }
+    return best;
+  };
+
+  // Split route into past and ahead parts for visualization
+  useEffect(() => {
+    if (!userPos || routeCoords.length < 2) {
+      setRoutePastCoords([]);
+      setRouteAheadCoords(routeCoords);
+      setProjPointOnRoute(null);
+      return;
+    }
+    const { index, point } = projectOnPolyline([userPos.lat, userPos.lon], routeCoords);
+    const past: Array<[number, number]> = [];
+    const ahead: Array<[number, number]> = [];
+    // Build past from start to projection point
+    for (let i = 0; i < index; i++) past.push(routeCoords[i]);
+    past.push(routeCoords[index]);
+    past.push(point);
+    // Build ahead from projection point to end
+    ahead.push(point);
+    ahead.push(routeCoords[index + 1]);
+    for (let i = index + 2; i < routeCoords.length; i++) ahead.push(routeCoords[i]);
+    setRoutePastCoords(past);
+    setRouteAheadCoords(ahead);
+    setProjPointOnRoute(point);
+  }, [userPos, routeCoords]);
+
+  // Compute bearing in degrees from A(lat,lon) to B(lat,lon)
+  const bearingDeg = (a: [number, number], b: [number, number]) => {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const toDeg = (r: number) => (r * 180) / Math.PI;
+    const lat1 = toRad(a[0]);
+    const lat2 = toRad(b[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const y = Math.sin(dLon) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  };
+
+  // Determine route-bearing direction the user should face (towards next segment)
+  useEffect(() => {
+    if (projPointOnRoute && routeAheadCoords.length >= 2) {
+      const dir = bearingDeg(projPointOnRoute, routeAheadCoords[1]);
+      setRouteBearingDeg(dir);
+    } else {
+      setRouteBearingDeg(null);
+    }
+  }, [projPointOnRoute, routeAheadCoords]);
 
   // Update heading and on-route check on live updates
   const [onRoute, setOnRoute] = useState<boolean>(true);
@@ -899,7 +1048,27 @@ export default function DashboardMapPage() {
               if (typeof upd.coords.accuracy === 'number' && !Number.isNaN(upd.coords.accuracy)) {
                 setUserAccuracy(upd.coords.accuracy);
               }
-              fetchRoute(cur, dest);
+              // Smart re-route: only when off-route or after time/distance thresholds
+              const now = Date.now();
+              let shouldReroute = false;
+              if (!onRoute && offRouteMeters > 35) {
+                shouldReroute = true;
+              }
+              if (!shouldReroute) {
+                if (now - lastRerouteTimeRef.current > 15000) {
+                  shouldReroute = true;
+                } else if (lastReroutePosRef.current) {
+                  const moved = haversine([lastReroutePosRef.current.lat, lastReroutePosRef.current.lon], [cur.lat, cur.lon]);
+                  if (moved > 80) shouldReroute = true; // meters
+                } else {
+                  shouldReroute = true; // first time
+                }
+              }
+              if (shouldReroute) {
+                lastRerouteTimeRef.current = now;
+                lastReroutePosRef.current = cur;
+                fetchRoute(cur, dest);
+              }
               // Auto-follow: center map to the user's current position
               setCenter([cur.lat, cur.lon]);
               setZoom((z) => Math.max(z, 16));
@@ -928,6 +1097,18 @@ export default function DashboardMapPage() {
   };
 
   const { data: session } = useSession();
+
+  // Cleanup any active geolocation watch on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        if (geoWatchRef.current != null) {
+          navigator.geolocation.clearWatch(geoWatchRef.current);
+          geoWatchRef.current = null;
+        }
+      } catch {}
+    };
+  }, []);
 
   return (
     <div className="relative h-screen bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
@@ -969,10 +1150,25 @@ export default function DashboardMapPage() {
               <RL.CircleMarker center={[browsePos.lat, browsePos.lon]} radius={4} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1 }} />
             )}
             {userPos && (
-              <RL.CircleMarker center={[userPos.lat, userPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
+              userArrowIcon ? (
+                <RL.Marker position={[userPos.lat, userPos.lon]} icon={userArrowIcon} />
+              ) : (
+                <RL.CircleMarker center={[userPos.lat, userPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
+              )
             )}
-            {routeCoords.length > 0 && (
-              <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 4, opacity: 0.9 }} />
+            {routeAheadCoords.length > 0 ? (
+              <>
+                {/* Past segment (already traversed) */}
+                {routePastCoords.length > 1 && (
+                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.6 }} />
+                )}
+                {/* Ahead segment (remaining) */}
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.95 }} />
+              </>
+            ) : (
+              routeCoords.length > 0 && (
+                <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 5, opacity: 0.9 }} />
+              )
             )}
             {/* All saved places markers: custom icon for mine, green pin for others, with labels */}
             {poiMarkers.map((poi) => {
@@ -1069,18 +1265,63 @@ export default function DashboardMapPage() {
           </div>
         )}
         {/* Auto-fit bounds when route updates */}
-        {/* Floating in-app navigation button */}
-        {dest && (
-          <div className="absolute bottom-28 right-5 z-[1500] text-right">
-            <button
-              onClick={startNavigation}
-              className="rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-xl hover:from-yellow-500 hover:to-orange-600 focus:outline-none focus:ring-4 focus:ring-yellow-300/50 px-5 py-2.5 text-sm font-semibold transform transition active:scale-[0.98]"
-              title="Start in-app directions"
-            >
-              {routing ? 'Routing…' : 'Start Directions'}
-            </button>
+        {/* Maneuver banner */}
+        {routeSteps.length > 0 && userPos && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1800] w-[min(96vw,680px)] px-2">
+            {(() => {
+              const idx = Math.min(currentStepIdxRef.current, routeSteps.length - 1);
+              const step = routeSteps[idx];
+              const next = routeSteps[idx + 1];
+              const d = step?.location ? Math.round(haversine([userPos.lat, userPos.lon], step.location)) : null;
+              return (
+                <div className="rounded-xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-900/80 backdrop-blur shadow-xl px-3 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="shrink-0">{renderStepIcon(step?.type, step?.modifier)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">{step?.text || 'Proceed'}</div>
+                      <div className="text-xs text-neutral-600 dark:text-neutral-300">
+                        {typeof d === 'number' ? `${d} m` : ''}
+                        {next ? <span className="ml-2 opacity-80">Then: {next.text}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
+        {/* Re-center and Exit controls */}
+        <div className="absolute bottom-28 right-5 z-[1500] flex flex-col gap-2 items-end">
+          <button
+            onClick={() => { if (userPos) { setAutoFollow(true); setCenter([userPos.lat, userPos.lon]); setZoom((z) => Math.max(z, 16)); } }}
+            className="rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl px-3 py-2 text-sm"
+            title="Re-center"
+          >
+            Re-center
+          </button>
+          {(routeCoords.length > 0 || geoWatchRef.current != null) && (
+            <button
+              onClick={() => {
+                try { if (geoWatchRef.current != null) { navigator.geolocation.clearWatch(geoWatchRef.current); geoWatchRef.current = null; } } catch {}
+                try { routeAbortRef.current?.abort(); } catch {}
+                setRouteCoords([]);
+                setRouteDistance(null);
+                setRouteDuration(null);
+                setRouteSteps([]);
+                setRouteError(null);
+                setJourneyCompleted(false);
+                setShowOffRouteScreen(false);
+                setAutoRouted(false);
+                // keep dest marker for context; comment next line to preserve
+                // setDest(null);
+              }}
+              className="rounded-full bg-red-600 text-white shadow-xl hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-300/40 px-4 py-2 text-sm"
+              title="Exit navigation"
+            >
+              Exit
+            </button>
+          )}
+        </div>
         {/* Voice guidance toggle (icon button) */}
         <div className="absolute bottom-28 left-5 z-[1500]">
           <button
@@ -1105,6 +1346,20 @@ export default function DashboardMapPage() {
               </svg>
             )}
           </button>
+          {/* Heading toggle */}
+          <div className="mt-2">
+            <button
+              onClick={() => setHeadingUp((v) => !v)}
+              className={`h-11 w-11 flex items-center justify-center rounded-full border backdrop-blur shadow-xl focus:outline-none focus:ring-4 ${headingUp ? 'bg-emerald-600 text-white border-emerald-500/60 focus:ring-emerald-300/40' : 'bg-white/80 text-neutral-800 border-black/10 dark:bg-black/40 dark:text-white'}`}
+              title={headingUp ? 'Heading-up on' : 'Heading-up off'}
+              aria-label="Toggle heading-up"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6">
+                <path d="M12 2l4 10h-8l4-10z"/>
+                <circle cx="12" cy="19" r="2"/>
+              </svg>
+            </button>
+          </div>
         </div>
         {/* On-route status chip */}
         {(routeCoords.length > 0 && userPos) && (
