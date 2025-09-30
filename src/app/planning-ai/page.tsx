@@ -63,7 +63,7 @@ export default function PlanningAIPage() {
         </div>
         {/* Mobile inline Continue button */}
         <div className="mt-4 sm:hidden">
-          <Link href="/dashboard/map" className="block">
+          <Link href="/ai" className="block">
             <Button className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
               Continue
             </Button>
@@ -80,7 +80,7 @@ export default function PlanningAIPage() {
         }}
       >
         <div className="mx-auto max-w-4xl">
-          <Link href="/dashboard/map" className="block">
+          <Link href="/ai" className="block">
             <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
               Continue
             </Button>

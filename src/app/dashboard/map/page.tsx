@@ -84,6 +84,14 @@ export default function DashboardMapPage() {
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   // Compass heading
   const [orientationHandler, setOrientationHandler] = useState<((e: DeviceOrientationEvent) => void) | null>(null);
+  // Multi-stop plan from /ai (serial per-leg routing in selection order)
+  const [planStops, setPlanStops] = useState<Array<{ id: number; name: string; lat: number; lon: number }>>([]);
+  const [planIdx, setPlanIdx] = useState<number>(0);
+  const [orderedPlanStops, setOrderedPlanStops] = useState<Array<{ id: number; name: string; lat: number; lon: number }>>([]);
+  const [snappedOrderedPlanStops, setSnappedOrderedPlanStops] = useState<Array<{ id: number; name: string; lat: number; lon: number }>>([]);
+  const selectedPlanIdSet = useMemo(() => new Set(orderedPlanStops.map(s => s.id)), [orderedPlanStops]);
+  // Background connectors between consecutive stops (1->2, 2->3, ...)
+  const [stopConnectors, setStopConnectors] = useState<Array<Array<[number, number]>>>([]);
 
   useEffect(() => {
     // Defer mount to avoid Leaflet double init in StrictMode/HMR
@@ -276,6 +284,103 @@ export default function DashboardMapPage() {
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }, [mounted]);
+
+  // Load multi-stop plan from query (?plan=1,2,3)
+  useEffect(() => {
+    const plan = searchParams.get('plan');
+    if (!plan) return;
+    const ids = plan.split(',').map((s) => parseInt(s, 10)).filter((n) => Number.isFinite(n));
+    if (ids.length === 0) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/places', { cache: 'no-store' });
+        const data = await res.json();
+        const list: any[] = Array.isArray(data?.places) ? data.places : [];
+        const toCoords = (p: any): { lat: number | null; lon: number | null } => {
+          if (typeof p.lat === 'number' && typeof p.lon === 'number') return { lat: p.lat, lon: p.lon };
+          if (typeof p.location === 'string' && p.location.includes(',')) {
+            const parts = p.location.split(',').map((s: string) => s.trim());
+            const a = parseFloat(parts[0] || '');
+            const b = parseFloat(parts[1] || '');
+            if (!Number.isNaN(a) && !Number.isNaN(b)) {
+              if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
+              if (Math.abs(a) <= 180 && Math.abs(b) <= 90) return { lat: b, lon: a };
+            }
+          }
+          return { lat: null, lon: null };
+        };
+        const byId = new Map(list.map((p) => [p.id, p]));
+        const stops: Array<{ id: number; name: string; lat: number; lon: number }> = [];
+        for (const id of ids) {
+          const p = byId.get(id);
+          if (!p) continue;
+          const { lat, lon } = toCoords(p);
+          if (lat == null || lon == null) continue;
+          const name: string = (p.tags?.name || p.name || `Place #${id}`);
+          stops.push({ id, name, lat, lon });
+        }
+        if (stops.length > 0) {
+          setPlanStops(stops);
+          setPlanIdx(0);
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // When we have plan stops, order them by distance from user's location and start routing to the nearest first
+  useEffect(() => {
+    if (planStops.length === 0) return;
+    const begin = (from: { lat: number; lon: number }) => {
+      const ordered = [...planStops].sort((a, b) => {
+        const da = haversine([from.lat, from.lon], [a.lat, a.lon]);
+        const db = haversine([from.lat, from.lon], [b.lat, b.lon]);
+        return da - db;
+      });
+      setOrderedPlanStops(ordered);
+      // Build background connectors between stop i -> i+1
+      buildStopConnectors(ordered).catch(() => setStopConnectors([]));
+      setPlanIdx(0);
+      const first = ordered[0];
+      setDest({ lat: first.lat, lon: first.lon });
+      // Kick off routing from geolocation
+      startNavigation();
+    };
+    if (userPos) { begin(userPos); return; }
+    if (!navigator.geolocation) {
+      const [lat, lon] = center;
+      begin({ lat, lon });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => begin({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => { const [lat, lon] = center; begin({ lat, lon }); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [planStops]);
+
+  // Build OSRM connector polylines between consecutive ordered stops (not including user->first)
+  const buildStopConnectors = async (stops: Array<{ id: number; name: string; lat: number; lon: number }>) => {
+    try {
+      if (!stops || stops.length < 2) { setStopConnectors([]); return; }
+      const out: Array<Array<[number, number]>> = [];
+      // Fetch each leg serially to be gentle on the demo server
+      for (let i = 0; i < stops.length - 1; i++) {
+        const a = stops[i], b = stops[i + 1];
+        const url = `https://router.project-osrm.org/route/v1/foot/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`;
+        const res = await fetch(url, { cache: 'no-store' });
+        const data = await res.json();
+        const route = data?.routes?.[0];
+        if (res.ok && route && Array.isArray(route.geometry?.coordinates)) {
+          const coords: Array<[number, number]> = route.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+          out.push(coords);
+        }
+      }
+      setStopConnectors(out);
+    } catch {
+      setStopConnectors([]);
+    }
+  };
 
   // Load all places and extract lon/lat for markers
   useEffect(() => {
@@ -470,6 +575,8 @@ export default function DashboardMapPage() {
   const [userIcon, setUserIcon] = useState<any>(null);
   const [userArrowIcon, setUserArrowIcon] = useState<any>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
+  // Map rotation (heading-up like Google Maps)
+  const [mapRotationDeg, setMapRotationDeg] = useState<number>(0);
   useEffect(() => {
     if (!mounted) return;
     (async () => {
@@ -650,6 +757,22 @@ export default function DashboardMapPage() {
     }
   }, [projPointOnRoute, routeAheadCoords]);
 
+  // Apply 360° map rotation when heading-up is enabled
+  useEffect(() => {
+    try {
+      if (!mapReady || !mapRef.current) return;
+      const map: any = mapRef.current;
+      const pane = map.getPane ? map.getPane('mapPane') : null;
+      if (!pane) return;
+      const deg = headingUp ? (routeBearingDeg ?? userHeading ?? 0) : 0;
+      setMapRotationDeg(deg);
+      pane.style.willChange = 'transform';
+      pane.style.transition = 'transform 200ms linear';
+      pane.style.transformOrigin = '50% 50%';
+      pane.style.transform = `rotate(${deg}deg)`;
+    } catch {}
+  }, [headingUp, routeBearingDeg, userHeading, mapReady]);
+
   // Update heading and on-route check on live updates
   const [onRoute, setOnRoute] = useState<boolean>(true);
   const [offRouteMeters, setOffRouteMeters] = useState<number>(0);
@@ -685,14 +808,98 @@ export default function DashboardMapPage() {
     // Arrival detection: within 20m of destination
     if (dest) {
       const dToDest = haversine([userPos.lat, userPos.lon], [dest.lat, dest.lon]);
-      if (dToDest <= 20 && !journeyCompleted) {
-        setJourneyCompleted(true);
-        // stop watching if we started a dedicated watch in startNavigation
-        try { if (geoWatchRef.current != null) { navigator.geolocation.clearWatch(geoWatchRef.current); geoWatchRef.current = null; } } catch {}
-        speak('You have arrived at your destination.');
+      if (dToDest <= 20) {
+        if (orderedPlanStops.length > 0 && planIdx < orderedPlanStops.length - 1) {
+          const nextIdx = planIdx + 1;
+          const next = orderedPlanStops[nextIdx];
+          setPlanIdx(nextIdx);
+          setDest({ lat: next.lat, lon: next.lon });
+          startNavigation();
+          speak(`Proceeding to ${next.name}`);
+        } else if (!journeyCompleted) {
+          setJourneyCompleted(true);
+          try { if (geoWatchRef.current != null) { navigator.geolocation.clearWatch(geoWatchRef.current); geoWatchRef.current = null; } } catch {}
+          speak('You have arrived at your destination.');
+        }
       }
     }
   }, [userPos, routeCoords]);
+
+  // Request a multi-stop route via OSRM
+  const fetchMultiRoute = async (points: Array<{ lat: number; lon: number }>) => {
+    if (!points || points.length < 2) return;
+    try {
+      setRouting(true);
+      setRouteError(null);
+      const coords = points.map(p => `${p.lon},${p.lat}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&steps=true`;
+      const res = await fetch(url, { cache: 'no-store' });
+      const data = await res.json();
+      const route = data?.routes?.[0];
+      if (res.ok && route) {
+        const geo = route.geometry; // GeoJSON LineString
+        const coordsLL: Array<[number, number]> = Array.isArray(geo?.coordinates) ? geo.coordinates.map((c: [number, number]) => [c[1], c[0]]) : [];
+        setRouteCoords(coordsLL);
+        // Ensure single continuous polyline rendering (no split past/ahead)
+        setRouteAheadCoords([]);
+        setRoutePastCoords([]);
+        setProjPointOnRoute(null);
+        setRouteDistance(typeof route.distance === 'number' ? route.distance : null);
+        setRouteDuration(typeof route.duration === 'number' ? route.duration : null);
+        // Flatten legs->steps into our UI steps
+        const legs = Array.isArray(route.legs) ? route.legs : [];
+        const stepsOut: Array<{ text: string; type?: string; modifier?: string; location?: [number, number]; distance?: number }> = [];
+        for (const leg of legs) {
+          const steps = Array.isArray(leg.steps) ? leg.steps : [];
+          for (const s of steps) {
+            const m = s?.maneuver || {};
+            const road = s?.name || s?.ref || 'road';
+            const type = m.type || 'Proceed';
+            const mod = m.modifier ? ` ${m.modifier}` : '';
+            const text = `${type}${mod} onto ${road}`.replace(/\s+/g, ' ').trim();
+            const loc = Array.isArray(m.location) && m.location.length === 2 ? [m.location[1], m.location[0]] as [number, number] : undefined;
+            stepsOut.push({ text, type: m.type, modifier: m.modifier, location: loc, distance: typeof s.distance === 'number' ? s.distance : undefined });
+          }
+        }
+        setRouteSteps(stepsOut);
+        setCurrentStepIdx(0);
+        spokenRef.current = {};
+
+        // Snap plan stop markers to OSRM waypoints so markers lie on the route line
+        const wps: Array<{ name?: string; location?: [number, number] }> = Array.isArray((data as any)?.waypoints) ? (data as any).waypoints : [];
+        if (wps.length >= 2 && orderedPlanStops.length > 0) {
+          // waypoints[0] corresponds to start (user), next indices map to orderedPlanStops
+          const snapped: Array<{ id: number; name: string; lat: number; lon: number }> = [];
+          for (let i = 0; i < orderedPlanStops.length; i++) {
+            const o = orderedPlanStops[i];
+            const wp = wps[i + 1];
+            if (wp && Array.isArray(wp.location) && wp.location.length === 2) {
+              snapped.push({ id: o.id, name: o.name, lat: wp.location[1], lon: wp.location[0] });
+            } else {
+              snapped.push(o);
+            }
+          }
+          setSnappedOrderedPlanStops(snapped);
+        } else {
+          setSnappedOrderedPlanStops(orderedPlanStops);
+        }
+      } else {
+        setRouteCoords([]);
+        setRouteDistance(null);
+        setRouteDuration(null);
+        setRouteSteps([]);
+        setRouteError('No route found');
+      }
+    } catch (e) {
+      setRouteCoords([]);
+      setRouteDistance(null);
+      setRouteDuration(null);
+      setRouteSteps([]);
+      setRouteError('Routing failed');
+    } finally {
+      setRouting(false);
+    }
+  };
 
   // Off-route popup controller
   useEffect(() => {
@@ -1199,20 +1406,52 @@ export default function DashboardMapPage() {
             )}
             {routeAheadCoords.length > 0 ? (
               <>
+                {/* Past segment casing */}
+                {routePastCoords.length > 1 && (
+                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9 }} />
+                )}
                 {/* Past segment (already traversed) */}
                 {routePastCoords.length > 1 && (
-                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.6 }} />
+                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.65 }} />
                 )}
+                {/* Ahead segment casing */}
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} />
                 {/* Ahead segment (remaining) */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.95 }} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} />
               </>
             ) : (
               routeCoords.length > 0 && (
-                <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 5, opacity: 0.9 }} />
+                <>
+                  {/* Single route casing */}
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} />
+                  {/* Single route */}
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} />
+                </>
               )
             )}
-            {/* All saved places markers: custom icon for mine, green pin for others, with labels */}
-            {poiMarkers.map((poi) => {
+            {/* Background connectors between consecutive selected stops */}
+            {stopConnectors.length > 0 && (
+              <>
+                {/* Casing for connectors */}
+                {stopConnectors.map((seg, i) => (
+                  <RL.Polyline key={`conn-case-${i}`} positions={seg} pathOptions={{ color: '#ffffff', weight: 7, opacity: 0.8, dashArray: '10 8', lineCap: 'round' }} />
+                ))}
+                {/* Colored connectors */}
+                {stopConnectors.map((seg, i) => (
+                  <RL.Polyline key={`conn-${i}`} positions={seg} pathOptions={{ color: '#f59e0b', weight: 5, opacity: 0.9, dashArray: '10 8', lineCap: 'round' }} />
+                ))}
+              </>
+            )}
+            {/* Selected plan stop markers (numbered in travel order, snapped to OSRM waypoints) */}
+            {(snappedOrderedPlanStops.length > 0 ? snappedOrderedPlanStops : orderedPlanStops).map((s, idx) => (
+              <RL.CircleMarker key={`plan-${s.id}`} center={[s.lat, s.lon]} radius={7} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 }}>
+                <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
+                  {`${idx + 1}. ${s.name}`}
+                </RL.Tooltip>
+              </RL.CircleMarker>
+            ))}
+            {/* All saved places markers (skip those already in current plan to avoid duplicate labels) */}
+            {poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
               const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
               if (mine && myPlaceIcon) {
                 return (
