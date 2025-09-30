@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function FeedPage() {
   const { toast } = useToast();
+  const { data: session } = useSession();
   // Composer dialog state
   const [open, setOpen] = useState(false);
   // FAB animations removed per request
@@ -154,8 +156,14 @@ export default function FeedPage() {
     } catch { return null; }
   };
   const displayNameForPost = (p: Post): string => {
+    // If this post belongs to the logged-in user, always prefer session name
+    if (session?.user?.email && p.ownerEmail === session.user.email && session.user.name) {
+      return String(session.user.name);
+    }
     const a = (p.author || '').trim();
-    if (a) return a;
+    // Hide anon-style author labels; prefer email-derived name instead
+    const looksAnon = /^anon[:\s]/i.test(a);
+    if (a && !looksAnon) return a;
     const derived = nameFromEmail(p.ownerEmail);
     return derived || 'User';
   };
@@ -291,8 +299,29 @@ export default function FeedPage() {
         if (p?.name) setAuthorName(String(p.name));
         if (p?.image) setAuthorAvatar(String(p.image));
       }
+      // Fallback: ensure a stable anonymous ID so likes can work without login
+      setCurrentUserEmail((prev) => {
+        if (prev) return prev;
+        let aid = localStorage.getItem('anon_id');
+        if (!aid) {
+          aid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+          localStorage.setItem('anon_id', aid);
+        }
+        return `anon:${aid}`;
+      });
     } catch {}
   }, []);
+
+  // Prefer next-auth session for name/email/avatar when logged in
+  useEffect(() => {
+    if (!session) return;
+    const n = session.user?.name;
+    const e = session.user?.email;
+    const img = session.user?.image as string | undefined;
+    if (e) setCurrentUserEmail(e);
+    if (n) setAuthorName(n);
+    if (img) setAuthorAvatar(img);
+  }, [session]);
 
   // Load likedSet for current user and compute likedByMe when user changes
   useEffect(() => {
@@ -394,13 +423,13 @@ export default function FeedPage() {
           const newId = crypto.randomUUID();
           const payload = {
             id: newId,
-            author: authorName || nameFromEmail(currentUserEmail) || 'User',
-            avatarUrl: authorAvatar || null,
+            author: (session?.user?.name as string | undefined) || authorName || nameFromEmail(currentUserEmail) || 'User',
+            avatarUrl: (session?.user?.image as string | undefined) || authorAvatar || null,
             cardName: cardName.trim(),
             text: text.trim(),
             photos: photos,
             createdAt: Date.now(),
-            ownerEmail: currentUserEmail || null,
+            ownerEmail: (session?.user?.email as string | undefined) || currentUserEmail || null,
           };
           const res = await fetch('/api/feed', {
             method: 'POST',
@@ -429,9 +458,20 @@ export default function FeedPage() {
     if (now - lastAt < 500) return;
     lastToggleAtRef.current[id] = now;
     const target = posts.find((pp) => pp.id === id);
-    if (!currentUserEmail) {
-      toast({ title: 'Login required', description: 'Please login to like posts.', variant: 'destructive' });
-      return;
+    // Ensure we have an identifier; if missing, create anon on the fly
+    let email = currentUserEmail as string | null;
+    if (!email) {
+      try {
+        let aid = localStorage.getItem('anon_id');
+        if (!aid) {
+          aid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+          localStorage.setItem('anon_id', aid);
+        }
+        email = `anon:${aid}`;
+        setCurrentUserEmail(email);
+      } catch {
+        email = `anon:${Date.now()}`;
+      }
     }
     const isLiked = !!target?.likedByMe;
     if (isLiked) {
@@ -439,20 +479,20 @@ export default function FeedPage() {
       setPosts((prev) => prev.map((p) => {
         if (p.id !== id) return p;
         const nextLikes = Math.max(0, p.likes - 1);
-        const nextLikedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]).filter(e => e !== currentUserEmail) : [];
+        const nextLikedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]).filter(e => e !== email) : [];
         return { ...p, likedByMe: false, likes: nextLikes, likedBy: nextLikedBy };
       }));
       // Update local liked set
       setLikedSet((prev) => {
         const next = new Set(prev);
         next.delete(id);
-        saveLikedSet(currentUserEmail, next);
+        saveLikedSet(email, next);
         return next;
       });
       fetch(`/api/feed/${id}/like`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUserEmail, unlike: true }),
+        body: JSON.stringify({ email, unlike: true }),
       })
         .then(async (r) => {
           const data = await r.json().catch(() => ({}));
@@ -472,12 +512,12 @@ export default function FeedPage() {
       return;
     }
     // Optimistic LIKE
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1, likedBy: Array.isArray(p.likedBy) ? Array.from(new Set([...(p.likedBy as string[]), currentUserEmail])) : [currentUserEmail] } : p)));
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1, likedBy: Array.isArray(p.likedBy) ? Array.from(new Set([...(p.likedBy as string[]), email!])) : [email!] } : p)));
     // Update local liked set
     setLikedSet((prev) => {
       const next = new Set(prev);
       next.add(id);
-      saveLikedSet(currentUserEmail, next);
+      saveLikedSet(email, next);
       return next;
     });
     // Heart overlays
@@ -489,7 +529,7 @@ export default function FeedPage() {
     fetch(`/api/feed/${id}/like`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: currentUserEmail, unlike: false }),
+      body: JSON.stringify({ email, unlike: false }),
     })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));

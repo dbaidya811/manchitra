@@ -74,7 +74,6 @@ export default function DashboardMapPage() {
   const lastRerouteTimeRef = useRef<number>(0);
   // Draggable, collapsible panel state
   const [panelCollapsed, setPanelCollapsed] = useState<boolean>(false);
-  const [showRoutePreview, setShowRoutePreview] = useState<boolean>(false);
   // Auto-collapse route preview once per route session
   const panelAutoCollapsedRef = useRef<boolean>(false);
   // Inline route preview inside the green banner
@@ -502,6 +501,8 @@ export default function DashboardMapPage() {
               </linearGradient>
               <filter id="glow"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#1e3a8a" flood-opacity="0.5"/></filter>
             </defs>
+            <!-- white ring for contrast on any map style -->
+            <circle cx="12" cy="12" r="10" fill="#ffffff" opacity="0.95"/>
             <!-- navigation arrow -->
             <path d="M12 2l6 12-6-3-6 3 6-12z" fill="url(#navGrad)" stroke="#1e3a8a" stroke-width="1" filter="url(#glow)"/>
           </svg>
@@ -1362,40 +1363,6 @@ export default function DashboardMapPage() {
                       )}
                     </button>
                   </div>
-                  {bannerDetailsOpen && (
-                    <div className="mt-3 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 shadow-xl px-3 py-2">
-                      <div className="flex items-center gap-2 mb-2">
-                        {routeDistance != null && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[12px] font-medium">
-                            {(routeDistance/1000).toFixed(1)} km
-                          </span>
-                        )}
-                        {routeDuration != null && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[12px] font-medium">
-                            {Math.ceil(routeDuration/60)} min
-                          </span>
-                        )}
-                      </div>
-                      {routeSteps.length > 0 && (
-                        <ol ref={stepsListRef} className="max-h-40 overflow-auto space-y-1 pr-1 text-sm">
-                          {routeSteps.slice(0, 15).map((s, i) => {
-                            const active = i === currentStepIdx;
-                            return (
-                              <li
-                                key={i}
-                                className={`flex items-start gap-2 rounded-lg px-2 py-1 border ${active ? 'bg-emerald-50 border-emerald-200' : 'border-transparent hover:bg-emerald-50/60'}`}
-                              >
-                                <span className={`mt-0.5 h-4 w-4 shrink-0 ${active ? 'text-emerald-600' : ''}`}>
-                                  {renderStepIcon(s.type, s.modifier, active ? '#059669' : '#0f172a', 14)}
-                                </span>
-                                <span className={`${active ? 'font-semibold text-emerald-800' : 'text-neutral-800'}`}>{s.text}</span>
-                              </li>
-                            );
-                          })}
-                        </ol>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })()}
@@ -1514,7 +1481,7 @@ export default function DashboardMapPage() {
         {showWrongRoute && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[2000]">
             <div className="rounded-xl bg-red-600 text-white border border-red-700 shadow-xl px-4 py-2 text-sm font-semibold">
-              Wrong route detected â€¢ ~{Math.round(offRouteMeters)} m from route
+              Wrong route detected • ~{Math.round(offRouteMeters)} m from route
             </div>
           </div>
         )}
@@ -1639,4 +1606,3 @@ export default function DashboardMapPage() {
     </div>
   );
 }
-
