@@ -304,12 +304,16 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
           title: "Place Updated",
           description: "Your changes have been saved.",
         });
+        // Play feedback tone
+        try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
       } else if (onPlaceSubmit) {
         onPlaceSubmit(values);
         toast({
           title: "Place Submitted",
           description: "Thank you for your contribution! Your new place has been added.",
         });
+        // Play feedback tone
+        try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
       }
 
       setIsSubmitting(false);

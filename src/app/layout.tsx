@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
+import { CookieConsent } from "@/components/cookie-consent";
 // import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
@@ -33,11 +34,19 @@ export default function RootLayout({
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
           crossOrigin=""
         />
+        {/* Favicon (external PNG) */}
+        <link
+          rel="icon"
+          href="https://cdn-icons-png.flaticon.com/512/10740/10740584.png"
+          type="image/png"
+          sizes="any"
+        />
       </head>
       <body className={cn("font-body antialiased")}>
         <AuthSessionProvider>
           {children}
           <Toaster />
+          <CookieConsent />
         </AuthSessionProvider>
       </body>
     </html>

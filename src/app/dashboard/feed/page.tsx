@@ -438,6 +438,11 @@ export default function FeedPage() {
           });
           if (!res.ok) throw new Error('Create failed');
           toast({ title: 'Posted', description: 'Your post has been shared.' });
+          // Play success tone for new card upload
+          try {
+            const audio = new Audio('/sound/b%20tone.wav');
+            audio.play().catch(() => {});
+          } catch {}
         }
         await fetchPosts();
       } catch (err) {
@@ -646,6 +651,8 @@ export default function FeedPage() {
                           const ok = window.confirm('Delete this post?');
                           if (!ok) return;
                           try {
+                            // Play feedback tone immediately after confirmation (keeps user gesture context)
+                            try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
                             const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
                             const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
                             if (!res.ok) throw new Error('Delete failed');

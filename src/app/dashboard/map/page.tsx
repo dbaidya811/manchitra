@@ -59,12 +59,15 @@ export default function DashboardMapPage() {
   // Heading-up toggle
   const [headingUp, setHeadingUp] = useState<boolean>(true);
   // Voice guidance
-  const [voiceOn, setVoiceOn] = useState<boolean>(false);
+  const [voiceOn, setVoiceOn] = useState<boolean>(true);
   const currentStepIdxRef = useRef<number>(0);
   const spokenRef = useRef<Record<number, { pre?: boolean; final?: boolean }>>({});
   // Show a clear warning when user goes off the planned route
   const [showWrongRoute, setShowWrongRoute] = useState<boolean>(false);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  // Suppress arrival modal for a brief window after auto route
+  const [arrivalSuppressed, setArrivalSuppressed] = useState<boolean>(false);
+  const arrivalTimerRef = useRef<any>(null);
   // Routing control refs
   const routeAbortRef = useRef<AbortController | null>(null);
   const lastRouteAtRef = useRef<number>(0);
@@ -90,8 +93,15 @@ export default function DashboardMapPage() {
   const [orderedPlanStops, setOrderedPlanStops] = useState<Array<{ id: number; name: string; lat: number; lon: number }>>([]);
   const [snappedOrderedPlanStops, setSnappedOrderedPlanStops] = useState<Array<{ id: number; name: string; lat: number; lon: number }>>([]);
   const selectedPlanIdSet = useMemo(() => new Set(orderedPlanStops.map(s => s.id)), [orderedPlanStops]);
+  // Guard so we don't initialize plan twice unnecessarily
+  const planInitRef = useRef<boolean>(false);
   // Background connectors between consecutive stops (1->2, 2->3, ...)
   const [stopConnectors, setStopConnectors] = useState<Array<Array<[number, number]>>>([]);
+  // Nearest list for mode=nearest
+  const [nearestItems, setNearestItems] = useState<Array<{ id: string | number; name: string; lat: number; lon: number; distM: number }>>([]);
+  const [nearestLoading, setNearestLoading] = useState<boolean>(false);
+  const [nearestError, setNearestError] = useState<string | null>(null);
+  const [recenterPending, setRecenterPending] = useState<boolean>(false);
 
   useEffect(() => {
     // Defer mount to avoid Leaflet double init in StrictMode/HMR
@@ -99,6 +109,71 @@ export default function DashboardMapPage() {
     const id = requestAnimationFrame(() => setMapKey(Date.now().toString(36) + Math.random().toString(36).slice(2)));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // Populate nearest list when mode=nearest is set via query string
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode !== 'nearest') { setNearestItems([]); return; }
+    const latStr = searchParams.get('lat');
+    const lonStr = searchParams.get('lon');
+    const rStr = searchParams.get('r'); // meters
+    const cLat = latStr ? parseFloat(latStr) : NaN;
+    const cLon = lonStr ? parseFloat(lonStr) : NaN;
+    const radiusM = rStr ? parseFloat(rStr) : NaN;
+    if (Number.isNaN(cLat) || Number.isNaN(cLon) || Number.isNaN(radiusM)) { setNearestItems([]); return; }
+    const centerPt: [number, number] = [cLat, cLon];
+    const toMeters = (a: [number, number], b: [number, number]) => haversine(a, b);
+    let stopped = false;
+    setNearestLoading(true);
+    setNearestError(null);
+    (async () => {
+      try {
+        const res = await fetch('/api/places', { cache: 'no-store' });
+        const data = await res.json();
+        const list: any[] = Array.isArray(data?.places) ? data.places : [];
+        const out: Array<{ id: string | number; name: string; lat: number; lon: number; distM: number }>=[];
+        for (const p of list) {
+          let lat: number | null = null, lon: number | null = null;
+          if (typeof p.lat === 'number' && typeof p.lon === 'number') { lat = p.lat; lon = p.lon; }
+          else if (typeof p.location === 'string' && p.location.includes(',')) {
+            const parts = p.location.split(',').map((s: string) => s.trim());
+            const a = parseFloat(parts[0] || ''), b = parseFloat(parts[1] || '');
+            if (!Number.isNaN(a) && !Number.isNaN(b)) {
+              if (Math.abs(a) <= 90 && Math.abs(b) <= 180) { lat = a; lon = b; }
+              else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) { lat = b; lon = a; }
+            }
+          }
+          if (lat == null || lon == null) continue;
+          const d = toMeters(centerPt, [lat, lon]);
+          if (d <= radiusM) {
+            const name: string = (p.tags?.name || p.name || `Place #${p.id}`);
+            out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, name, lat, lon, distM: d });
+          }
+        }
+        out.sort((a, b) => a.distM - b.distM);
+        if (!stopped) setNearestItems(out);
+      } catch {
+        if (!stopped) { setNearestItems([]); setNearestError('Failed to load nearby places'); }
+      } finally {
+        if (!stopped) setNearestLoading(false);
+      }
+    })();
+    return () => { stopped = true; };
+  }, [searchParams]);
+
+  // If auto routing requested via query (?auto=1 or ?route=chain), suppress the arrival modal briefly
+  useEffect(() => {
+    try {
+      const auto = searchParams.get('auto');
+      const routeMode = searchParams.get('route');
+      if ((auto === '1' || !!routeMode) && !arrivalSuppressed) {
+        setArrivalSuppressed(true);
+        if (arrivalTimerRef.current) { try { clearTimeout(arrivalTimerRef.current); } catch {} }
+        arrivalTimerRef.current = setTimeout(() => setArrivalSuppressed(false), 9000);
+      }
+    } catch {}
+    return () => { try { if (arrivalTimerRef.current) clearTimeout(arrivalTimerRef.current); } catch {} };
+  }, [searchParams, arrivalSuppressed]);
 
   // Enable compass when component mounts
   useEffect(() => {
@@ -328,24 +403,45 @@ export default function DashboardMapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // When we have plan stops, order them by distance from user's location and start routing to the nearest first
+  // When we have plan stops, order them by distance from the best available start
   useEffect(() => {
     if (planStops.length === 0) return;
+    if (planInitRef.current) return;
+    const routeMode = searchParams.get('route');
     const begin = (from: { lat: number; lon: number }) => {
-      const ordered = [...planStops].sort((a, b) => {
-        const da = haversine([from.lat, from.lon], [a.lat, a.lon]);
-        const db = haversine([from.lat, from.lon], [b.lat, b.lon]);
-        return da - db;
-      });
+      // If route=chain was requested, preserve the provided plan order
+      const ordered = routeMode === 'chain'
+        ? [...planStops]
+        : [...planStops].sort((a, b) => {
+            const da = haversine([from.lat, from.lon], [a.lat, a.lon]);
+            const db = haversine([from.lat, from.lon], [b.lat, b.lon]);
+            return da - db;
+          });
       setOrderedPlanStops(ordered);
       // Build background connectors between stop i -> i+1
       buildStopConnectors(ordered).catch(() => setStopConnectors([]));
       setPlanIdx(0);
       const first = ordered[0];
       setDest({ lat: first.lat, lon: first.lon });
-      // Kick off routing from geolocation
+      // Kick off routing from geolocation (or provided fromLat/fromLon)
       startNavigation();
+      planInitRef.current = true;
     };
+    // Prefer explicit fromLat/fromLon passed via query to avoid using device location
+    const fromLat = searchParams.get('fromLat');
+    const fromLon = searchParams.get('fromLon');
+    if (fromLat && fromLon) {
+      const fLat = parseFloat(fromLat);
+      const fLon = parseFloat(fromLon);
+      if (!Number.isNaN(fLat) && !Number.isNaN(fLon)) {
+        const from = { lat: fLat, lon: fLon };
+        setUserPos(from);
+        setStartPos(from);
+        begin(from);
+        return;
+      }
+    }
+    // If we already have live user position, use that to pick the nearest first
     if (userPos) { begin(userPos); return; }
     if (!navigator.geolocation) {
       const [lat, lon] = center;
@@ -357,7 +453,7 @@ export default function DashboardMapPage() {
       () => { const [lat, lon] = center; begin({ lat, lon }); },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
-  }, [planStops]);
+  }, [planStops, userPos, searchParams]);
 
   // Build OSRM connector polylines between consecutive ordered stops (not including user->first)
   const buildStopConnectors = async (stops: Array<{ id: number; name: string; lat: number; lon: number }>) => {
@@ -808,7 +904,9 @@ export default function DashboardMapPage() {
     // Arrival detection: within 20m of destination
     if (dest) {
       const dToDest = haversine([userPos.lat, userPos.lon], [dest.lat, dest.lon]);
-      if (dToDest <= 20) {
+      if (dToDest <= 20 && !arrivalSuppressed) {
+        // Play arrival tone
+        try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
         if (orderedPlanStops.length > 0 && planIdx < orderedPlanStops.length - 1) {
           const nextIdx = planIdx + 1;
           const next = orderedPlanStops[nextIdx];
@@ -1257,6 +1355,22 @@ export default function DashboardMapPage() {
 
   const startNavigation = () => {
     if (!dest) return;
+    // If fromLat/fromLon are in the query, respect them for initial leg
+    try {
+      const fromLat = searchParams.get('fromLat');
+      const fromLon = searchParams.get('fromLon');
+      if (fromLat && fromLon) {
+        const fLat = parseFloat(fromLat);
+        const fLon = parseFloat(fromLon);
+        if (!Number.isNaN(fLat) && !Number.isNaN(fLon)) {
+          const from = { lat: fLat, lon: fLon };
+          setUserPos(from);
+          setStartPos(from);
+          fetchRoute(from, dest);
+          // Do not return; continue to initialize geolocation so live guidance can follow the user
+        }
+      }
+    } catch {}
     if (!navigator.geolocation) {
       // Fallback: use current map center as start
       const [lat, lon] = center;
@@ -1373,6 +1487,63 @@ export default function DashboardMapPage() {
           <UserProfile />
         </div>
       </header>
+
+      {/* Nearest list panel (when mode=nearest) */}
+      {searchParams.get('mode') === 'nearest' && (
+        <div className="absolute top-[72px] left-3 right-3 z-[1900] md:left-auto md:right-3 md:w-[360px]">
+          <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur p-3 shadow-xl">
+            <div className="mb-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Nearest within radius</div>
+            {nearestLoading ? (
+              <div className="text-xs text-neutral-600 dark:text-neutral-400">Loading…</div>
+            ) : nearestError ? (
+              <div className="text-xs text-red-600">{nearestError}</div>
+            ) : nearestItems.length === 0 ? (
+              <div className="text-xs text-neutral-600 dark:text-neutral-400">No places found in this area.</div>
+            ) : (
+              <ol className="max-h-64 overflow-auto space-y-2">
+                {nearestItems.map((it, idx) => (
+                  <li key={it.id}>
+                    <button
+                      className="w-full text-left rounded-xl border border-neutral-200 dark:border-white/10 bg-white/70 dark:bg-black/30 hover:bg-white shadow-sm px-3 py-2 flex items-center gap-2"
+                      onClick={() => {
+                        const to = { lat: it.lat, lon: it.lon };
+                        setDest(to);
+                        // Ensure we have a start point, leverage startNavigation which respects fromLat/fromLon
+                        startNavigation();
+                        // Center towards selected destination
+                        setCenter([it.lat, it.lon]);
+                        setZoom((z) => Math.max(z, 15));
+                        // Update URL query so 'nearest' center becomes this clicked location
+                        try {
+                          const params = new URLSearchParams(Array.from(searchParams.entries()));
+                          params.set('lat', String(it.lat));
+                          params.set('lon', String(it.lon));
+                          // Build a chain plan from this item to the rest so we auto-advance after arrival
+                          const ids = nearestItems
+                            .slice(idx)
+                            .map(n => n.id)
+                            .filter(id => typeof id === 'number' && Number.isFinite(id)) as number[];
+                          if (ids.length > 0) {
+                            params.set('plan', ids.join(','));
+                            params.set('route', 'chain');
+                            params.set('auto', '1');
+                          }
+                          const path = typeof window !== 'undefined' ? window.location.pathname : '/dashboard/map';
+                          router.replace(`${path}?${params.toString()}`);
+                        } catch {}
+                      }}
+                    >
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-semibold">{idx + 1}</span>
+                      <span className="flex-1 truncate text-sm text-neutral-900 dark:text-neutral-100">{it.name}</span>
+                      <span className="text-xs text-neutral-600 dark:text-neutral-400">{Math.round(it.distM)} m</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+      )}
       <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
         {!mounted || !mapKey ? (
           <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] grid place-items-center">
@@ -1429,8 +1600,8 @@ export default function DashboardMapPage() {
                 </>
               )
             )}
-            {/* Background connectors between consecutive selected stops */}
-            {stopConnectors.length > 0 && (
+            {/* Background connectors between consecutive selected stops (hidden by default; enable via ?connectors=1) */}
+            {stopConnectors.length > 0 && searchParams.get('connectors') === '1' && (
               <>
                 {/* Casing for connectors */}
                 {stopConnectors.map((seg, i) => (
@@ -1438,20 +1609,24 @@ export default function DashboardMapPage() {
                 ))}
                 {/* Colored connectors */}
                 {stopConnectors.map((seg, i) => (
-                  <RL.Polyline key={`conn-${i}`} positions={seg} pathOptions={{ color: '#f59e0b', weight: 5, opacity: 0.9, dashArray: '10 8', lineCap: 'round' }} />
+                  <RL.Polyline key={`conn-${i}`} positions={seg} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.9, dashArray: '10 8', lineCap: 'round' }} />
                 ))}
               </>
             )}
-            {/* Selected plan stop markers (numbered in travel order, snapped to OSRM waypoints) */}
-            {(snappedOrderedPlanStops.length > 0 ? snappedOrderedPlanStops : orderedPlanStops).map((s, idx) => (
-              <RL.CircleMarker key={`plan-${s.id}`} center={[s.lat, s.lon]} radius={7} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 }}>
-                <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
-                  {`${idx + 1}. ${s.name}`}
-                </RL.Tooltip>
-              </RL.CircleMarker>
-            ))}
-            {/* All saved places markers (skip those already in current plan to avoid duplicate labels) */}
-            {poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
+            {/* Selected plan stop markers (hide in nearest mode) */}
+            {searchParams.get('mode') !== 'nearest' && (
+              <>
+                {(snappedOrderedPlanStops.length > 0 ? snappedOrderedPlanStops : orderedPlanStops).map((s, idx) => (
+                  <RL.CircleMarker key={`plan-${s.id}`} center={[s.lat, s.lon]} radius={7} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 }}>
+                    <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
+                      {`${idx + 1}. ${s.name}`}
+                    </RL.Tooltip>
+                  </RL.CircleMarker>
+                ))}
+              </>
+            )}
+            {/* All saved places markers (hide in nearest mode) */}
+            {searchParams.get('mode') !== 'nearest' && poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
               const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
               if (mine && myPlaceIcon) {
                 return (
@@ -1497,49 +1672,8 @@ export default function DashboardMapPage() {
                   </RL.Marker>
                 );
               }
-              // Others: green location pin with label
-              return (
-                <RL.Marker
-                  key={`poi-${poi.id}`}
-                  position={[poi.lat, poi.lon]}
-                  icon={otherPlaceIcon || undefined}
-                  eventHandlers={{
-                    click: () => {
-                      setDest({ lat: poi.lat, lon: poi.lon });
-                      setCenter([poi.lat, poi.lon]);
-                      setZoom(15);
-                      if (userPos) {
-                        fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
-                      } else if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(
-                          (pos) => {
-                            const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                            setUserPos(me);
-                            setStartPos(me);
-                            fetchRoute(me, { lat: poi.lat, lon: poi.lon });
-                          },
-                          () => {
-                            const [lat, lon] = center; // fallback from current map center
-                            const from = { lat, lon };
-                            setStartPos(from);
-                            fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                          },
-                          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-                        );
-                      } else {
-                        const [lat, lon] = center; // final fallback
-                        const from = { lat, lon };
-                        setStartPos(from);
-                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                      }
-                    },
-                  }}
-                >
-                  <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
-                    {poi.title || 'Place'}
-                  </RL.Tooltip>
-                </RL.Marker>
-              );
+              // Others: do not render green location pins as requested
+              return null;
             })}
           </RL.MapContainer>
           </div>
@@ -1640,20 +1774,70 @@ export default function DashboardMapPage() {
             })()}
           </div>
         )}
-        {/* Re-center and Exit controls (icon buttons), moved higher */}
-        <div className="absolute bottom-56 right-5 z-[1500] flex flex-col gap-3 items-end">
+        {/* Re-center and Exit controls (icon buttons), positioned above footer */}
+        <div className="absolute bottom-28 right-5 z-[3500] flex flex-col gap-3 items-end">
           <button
-            onClick={() => { if (userPos) { setAutoFollow(true); setCenter([userPos.lat, userPos.lon]); setZoom((z) => Math.max(z, 16)); } }}
-            className="h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl hover:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-300/30"
+            onClick={() => {
+              try {
+                setAutoFollow(true);
+                setRecenterPending(true);
+                // If we already know user position, use immediately
+                if (userPos) {
+                  setCenter([userPos.lat, userPos.lon]);
+                  setZoom((z) => Math.max(z, 16));
+                  setTimeout(() => setRecenterPending(false), 150);
+                  return;
+                }
+                if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                      const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                      setUserPos(me);
+                      setCenter([me.lat, me.lon]);
+                      setZoom((z) => Math.max(z, 16));
+                      setRecenterPending(false);
+                    },
+                    (err) => {
+                      try { console.warn('Geolocation error:', err); } catch {}
+                      // Basic feedback for user
+                      alert('Location permission blocked or unavailable. Please enable location access.');
+                      setRecenterPending(false);
+                    },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                  );
+                } else if (startPos) {
+                  // Fallback: center to known start position
+                  setCenter([startPos.lat, startPos.lon]);
+                  setZoom((z) => Math.max(z, 15));
+                  setRecenterPending(false);
+                } else if (browsePos) {
+                  // Fallback: center to last browsed position
+                  setCenter([browsePos.lat, browsePos.lon]);
+                  setZoom((z) => Math.max(z, 14));
+                  setRecenterPending(false);
+                } else {
+                  setRecenterPending(false);
+                }
+              } catch {}
+            }}
+            className={`h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl hover:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-300/30 ${recenterPending ? 'opacity-70 cursor-wait' : ''}`}
             title="Re-center"
             aria-label="Re-center"
+            disabled={recenterPending}
           >
-            {/* target/locate icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
-              <circle cx="12" cy="12" r="8.5" strokeDasharray="2 3" opacity="0.7" />
-            </svg>
+            {/* target/locate icon or spinner */}
+            {recenterPending ? (
+              <svg className="animate-spin h-5 w-5 text-neutral-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="3.2" />
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
+                <circle cx="12" cy="12" r="8.5" strokeDasharray="2 3" opacity="0.7" />
+              </svg>
+            )}
           </button>
           {(routeCoords.length > 0 || geoWatchRef.current != null) && (
             <button

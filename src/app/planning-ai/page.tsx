@@ -3,8 +3,24 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sparkles, MapPin, ListOrdered } from "lucide-react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function PlanningAIPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('skipPlanningIntro') === '1') {
+        router.replace('/ai/continue');
+      }
+    } catch {}
+  }, [router]);
+
+  const handleContinueClick = () => {
+    try { localStorage.setItem('skipPlanningIntro', '1'); } catch {}
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
       <section className="relative mx-auto max-w-4xl px-4 pt-16 pb-10 sm:pt-24">
@@ -63,8 +79,8 @@ export default function PlanningAIPage() {
         </div>
         {/* Mobile inline Continue button */}
         <div className="mt-4 sm:hidden">
-          <Link href="/ai" className="block">
-            <Button className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
+          <Link href="/ai/continue" className="block">
+            <Button onClick={handleContinueClick} className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
               Continue
             </Button>
           </Link>
@@ -80,8 +96,8 @@ export default function PlanningAIPage() {
         }}
       >
         <div className="mx-auto max-w-4xl">
-          <Link href="/ai" className="block">
-            <Button size="sm" className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
+          <Link href="/ai/continue" className="block">
+            <Button onClick={handleContinueClick} size="sm" className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
               Continue
             </Button>
           </Link>

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
@@ -89,6 +89,7 @@ const SlideToCall: React.FC<{ label: string; onConfirm: () => void }> = ({ label
 
 export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, status } = useSession();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -230,33 +231,45 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator className="my-1" />
-          <DropdownMenuItem onClick={() => setIsSosOpen(true)} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <AlertTriangle className="mr-2 h-4 w-4 text-red-600" />
-            <span>SOS</span>
+          <DropdownMenuItem onClick={() => setIsSosOpen(true)} className="rounded-lg px-3 py-2.5 text-sm transition-none group hover:bg-gradient-to-r hover:from-emerald-500 hover:to-sky-500 hover:text-white data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-emerald-500 data-[highlighted]:to-sky-500 data-[highlighted]:text-white">
+            <AlertTriangle className="mr-2 h-4 w-4 text-red-600 group-hover:text-white group-data-[highlighted]:text-white" />
+            <span className="group-hover:text-white group-data-[highlighted]:text-white">SOS</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleAddPlace} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <MapPin className="mr-2 h-4 w-4 text-orange-600" />
-            <span>Add Place</span>
+          <DropdownMenuItem onClick={handleAddPlace} className="rounded-lg px-3 py-2.5 text-sm transition-none group hover:bg-gradient-to-r hover:from-emerald-500 hover:to-sky-500 hover:text-white data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-emerald-500 data-[highlighted]:to-sky-500 data-[highlighted]:text-white">
+            <MapPin className="mr-2 h-4 w-4 text-orange-600 group-hover:text-white group-data-[highlighted]:text-white" />
+            <span className="group-hover:text-white group-data-[highlighted]:text-white">Add Place</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleContributions} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <Heart className="mr-2 h-4 w-4 text-rose-600" />
-            <span>My Contributions</span>
-          </DropdownMenuItem>
-           <DropdownMenuItem onClick={handleWhatIHaveSeen} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <Eye className="mr-2 h-4 w-4 text-emerald-600" />
-            <span>What I've Seen</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleReportIssue} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <ShieldAlert className="mr-2 h-4 w-4 text-amber-600" />
-            <span>Report Issue</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut} className="rounded-lg px-3 py-2.5 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition">
+          {(() => {
+            const activeCls = "bg-gradient-to-r from-emerald-500 to-sky-500 text-white";
+            const hoverGrad = "hover:bg-gradient-to-r hover:from-emerald-500 hover:to-sky-500 hover:text-white data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-emerald-500 data-[highlighted]:to-sky-500 data-[highlighted]:text-white";
+            const baseCls = `rounded-lg px-3 py-2.5 text-sm transition-none ${hoverGrad}`;
+            const isContrib = pathname === "/dashboard/my-contributions";
+            const isSeen = pathname === "/dashboard/what-have-i-seen";
+            const isReport = pathname === "/dashboard/report-issue";
+            return (
+              <>
+                <DropdownMenuItem onClick={handleContributions} className={`${baseCls} ${isContrib ? activeCls : ""} group`}>
+                  <Heart className={`mr-2 h-4 w-4 ${isContrib ? "text-white" : "text-rose-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  <span className={`${isContrib ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>My Contributions</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleWhatIHaveSeen} className={`${baseCls} ${isSeen ? activeCls : ""} group`}>
+                  <Eye className={`mr-2 h-4 w-4 ${isSeen ? "text-white" : "text-emerald-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  <span className={`${isSeen ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>What I've Seen</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleReportIssue} className={`${baseCls} ${isReport ? activeCls : ""} group`}>
+                  <ShieldAlert className={`mr-2 h-4 w-4 ${isReport ? "text-white" : "text-amber-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  <span className={`${isReport ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Report Issue</span>
+                </DropdownMenuItem>
+              </>
+            );
+          })()}
+          <DropdownMenuItem onClick={handleLogout} disabled={isLoggingOut} className="rounded-lg px-3 py-2.5 text-sm transition-none group hover:bg-gradient-to-r hover:from-emerald-500 hover:to-sky-500 hover:text-white data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-emerald-500 data-[highlighted]:to-sky-500 data-[highlighted]:text-white disabled:opacity-70">
             {isLoggingOut ? (
               <span className="mr-2 inline-flex"><Loader size="sm" /></span>
             ) : (
-              <LogOut className="mr-2 h-4 w-4 text-red-600" />
+              <LogOut className="mr-2 h-4 w-4 text-red-600 group-hover:text-white group-data-[highlighted]:text-white" />
             )}
-            <span>{isLoggingOut ? "Logging out..." : "Log out"}</span>
+            <span className="group-hover:text-white group-data-[highlighted]:text-white">{isLoggingOut ? "Logging out..." : "Log out"}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
