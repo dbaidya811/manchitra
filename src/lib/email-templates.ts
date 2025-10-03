@@ -1,4 +1,4 @@
-export function otpEmailHtml({ name, otp }: { name?: string; otp: string }) {
+export function otpEmailHtml({ name, otp, magicUrl }: { name?: string; otp: string; magicUrl?: string }) {
   const displayName = name ? name : "there";
   // Using inline styles for maximum email client compatibility
   return `
@@ -55,6 +55,15 @@ export function otpEmailHtml({ name, otp }: { name?: string; otp: string }) {
                   </div>
                 </td>
               </tr>
+              ${magicUrl ? `
+              <tr>
+                <td align="center" style="padding:8px 24px 8px 24px;">
+                  <a href="${magicUrl}"
+                     style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-size:15px;font-weight:700;box-shadow:0 2px 10px rgba(37,99,235,0.35)">
+                    Sign in instantly
+                  </a>
+                </td>
+              </tr>` : ''}
               <tr>
                 <td style="padding:8px 24px 24px 24px;">
                   <p class="muted" style="margin:12px 0 0 0;font-size:12px;line-height:18px;color:#6b7280;">If you did not request this code, you can safely ignore this email.</p>

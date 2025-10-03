@@ -4,7 +4,8 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
-import { CookieConsent } from "@/components/cookie-consent";
+import { FetchSpinner } from "@/components/providers/fetch-spinner";
+import { NavigationSpinner } from "@/components/providers/navigation-spinner";
 // import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
@@ -46,7 +47,8 @@ export default function RootLayout({
         <AuthSessionProvider>
           {children}
           <Toaster />
-          <CookieConsent />
+          <FetchSpinner />
+          <NavigationSpinner />
         </AuthSessionProvider>
       </body>
     </html>

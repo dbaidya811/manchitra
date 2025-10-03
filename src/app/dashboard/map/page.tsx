@@ -1,12 +1,16 @@
 "use client";
 
-import { UserProfile } from "@/components/dashboard/user-profile";
-import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { AnimatedSearch } from "@/components/dashboard/animated-search";
+// Code-split heavy UI pieces to speed up initial render
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+
+// Jitter filter thresholds (meters)
+const ACCURACY_MAX_M = 80;    // Ignore GPS updates worse than this
+const MIN_MOVE_M = 7;         // Ignore tiny positional noise
+const RECENTER_MOVE_M = 18;   // Only recenter map after moving this much
+
 const RL = {
   MapContainer: dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false }),
   TileLayer: dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false }),
@@ -19,6 +23,11 @@ const RL = {
 
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
 import { Loader } from "@/components/ui/loader";
+
+// Lazy-load header components to reduce first contentful paint
+const AnimatedSearch = dynamic(() => import("@/components/dashboard/animated-search").then(m => m.AnimatedSearch), { ssr: false, loading: () => null });
+const UserProfile = dynamic(() => import("@/components/dashboard/user-profile").then(m => m.UserProfile), { ssr: false, loading: () => null });
+const MobileNav = dynamic(() => import("@/components/dashboard/mobile-nav").then(m => m.MobileNav), { ssr: false, loading: () => null });
 
 export default function DashboardMapPage() {
   const searchParams = useSearchParams();
@@ -95,6 +104,8 @@ export default function DashboardMapPage() {
   const selectedPlanIdSet = useMemo(() => new Set(orderedPlanStops.map(s => s.id)), [orderedPlanStops]);
   // Guard so we don't initialize plan twice unnecessarily
   const planInitRef = useRef<boolean>(false);
+  // Track which plan stops have been visited (arrived)
+  const [visitedPlanIds, setVisitedPlanIds] = useState<Set<number>>(new Set());
   // Background connectors between consecutive stops (1->2, 2->3, ...)
   const [stopConnectors, setStopConnectors] = useState<Array<Array<[number, number]>>>([]);
   // Nearest list for mode=nearest
@@ -102,6 +113,30 @@ export default function DashboardMapPage() {
   const [nearestLoading, setNearestLoading] = useState<boolean>(false);
   const [nearestError, setNearestError] = useState<string | null>(null);
   const [recenterPending, setRecenterPending] = useState<boolean>(false);
+  // One-time initializer for nearest-mode sequencing
+  const nearestInitRef = useRef<boolean>(false);
+  // Track which nearest item user clicked (for highlighting)
+  const [selectedNearestId, setSelectedNearestId] = useState<string | number | null>(null);
+  // Lock: once a nearest item is chosen, ignore further changes until user unlocks
+  const [nearestLocked, setNearestLocked] = useState<boolean>(false);
+  // Persistently mark clicked nearest items with a tick
+  const [checkedNearestIds, setCheckedNearestIds] = useState<Set<string | number>>(new Set());
+  // Remember the user's position when a nearest item is selected; unlock when user moves far enough
+  const [lockedFromPos, setLockedFromPos] = useState<{ lat: number; lon: number } | null>(null);
+  // Mobile: make nearest panel taller when toggled by edge arrow
+  const [nearestTall, setNearestTall] = useState<boolean>(false);
+  // Allow fully hiding the nearest panel; an edge opener will show it again
+  const [nearestHidden, setNearestHidden] = useState<boolean>(false);
+  // Mobile: draggable Y position for the right-edge opener button (in px from top)
+  const [edgeBtnTop, setEdgeBtnTop] = useState<number>(0);
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const mid = Math.max(8, Math.min(window.innerHeight - 44, window.innerHeight / 2 - 18));
+        setEdgeBtnTop(mid);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     // Defer mount to avoid Leaflet double init in StrictMode/HMR
@@ -109,6 +144,21 @@ export default function DashboardMapPage() {
     const id = requestAnimationFrame(() => setMapKey(Date.now().toString(36) + Math.random().toString(36).slice(2)));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // Auto-unlock nearest selection only when the user moves far enough from the position at which it was locked
+  useEffect(() => {
+    try {
+      if (searchParams.get('mode') !== 'nearest') return;
+      if (!nearestLocked) return;
+      if (!lockedFromPos || !userPos) return;
+      const moved = haversine([userPos.lat, userPos.lon], [lockedFromPos.lat, lockedFromPos.lon]);
+      if (moved >= 250) {
+        // Allow changing destination again; keep current selection and route intact
+        setNearestLocked(false);
+        setLockedFromPos({ lat: userPos.lat, lon: userPos.lon });
+      }
+    } catch {}
+  }, [userPos, lockedFromPos, nearestLocked, searchParams]);
 
   // Populate nearest list when mode=nearest is set via query string
   useEffect(() => {
@@ -160,6 +210,16 @@ export default function DashboardMapPage() {
     })();
     return () => { stopped = true; };
   }, [searchParams]);
+
+  // When in nearest mode and items are available, previously we auto-built a route chain.
+  // Per new requirement: DO NOT auto route or draw connectors; just show the list.
+  useEffect(() => {
+    try {
+      if (searchParams.get('mode') !== 'nearest') return;
+      // Explicitly do nothing here; navigation starts only when a user clicks a list item.
+      nearestInitRef.current = true;
+    } catch {}
+  }, [nearestItems, searchParams]);
 
   // If auto routing requested via query (?auto=1 or ?route=chain), suppress the arrival modal briefly
   useEffect(() => {
@@ -418,6 +478,8 @@ export default function DashboardMapPage() {
             return da - db;
           });
       setOrderedPlanStops(ordered);
+      // Reset visited markers when a new plan sequence begins
+      setVisitedPlanIds(new Set());
       // Build background connectors between stop i -> i+1
       buildStopConnectors(ordered).catch(() => setStopConnectors([]));
       setPlanIdx(0);
@@ -478,20 +540,20 @@ export default function DashboardMapPage() {
     }
   };
 
-  // Load all places and extract lon/lat for markers
+  // Load all places and extract lon/lat for markers (lightweight polling with backoff and change-detection)
   useEffect(() => {
-    const REFRESH_MS = 3000;
+    const BASE_REFRESH_MS = 4000;
     let stopped = false;
     let timer: any;
+    const backoffRef = { v: 1 }; // 1x, 2x, 4x ... up to 8x
+    const prevHashRef = { v: '' } as { v: string };
+
+    const nextDelay = () => Math.min(BASE_REFRESH_MS * backoffRef.v, 32000);
 
     const scheduleNext = () => {
       if (stopped) return;
-      if (typeof document !== 'undefined' && document.hidden) {
-        // Check again later when hidden
-        timer = setTimeout(scheduleNext, REFRESH_MS);
-      } else {
-        timer = setTimeout(tick, REFRESH_MS);
-      }
+      const delay = (typeof document !== 'undefined' && document.hidden) ? BASE_REFRESH_MS * 2 : nextDelay();
+      timer = setTimeout(tick, delay);
     };
 
     const tick = async () => {
@@ -520,9 +582,16 @@ export default function DashboardMapPage() {
             out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, lat, lon, title: p.tags?.name || p.name || 'Place', userEmail: p.userEmail ?? null });
           }
         }
-        setPoiMarkers(out);
-      } catch {}
-      finally {
+        // Only update state if data actually changed to avoid re-renders
+        const hash = out.map(o => `${o.id}:${o.lat.toFixed(6)},${o.lon.toFixed(6)}`).join('|');
+        if (hash !== prevHashRef.v) {
+          prevHashRef.v = hash;
+          setPoiMarkers(out);
+        }
+        backoffRef.v = 1; // reset backoff on success
+      } catch {
+        backoffRef.v = Math.min(backoffRef.v * 2, 8);
+      } finally {
         scheduleNext();
       }
     };
@@ -614,12 +683,14 @@ export default function DashboardMapPage() {
   }, [mapKey]);
 
   // Auto-start routing when destination is set (will use geolocation or map-center fallback)
+  // Skip in nearest mode to avoid double-start (we fetchRoute directly on item click there)
   useEffect(() => {
+    if (searchParams.get('mode') === 'nearest') return;
     if (!autoRouted && dest) {
       startNavigation();
       setAutoRouted(true);
     }
-  }, [dest, autoRouted]);
+  }, [dest, autoRouted, searchParams]);
 
   // Small helper to render a maneuver icon
   const renderStepIcon = (type?: string, modifier?: string, color: string = '#ea580c', size: number = 16) => {
@@ -671,6 +742,9 @@ export default function DashboardMapPage() {
   const [userIcon, setUserIcon] = useState<any>(null);
   const [userArrowIcon, setUserArrowIcon] = useState<any>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
+  // Plan stop icons (visited/pending = red, current target = blue)
+  const [planIconRed, setPlanIconRed] = useState<any>(null);
+  const [planIconBlue, setPlanIconBlue] = useState<any>(null);
   // Map rotation (heading-up like Google Maps)
   const [mapRotationDeg, setMapRotationDeg] = useState<number>(0);
   useEffect(() => {
@@ -907,6 +981,7 @@ export default function DashboardMapPage() {
       if (dToDest <= 20 && !arrivalSuppressed) {
         // Play arrival tone
         try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
+        const inNearest = searchParams.get('mode') === 'nearest';
         if (orderedPlanStops.length > 0 && planIdx < orderedPlanStops.length - 1) {
           const nextIdx = planIdx + 1;
           const next = orderedPlanStops[nextIdx];
@@ -914,7 +989,7 @@ export default function DashboardMapPage() {
           setDest({ lat: next.lat, lon: next.lon });
           startNavigation();
           speak(`Proceeding to ${next.name}`);
-        } else if (!journeyCompleted) {
+        } else if (!journeyCompleted && !inNearest) {
           setJourneyCompleted(true);
           try { if (geoWatchRef.current != null) { navigator.geolocation.clearWatch(geoWatchRef.current); geoWatchRef.current = null; } } catch {}
           speak('You have arrived at your destination.');
@@ -1105,6 +1180,27 @@ export default function DashboardMapPage() {
         iconAnchor: [13, 26],
       });
       setOtherPlaceIcon(icon);
+    })();
+  }, [mounted]);
+
+  // Create icons for plan stops using provided image; blue for current, red for visited/pending
+  useEffect(() => {
+    if (!mounted) return;
+    (async () => {
+      const L = await import('leaflet');
+      const size: [number, number] = [28, 28];
+      const anchor: [number, number] = [14, 28];
+      const baseUrl = 'https://cdn-icons-png.flaticon.com/512/727/727606.png';
+      const redHtml = `
+        <div style="width:${size[0]}px;height:${size[1]}px;display:grid;place-items:center;filter:saturate(1.2);">
+          <img src="${baseUrl}" alt="location" style="width:100%;height:100%;object-fit:contain;filter:none;"/>
+        </div>`;
+      const blueHtml = `
+        <div style="width:${size[0]}px;height:${size[1]}px;display:grid;place-items:center;">
+          <img src="${baseUrl}" alt="location" style="width:100%;height:100%;object-fit:contain;filter:hue-rotate(200deg) saturate(2) brightness(1.1);"/>
+        </div>`;
+      setPlanIconRed(L.divIcon({ className: 'plan-stop-red', html: redHtml, iconSize: size, iconAnchor: anchor }));
+      setPlanIconBlue(L.divIcon({ className: 'plan-stop-blue', html: blueHtml, iconSize: size, iconAnchor: anchor }));
     })();
   }, [mounted]);
 
@@ -1396,6 +1492,7 @@ export default function DashboardMapPage() {
         setStartPos(me);
         setUserPos(me);
         fetchRoute(me, dest);
+        // Initial center once; auto-follow effect will keep view sensible without jitter
         setCenter([me.lat, me.lon]);
         setZoom(14);
         // Only follow live if enabled
@@ -1403,6 +1500,14 @@ export default function DashboardMapPage() {
           const watchId = navigator.geolocation.watchPosition(
             (upd) => {
               const cur = { lat: upd.coords.latitude, lon: upd.coords.longitude };
+              const acc = typeof upd.coords.accuracy === 'number' ? upd.coords.accuracy : null;
+              // Drop very inaccurate fixes
+              if (acc != null && acc > ACCURACY_MAX_M) return;
+              // Drop micro-movements that are likely noise
+              if (userPos) {
+                const movedSmall = haversine([userPos.lat, userPos.lon], [cur.lat, cur.lon]);
+                if (movedSmall < MIN_MOVE_M) return;
+              }
               setUserPos(cur);
               if (typeof upd.coords.heading === 'number' && !Number.isNaN(upd.coords.heading)) {
                 setUserHeading(((upd.coords.heading % 360) + 360) % 360);
@@ -1431,9 +1536,16 @@ export default function DashboardMapPage() {
                 lastReroutePosRef.current = cur;
                 fetchRoute(cur, dest);
               }
-              // Auto-follow: center map to the user's current position
-              setCenter([cur.lat, cur.lon]);
-              setZoom((z) => Math.max(z, 16));
+              // Auto-follow: center to user only after meaningful movement
+              if (autoFollow) {
+                try {
+                  const movedFromCenter = haversine([center[0], center[1]], [cur.lat, cur.lon]);
+                  if (movedFromCenter >= RECENTER_MOVE_M) {
+                    setCenter([cur.lat, cur.lon]);
+                    setZoom((z) => Math.max(z, 16));
+                  }
+                } catch {}
+              }
             },
             () => {},
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 1000 }
@@ -1491,8 +1603,20 @@ export default function DashboardMapPage() {
       {/* Nearest list panel (when mode=nearest) */}
       {searchParams.get('mode') === 'nearest' && (
         <div className="absolute top-[72px] left-3 right-3 z-[1900] md:left-auto md:right-3 md:w-[360px]">
+          {!nearestHidden && (
           <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/80 dark:bg-black/40 backdrop-blur p-3 shadow-xl">
-            <div className="mb-2 text-sm font-semibold text-neutral-900 dark:text-neutral-100">Nearest within radius</div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Nearest within radius</div>
+              <button
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-neutral-200 bg-white/90 text-neutral-700 sm:hidden"
+                onClick={() => setNearestHidden(true)}
+                title="Hide"
+                aria-label="Hide list"
+              >
+                {/* Chevron to the right indicates collapse */}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4"><path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+            </div>
             {nearestLoading ? (
               <div className="text-xs text-neutral-600 dark:text-neutral-400">Loading…</div>
             ) : nearestError ? (
@@ -1500,48 +1624,120 @@ export default function DashboardMapPage() {
             ) : nearestItems.length === 0 ? (
               <div className="text-xs text-neutral-600 dark:text-neutral-400">No places found in this area.</div>
             ) : (
-              <ol className="max-h-64 overflow-auto space-y-2">
+              <ol className={`${nearestTall ? 'max-h-[75vh]' : 'max-h-64'} overflow-auto space-y-2`}>
                 {nearestItems.map((it, idx) => (
                   <li key={it.id}>
                     <button
-                      className="w-full text-left rounded-xl border border-neutral-200 dark:border-white/10 bg-white/70 dark:bg-black/30 hover:bg-white shadow-sm px-3 py-2 flex items-center gap-2"
+                      className={`w-full text-left rounded-xl border shadow-sm px-3 py-2 flex items-center gap-2 ${selectedNearestId === it.id
+                        ? 'bg-emerald-50 border-emerald-300'
+                        : 'bg-white/70 dark:bg-black/30 border-neutral-200 dark:border-white/10 hover:bg-white'}`}
                       onClick={() => {
                         const to = { lat: it.lat, lon: it.lon };
+                        setSelectedNearestId(it.id);
+                        // Tick all items up to the clicked index (1..idx+1)
+                        setCheckedNearestIds(prev => {
+                          const s = new Set(prev);
+                          for (let j = 0; j <= idx; j++) {
+                            s.add(nearestItems[j].id);
+                          }
+                          return s;
+                        });
                         setDest(to);
-                        // Ensure we have a start point, leverage startNavigation which respects fromLat/fromLon
-                        startNavigation();
-                        // Center towards selected destination
+                        // Immediately compute a route so the red polyline shows without delay
+                        try {
+                          if (userPos) {
+                            fetchRoute({ lat: userPos.lat, lon: userPos.lon }, to);
+                            setStartPos({ lat: userPos.lat, lon: userPos.lon });
+                          } else if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                              (pos) => {
+                                const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                                setUserPos(me);
+                                setStartPos(me);
+                                fetchRoute(me, to);
+                              },
+                              () => {
+                                const [clat, clon] = center;
+                                const from = { lat: clat, lon: clon };
+                                setStartPos(from);
+                                fetchRoute(from, to);
+                              },
+                              { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                            );
+                          } else {
+                            const [clat, clon] = center;
+                            const from = { lat: clat, lon: clon };
+                            setStartPos(from);
+                            fetchRoute(from, to);
+                          }
+                        } catch {}
+                        // Do not start live navigation in nearest mode; avoid double-start
                         setCenter([it.lat, it.lon]);
                         setZoom((z) => Math.max(z, 15));
-                        // Update URL query so 'nearest' center becomes this clicked location
+                        // Do not modify URL/query; keep nearest list anchored to original radius center
+                        // Persist visit to localStorage history
                         try {
-                          const params = new URLSearchParams(Array.from(searchParams.entries()));
-                          params.set('lat', String(it.lat));
-                          params.set('lon', String(it.lon));
-                          // Build a chain plan from this item to the rest so we auto-advance after arrival
-                          const ids = nearestItems
-                            .slice(idx)
-                            .map(n => n.id)
-                            .filter(id => typeof id === 'number' && Number.isFinite(id)) as number[];
-                          if (ids.length > 0) {
-                            params.set('plan', ids.join(','));
-                            params.set('route', 'chain');
-                            params.set('auto', '1');
-                          }
-                          const path = typeof window !== 'undefined' ? window.location.pathname : '/dashboard/map';
-                          router.replace(`${path}?${params.toString()}`);
+                          const raw = localStorage.getItem('visit-history');
+                          const arr: Array<{ id: string | number | null; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+                          arr.unshift({ id: it.id ?? null, name: it.name, lat: it.lat, lon: it.lon, time: Date.now() });
+                          const trimmed = arr.slice(0, 200);
+                          localStorage.setItem('visit-history', JSON.stringify(trimmed));
                         } catch {}
                       }}
                     >
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-semibold">{idx + 1}</span>
-                      <span className="flex-1 truncate text-sm text-neutral-900 dark:text-neutral-100">{it.name}</span>
-                      <span className="text-xs text-neutral-600 dark:text-neutral-400">{Math.round(it.distM)} m</span>
+                      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-white text-[11px] font-semibold bg-emerald-600`}>
+                        {checkedNearestIds.has(it.id) ? (
+                          // Check icon
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3">
+                            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        ) : (
+                          <>{idx + 1}</>
+                        )}
+                      </span>
+                      <span className={`flex-1 truncate text-sm ${selectedNearestId === it.id ? 'text-emerald-800' : 'text-neutral-900 dark:text-neutral-100'}`}>{it.name}</span>
+                      <span className={`text-xs ${selectedNearestId === it.id ? 'text-emerald-700' : 'text-neutral-600 dark:text-neutral-400'}`}>{Math.round(it.distM)} m</span>
                     </button>
                   </li>
                 ))}
               </ol>
             )}
           </div>
+          )}
+          {/* Mobile edge opener: only visible when the panel is hidden */}
+          {nearestHidden && (
+            <button
+              className="sm:hidden fixed right-[2px] z-[2000] h-9 w-9 rounded-full bg-white/90 backdrop-blur border border-neutral-200 shadow flex items-center justify-center"
+              style={{ top: edgeBtnTop }}
+              onClick={() => setNearestHidden(false)}
+              aria-label="Show nearest list"
+              title="Show nearest"
+              onTouchStart={(e) => {
+                try {
+                  const t = e.touches && e.touches[0];
+                  if (!t) return;
+                  const y = t.clientY - 18; // center the 36px button
+                  const maxY = typeof window !== 'undefined' ? window.innerHeight - 44 : 600;
+                  const clamped = Math.max(8, Math.min(maxY, y));
+                  setEdgeBtnTop(clamped);
+                } catch {}
+              }}
+              onTouchMove={(e) => {
+                try {
+                  e.preventDefault();
+                  const t = e.touches && e.touches[0];
+                  if (!t) return;
+                  const y = t.clientY - 18;
+                  const maxY = typeof window !== 'undefined' ? window.innerHeight - 44 : 600;
+                  const clamped = Math.max(8, Math.min(maxY, y));
+                  setEdgeBtnTop(clamped);
+                } catch {}
+              }}
+            >
+              {/* Chevron left to indicate opening */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-neutral-700"><path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </button>
+          )}
         </div>
       )}
       <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
@@ -1557,6 +1753,11 @@ export default function DashboardMapPage() {
             zoom={zoom}
             ref={mapRef as any}
             style={{ height: '100%', width: '100%' }}
+            preferCanvas={true}
+            zoomAnimation={false}
+            markerZoomAnimation={false}
+            fadeAnimation={false}
+            wheelDebounceTime={50}
           >
             <RL.TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -1579,50 +1780,55 @@ export default function DashboardMapPage() {
               <>
                 {/* Past segment casing */}
                 {routePastCoords.length > 1 && (
-                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9 }} />
+                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 )}
                 {/* Past segment (already traversed) */}
                 {routePastCoords.length > 1 && (
-                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.65 }} />
+                  <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.65 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 )}
                 {/* Ahead segment casing */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 {/* Ahead segment (remaining) */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
               </>
             ) : (
               routeCoords.length > 0 && (
                 <>
                   {/* Single route casing */}
-                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} />
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                   {/* Single route */}
-                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} />
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 </>
               )
             )}
-            {/* Background connectors between consecutive selected stops (hidden by default; enable via ?connectors=1) */}
-            {stopConnectors.length > 0 && searchParams.get('connectors') === '1' && (
+            {/* Future legs between planned stops: hide entirely in nearest mode */}
+            {stopConnectors.length > 0 && searchParams.get('mode') !== 'nearest' && (
               <>
-                {/* Casing for connectors */}
-                {stopConnectors.map((seg, i) => (
-                  <RL.Polyline key={`conn-case-${i}`} positions={seg} pathOptions={{ color: '#ffffff', weight: 7, opacity: 0.8, dashArray: '10 8', lineCap: 'round' }} />
+                {/* Casing for future connectors */}
+                {stopConnectors.slice(Math.max(0, planIdx)).map((seg, i) => (
+                  <RL.Polyline key={`conn-case-${i + planIdx}`} positions={seg} pathOptions={{ color: '#ffffff', weight: 7, opacity: 0.8, lineCap: 'round' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 ))}
-                {/* Colored connectors */}
-                {stopConnectors.map((seg, i) => (
-                  <RL.Polyline key={`conn-${i}`} positions={seg} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.9, dashArray: '10 8', lineCap: 'round' }} />
+                {/* Colored future connectors */}
+                {stopConnectors.slice(Math.max(0, planIdx)).map((seg, i) => (
+                  <RL.Polyline key={`conn-${i + planIdx}`} positions={seg} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.95, lineCap: 'round' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 ))}
               </>
             )}
-            {/* Selected plan stop markers (hide in nearest mode) */}
+            {/* Selected plan stop markers (hide in nearest mode). Current target = blue icon, visited/pending = red icon */}
             {searchParams.get('mode') !== 'nearest' && (
               <>
-                {(snappedOrderedPlanStops.length > 0 ? snappedOrderedPlanStops : orderedPlanStops).map((s, idx) => (
-                  <RL.CircleMarker key={`plan-${s.id}`} center={[s.lat, s.lon]} radius={7} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 }}>
-                    <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
-                      {`${idx + 1}. ${s.name}`}
-                    </RL.Tooltip>
-                  </RL.CircleMarker>
-                ))}
+                {(snappedOrderedPlanStops.length > 0 ? snappedOrderedPlanStops : orderedPlanStops).map((s, idx) => {
+                  const isVisited = visitedPlanIds.has(s.id) || idx < planIdx;
+                  const isCurrent = idx === planIdx && !isVisited;
+                  const iconToUse = isCurrent ? planIconBlue : planIconRed;
+                  return (
+                    <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed}>
+                      <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
+                        {`${idx + 1}. ${s.name}`}
+                      </RL.Tooltip>
+                    </RL.Marker>
+                  );
+                })}
               </>
             )}
             {/* All saved places markers (hide in nearest mode) */}
@@ -1942,8 +2148,8 @@ export default function DashboardMapPage() {
           </div>
         )}
 
-        {/* Journey Completed overlay */}
-        {journeyCompleted && (
+        {/* Journey Completed overlay (hidden in nearest mode) */}
+        {journeyCompleted && searchParams.get('mode') !== 'nearest' && (
           <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
             <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10">
               <div className="text-2xl font-bold text-emerald-600 mb-2">Journey Completed</div>

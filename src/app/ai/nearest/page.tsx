@@ -104,32 +104,26 @@ export default function NearestPandalSetupPage() {
   };
 
   const proceed = async () => {
-    const base = `/dashboard/map?mode=nearest&lat=${center.lat.toFixed(6)}&lon=${center.lon.toFixed(6)}&fromLat=${center.lat.toFixed(6)}&fromLon=${center.lon.toFixed(6)}&r=${(radiusKm * 1000)}&route=chain`;
+    // First, check for pandals within radius; if none, show message and do not navigate
     try {
       const res = await fetch('/api/places', { cache: 'no-store' });
       const data = await res.json();
       const list: any[] = Array.isArray(data?.places) ? data.places : [];
 
-      // Haversine distance in km
+      // Haversine helpers
       const toRad = (v: number) => (v * Math.PI) / 180;
-      const distKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const distKm = (aLat: number, aLon: number, bLat: number, bLon: number) => {
         const R = 6371; // km
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
+        const dLat = toRad(bLat - aLat);
+        const dLon = toRad(bLon - aLon);
+        const A = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(A));
       };
-
-      // Helper to derive coords from numeric fields or a "lat,lon" or "lon,lat" string
       const toCoords = (p: any): { lat: number | null; lon: number | null } => {
-        if (typeof p?.lat === 'number' && typeof p?.lon === 'number' && !Number.isNaN(p.lat) && !Number.isNaN(p.lon)) {
-          return { lat: p.lat, lon: p.lon };
-        }
+        if (typeof p?.lat === 'number' && typeof p?.lon === 'number' && !Number.isNaN(p.lat) && !Number.isNaN(p.lon)) return { lat: p.lat, lon: p.lon };
         if (typeof p?.location === 'string' && p.location.includes(',')) {
           const parts = p.location.split(',').map((s: string) => s.trim());
-          const a = parseFloat(parts[0] || '');
-          const b = parseFloat(parts[1] || '');
+          const a = parseFloat(parts[0] || ''), b = parseFloat(parts[1] || '');
           if (!Number.isNaN(a) && !Number.isNaN(b)) {
             if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
             if (Math.abs(a) <= 180 && Math.abs(b) <= 90) return { lat: b, lon: a };
@@ -138,35 +132,25 @@ export default function NearestPandalSetupPage() {
         return { lat: null, lon: null };
       };
 
-      let within = list
+      const within = list
         .map((p: any) => ({ p, c: toCoords(p) }))
         .filter(({ c }) => c.lat != null && c.lon != null)
-        .filter(({ c }) => distKm(center.lat, center.lon, c.lat as number, c.lon as number) <= radiusKm)
-        .map(({ p }) => p);
-      if (within.length === 0) { setNoResults(true); return; }
-      // Order by nearest neighbor starting from the center
-      const ordered: any[] = [];
-      let current = { lat: center.lat, lon: center.lon };
-      within = [...within];
-      while (within.length) {
-        // Use derived coords for consistent sorting
-        within.sort((a: any, b: any) => {
-          const ca = toCoords(a); const cb = toCoords(b);
-          const da = (ca.lat != null && ca.lon != null) ? distKm(current.lat, current.lon, ca.lat, ca.lon) : Number.POSITIVE_INFINITY;
-          const db = (cb.lat != null && cb.lon != null) ? distKm(current.lat, current.lon, cb.lat, cb.lon) : Number.POSITIVE_INFINITY;
-          return da - db;
-        });
-        const next = within.shift()!;
-        ordered.push(next);
-        const c = toCoords(next);
-        if (c.lat != null && c.lon != null) current = { lat: c.lat, lon: c.lon };
+        .filter(({ c }) => distKm(center.lat, center.lon, c.lat as number, c.lon as number) <= radiusKm);
+
+      if (within.length === 0) {
+        setNoResults(true);
+        return;
       }
-      const ids = ordered.map((p: any) => p.id).filter((x: any) => typeof x === 'string' || typeof x === 'number');
-      const plan = ids.join(',');
-      const url = plan ? `${base}&plan=${encodeURIComponent(plan)}&auto=1` : `${base}&auto=1`;
+
+      // Navigate to the dashboard map with nearest mode and parameters
+      const lat = center.lat.toFixed(6);
+      const lon = center.lon.toFixed(6);
+      const r = (radiusKm * 1000); // meters
+      const url = `http://localhost:9002/dashboard/map?mode=nearest&lat=${lat}&lon=${lon}&fromLat=${lat}&fromLon=${lon}&r=${r}`;
       router.push(url);
-    } catch (e) {
-      router.push(`${base}&auto=1`);
+    } catch {
+      // If API fails, show message instead of navigating blindly
+      setNoResults(true);
     }
   };
 

@@ -75,7 +75,13 @@ export default function Home() {
               onClick={handleGoogleLogin}
               className="w-full rounded-full px-6 py-6 bg-white text-gray-800 border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-200 transition-all duration-200 active:scale-[0.99]"
             >
-              <img src="https://cdn-icons-png.flaticon.com/512/2702/2702602.png" alt="Google" className="mr-2 h-5 w-5 shrink-0" />
+              {/* Inline Google G icon to avoid external image dependency */}
+              <svg className="mr-2 h-5 w-5 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path fill="#EA4335" d="M12 10.2v3.9h5.4c-.2 1.2-1.6 3.5-5.4 3.5-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 2.2 14.7 1.3 12 1.3 6.9 1.3 2.7 5.5 2.7 10.6S6.9 19.9 12 19.9c6.9 0 9.6-4.8 9.6-7.3 0-.5-.1-.8-.1-1.1H12z"/>
+                <path fill="#4285F4" d="M23 12.6c0-.5-.1-.8-.1-1.1H12v3.9h5.4c-.3 1.6-1.8 2.8-3.4 3.5l2.7 2.1C20 19.8 23 16.8 23 12.6z"/>
+                <path fill="#34A853" d="M8.6 14.5c-.3-.8-.5-1.6-.5-2.5s.2-1.7.5-2.5L5.9 6.9C5.1 8.4 4.7 10 4.7 12s.4 3.6 1.2 5.1l2.7-2.6z"/>
+                <path fill="#FBBC05" d="M12 4.6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 2.2 14.7 1.3 12 1.3 6.9 1.3 2.7 5.5 2.7 10.6c0 1.9.5 3.6 1.2 5.1l2.7-2.6c-.3-.8-.5-1.6-.5-2.5s.2-1.7.5-2.5L12 4.6z"/>
+              </svg>
               Login with Google
             </Button>
             <Button

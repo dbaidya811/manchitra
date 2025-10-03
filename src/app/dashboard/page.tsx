@@ -296,12 +296,26 @@ export default function DashboardPage() {
         } else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
           latNum = b; lonNum = a;
         }
+        // Log visit history
+        try {
+          const raw = localStorage.getItem('visit-history');
+          const arr: Array<{ id: number | string | null; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+          arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: latNum, lon: lonNum, time: Date.now() });
+          localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+        } catch {}
         router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
         return;
       }
     }
     // Next, use numeric lat/lon fields if available
     if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+      // Log visit history
+      try {
+        const raw = localStorage.getItem('visit-history');
+        const arr: Array<{ id: number | string | null; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+        arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: place.lat, lon: place.lon, time: Date.now() });
+        localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+      } catch {}
       router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
       return;
     }
@@ -321,7 +335,7 @@ export default function DashboardPage() {
       if (!ids.includes(place.id)) {
         const next = [place.id, ...ids].slice(0, 200);
         localStorage.setItem("seen-places", JSON.stringify(next));
-        toast({ title: "Saved", description: `Added to What I've Seen` });
+        toast({ title: "Saved", description: `Added to Watchlist` });
         setSeenIds(next);
         setShowLoveAnim(true);
         setTimeout(() => {
@@ -329,7 +343,7 @@ export default function DashboardPage() {
           router.push("/dashboard/what-have-i-seen");
         }, 1000);
       } else {
-        toast({ title: "Already added", description: `This place is already in What I've Seen` });
+        toast({ title: "Already added", description: `This place is already in Watchlist` });
         router.push("/dashboard/what-have-i-seen");
       }
     } catch (_) {}

@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -147,6 +147,9 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const handleWhatIHaveSeen = () => {
     router.push("/dashboard/what-have-i-seen");
   };
+  const handleHistory = () => {
+    router.push("/dashboard/history");
+  };
 
   // SOS utilities
   const getLocation = (): Promise<{ lat: number; lon: number } | null> => {
@@ -246,6 +249,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
             const isContrib = pathname === "/dashboard/my-contributions";
             const isSeen = pathname === "/dashboard/what-have-i-seen";
             const isReport = pathname === "/dashboard/report-issue";
+            const isHistory = pathname === "/dashboard/history";
             return (
               <>
                 <DropdownMenuItem onClick={handleContributions} className={`${baseCls} ${isContrib ? activeCls : ""} group`}>
@@ -254,7 +258,11 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleWhatIHaveSeen} className={`${baseCls} ${isSeen ? activeCls : ""} group`}>
                   <Eye className={`mr-2 h-4 w-4 ${isSeen ? "text-white" : "text-emerald-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isSeen ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>What I've Seen</span>
+                  <span className={`${isSeen ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Watchlist</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleHistory} className={`${baseCls} ${isHistory ? activeCls : ""} group`}>
+                  <HistoryIcon className={`mr-2 h-4 w-4 ${isHistory ? "text-white" : "text-sky-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  <span className={`${isHistory ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>History</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleReportIssue} className={`${baseCls} ${isReport ? activeCls : ""} group`}>
                   <ShieldAlert className={`mr-2 h-4 w-4 ${isReport ? "text-white" : "text-amber-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />

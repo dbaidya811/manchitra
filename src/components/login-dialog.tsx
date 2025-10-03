@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { User as UserIcon, Mail } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
+import { signIn } from "next-auth/react";
 
 interface LoginDialogProps {
   open: boolean;
@@ -73,40 +74,16 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     }
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (code?: string) => {
+    const otpToUse = (code ?? otp).trim();
+    if (!email || otpToUse.length !== 6) return;
     setIsVerifying(true);
     try {
-      const response = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'OTP verification failed.');
-      }
-      
-      localStorage.setItem("user", JSON.stringify({ name, email }));
-
-      toast({
-        title: "Login Successful",
-        description: "Welcome to your dashboard!",
-      });
-
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1000);
-
-
+      // Use NextAuth Credentials provider for OTP login; will redirect on success
+      await signIn("credentials", { email, otp: otpToUse, callbackUrl: "/dashboard", redirect: true });
     } catch (error: any) {
-       toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-       setIsVerifying(false);
+      toast({ title: "Error", description: error?.message || "Login failed", variant: "destructive" });
+      setIsVerifying(false);
     }
   };
 
@@ -174,7 +151,22 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
                 <Label htmlFor="otp" className="text-neutral-800 dark:text-neutral-200">
                   OTP
                 </Label>
-                <Input id="otp" placeholder="Enter your OTP" className="bg-white/70 dark:bg-white/10 border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 rounded-xl tracking-[0.35em] text-center focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent" value={otp} onChange={(e) => setOtp(e.target.value)} />
+                <Input
+                  id="otp"
+                  placeholder="Enter your OTP"
+                  className="bg-white/70 dark:bg-white/10 border-black/10 dark:border-white/10 text-neutral-900 dark:text-white placeholder:text-neutral-500 rounded-xl tracking-[0.35em] text-center focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                  value={otp}
+                  inputMode="numeric"
+                  autoFocus
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setOtp(v);
+                    if (v.length === 6 && !isVerifying) {
+                      // Auto-submit when 6 digits entered
+                      handleLogin(v);
+                    }
+                  }}
+                />
               </div>
           )}
         </div>
@@ -188,7 +180,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
            {step === 2 && (
             <>
                 <Button variant="outline" onClick={() => setStep(1)} className="w-full rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-neutral-800 dark:text-white border border-black/10 dark:border-white/15">Back</Button>
-                <Button onClick={handleLogin} disabled={isVerifying} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
+                <Button onClick={() => handleLogin()} disabled={isVerifying} className="w-full rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:via-orange-600 hover:to-rose-600 text-white font-semibold shadow-lg shadow-orange-500/25">
                    {isVerifying && <Loader size="sm" />}
                    Go to Dashboard
                 </Button>

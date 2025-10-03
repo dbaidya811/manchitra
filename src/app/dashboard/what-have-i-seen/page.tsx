@@ -57,7 +57,7 @@ export default function WhatHaveISeenPage() {
             const next = seenIds.filter(id => id !== placeId);
             setSeenIds(next);
             localStorage.setItem("seen-places", JSON.stringify(next));
-            toast({ title: "Removed", description: "Removed from What I've Seen" });
+            toast({ title: "Removed", description: "Removed from Watchlist" });
         } catch (_) {}
     };
 
@@ -106,7 +106,7 @@ export default function WhatHaveISeenPage() {
                         <ArrowLeft className="h-6 w-6" />
                     </Button>
                     <h1 className="text-xl font-semibold">
-                        What I've Seen
+                        Watchlist
                     </h1>
                 </div>
                 <div className="flex items-center gap-2 justify-end">
