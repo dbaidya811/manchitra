@@ -142,11 +142,11 @@ export default function NearestPandalSetupPage() {
         return;
       }
 
-      // Navigate to the dashboard map with nearest mode and parameters
+      // Navigate to the dashboard map with nearest mode and parameters (relative URL for both local and deployed)
       const lat = center.lat.toFixed(6);
       const lon = center.lon.toFixed(6);
       const r = (radiusKm * 1000); // meters
-      const url = `http://localhost:9002/dashboard/map?mode=nearest&lat=${lat}&lon=${lon}&fromLat=${lat}&fromLon=${lon}&r=${r}`;
+      const url = `/dashboard/map?mode=nearest&lat=${lat}&lon=${lon}&fromLat=${lat}&fromLon=${lon}&r=${r}`;
       router.push(url);
     } catch {
       // If API fails, show message instead of navigating blindly

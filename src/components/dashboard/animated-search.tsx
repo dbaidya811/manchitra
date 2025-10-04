@@ -97,6 +97,21 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
   const handleSelectSuggestion = (suggestion: Suggestion) => {
     setQuery(suggestion.display_name);
     setSuggestions([]);
+    // Save to localStorage: compute approximate center from bounding box
+    try {
+      const [minLatStr, maxLatStr, minLonStr, maxLonStr] = suggestion.boundingbox || [] as any;
+      const minLat = parseFloat(minLatStr || '0');
+      const maxLat = parseFloat(maxLatStr || '0');
+      const minLon = parseFloat(minLonStr || '0');
+      const maxLon = parseFloat(maxLonStr || '0');
+      const lat = (minLat + maxLat) / 2;
+      const lon = (minLon + maxLon) / 2;
+      const raw = localStorage.getItem('search-history');
+      const arr: Array<{ name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+      arr.unshift({ name: suggestion.display_name, lat, lon, time: Date.now() });
+      const trimmed = arr.slice(0, 200);
+      localStorage.setItem('search-history', JSON.stringify(trimmed));
+    } catch {}
     onLocationSelect(suggestion);
   };
   

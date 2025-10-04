@@ -88,7 +88,10 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground m-0 overflow-x-hidden;
+  }
+  html, body {
+    width: 100%;
   }
 }
 
@@ -99,5 +102,58 @@
   }
   .dark .leaflet-tooltip.poi-label {
     @apply bg-neutral-900 text-neutral-100 border-neutral-700 shadow;
+  }
+  /* Pulsing user marker */
+  .user-pulse {
+    position: relative;
+    width: 36px;
+    height: 36px;
+  }
+  .user-pulse .dot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    background: #22c55e; /* emerald-500 */
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
+  }
+  .user-pulse .ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(34, 197, 94, 0.6);
+    border-radius: 9999px;
+    transform: translate(-50%, -50%);
+    animation: pulse-expand 1.8s ease-out infinite;
+  }
+  @keyframes pulse-expand {
+    0% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.7); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(2.6); }
+  }
+
+  /* Route draw animation for main polyline */
+  .leaflet-overlay-pane .route-anim {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: draw-route 1.6s ease-out forwards;
+  }
+  @keyframes draw-route {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* Pop-in animation for POI markers */
+  .poi-pop {
+    animation: poi-pop-in 280ms ease-out;
+    transform-origin: center;
+  }
+  @keyframes poi-pop-in {
+    0% { opacity: 0; transform: scale(0.6); }
+    60% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
   }
 }

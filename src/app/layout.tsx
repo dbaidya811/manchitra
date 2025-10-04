@@ -38,7 +38,7 @@ export default function RootLayout({
         {/* Favicon (external PNG) */}
         <link
           rel="icon"
-          href="https://cdn-icons-png.flaticon.com/512/10740/10740584.png"
+          href="https://cdn-icons-png.flaticon.com/512/10313/10313212.png"
           type="image/png"
           sizes="any"
         />

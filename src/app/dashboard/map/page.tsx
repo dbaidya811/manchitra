@@ -108,6 +108,8 @@ export default function DashboardMapPage() {
   const [visitedPlanIds, setVisitedPlanIds] = useState<Set<number>>(new Set());
   // Background connectors between consecutive stops (1->2, 2->3, ...)
   const [stopConnectors, setStopConnectors] = useState<Array<Array<[number, number]>>>([]);
+  // Pandals (POIs) near the active route within a buffer (meters)
+  const [nearRoutePandals, setNearRoutePandals] = useState<Array<{ id: string | number; name?: string; lat: number; lon: number; nearest: [number, number]; distM: number }>>([]);
   // Nearest list for mode=nearest
   const [nearestItems, setNearestItems] = useState<Array<{ id: string | number; name: string; lat: number; lon: number; distM: number }>>([]);
   const [nearestLoading, setNearestLoading] = useState<boolean>(false);
@@ -138,12 +140,229 @@ export default function DashboardMapPage() {
     } catch {}
   }, []);
 
+  // Session (used to label own POIs); declared before memo usage
+  const { data: session } = useSession();
+
+  // Memoize POI marker elements to avoid re-creating JSX on each render
+  const poiMarkerElements = useMemo(() => {
+    try {
+      const hideAll = searchParams.get('mode') === 'nearest' || (dest && routeCoords.length > 0);
+      if (hideAll) return [] as React.ReactNode[];
+      const filtered = poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id)));
+      return filtered.map((poi) => {
+        const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
+        if (mine && myPlaceIcon) {
+          return (
+            <RL.Marker
+              key={`poi-${poi.id}`}
+              position={[poi.lat, poi.lon]}
+              icon={myPlaceIcon}
+              eventHandlers={{
+                click: () => {
+                  setDest({ lat: poi.lat, lon: poi.lon });
+                  setCenter([poi.lat, poi.lon]);
+                  setZoom(15);
+                  if (userPos) {
+                    fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
+                  } else if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                        setUserPos(me);
+                        setStartPos(me);
+                        fetchRoute(me, { lat: poi.lat, lon: poi.lon });
+                      },
+                      () => {
+                        const [lat, lon] = center;
+                        const from = { lat, lon };
+                        setStartPos(from);
+                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                      },
+                      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                    );
+                  } else {
+                    const [lat, lon] = center;
+                    const from = { lat, lon };
+                    setStartPos(from);
+                    fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                  }
+                },
+              }}
+            >
+              <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
+                {poi.title || 'Place'}
+              </RL.Tooltip>
+            </RL.Marker>
+          );
+        }
+        if (otherPlaceIcon) {
+          return (
+            <RL.Marker
+              key={`poi-${poi.id}`}
+              position={[poi.lat, poi.lon]}
+              icon={otherPlaceIcon}
+              eventHandlers={{
+                click: () => {
+                  setDest({ lat: poi.lat, lon: poi.lon });
+                  setCenter([poi.lat, poi.lon]);
+                  setZoom(15);
+                  if (userPos) {
+                    fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
+                  } else if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (pos) => {
+                        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                        setUserPos(me);
+                        setStartPos(me);
+                        fetchRoute(me, { lat: poi.lat, lon: poi.lon });
+                      },
+                      () => {
+                        const [lat, lon] = center;
+                        const from = { lat, lon };
+                        setStartPos(from);
+                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                      },
+                      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+                    );
+                  } else {
+                    const [lat, lon] = center;
+                    const from = { lat, lon };
+                    setStartPos(from);
+                    fetchRoute(from, { lat: poi.lat, lon: poi.lon });
+                  }
+                },
+              }}
+            >
+              <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
+                {poi.title || 'Place'}
+              </RL.Tooltip>
+            </RL.Marker>
+          );
+        }
+        return null;
+      }).filter(Boolean) as React.ReactNode[];
+    } catch {
+      return [] as React.ReactNode[];
+    }
+  }, [searchParams, dest, routeCoords, poiMarkers, selectedPlanIdSet, myPlaceIcon, otherPlaceIcon, session?.user?.email, userPos, center]);
+
   useEffect(() => {
     // Defer mount to avoid Leaflet double init in StrictMode/HMR
     setMounted(true);
     const id = requestAnimationFrame(() => setMapKey(Date.now().toString(36) + Math.random().toString(36).slice(2)));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  // Helpers: meters conversion and nearest point to polyline (planar approximation near current latitude)
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const haversineM = (a: [number, number], b: [number, number]) => {
+    const R = 6371000;
+    const dLat = toRad(b[0] - a[0]);
+    const dLon = toRad(b[1] - a[1]);
+    const la1 = toRad(a[0]);
+    const la2 = toRad(b[0]);
+    const A = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(A));
+  };
+  const metersXY = (lat: number, lon: number, refLat: number) => {
+    const R = 6371000;
+    const x = toRad(lon) * R * Math.cos(toRad(refLat));
+    const y = toRad(lat) * R;
+    return { x, y };
+  };
+  const nearestOnSegment = (p: [number, number], a: [number, number], b: [number, number], refLat: number) => {
+    const P = metersXY(p[0], p[1], refLat);
+    const A = metersXY(a[0], a[1], refLat);
+    const B = metersXY(b[0], b[1], refLat);
+    const ABx = B.x - A.x, ABy = B.y - A.y;
+    const APx = P.x - A.x, APy = P.y - A.y;
+    const ab2 = ABx * ABx + ABy * ABy;
+    let t = ab2 === 0 ? 0 : (APx * ABx + APy * ABy) / ab2;
+    t = Math.max(0, Math.min(1, t));
+    const Nx = A.x + ABx * t, Ny = A.y + ABy * t;
+    // convert back to lat/lon
+    const nLon = (Nx / (6371000 * Math.cos(toRad(refLat)))) * (180 / Math.PI);
+    const nLat = (Ny / 6371000) * (180 / Math.PI);
+    return [nLat, nLon] as [number, number];
+  };
+  const nearestPointOnPolyline = (p: [number, number], line: Array<[number, number]>) => {
+    if (line.length < 2) return { nearest: line[0] || p, distM: haversineM(p, line[0] || p) };
+    const refLat = p[0];
+    let best: [number, number] = line[0];
+    let bestD = Infinity;
+    for (let i = 0; i < line.length - 1; i++) {
+      const n = nearestOnSegment(p, line[i], line[i + 1], refLat);
+      const d = haversineM(p, n);
+      if (d < bestD) { bestD = d; best = n; }
+    }
+    return { nearest: best, distM: bestD };
+  };
+
+  // Compute pandals within 5km on either side of the active route
+  useEffect(() => {
+    try {
+      if (!routeCoords || routeCoords.length < 2) { setNearRoutePandals([]); return; }
+      if (!poiMarkers || poiMarkers.length === 0) { setNearRoutePandals([]); return; }
+      const maxDistM = 5000; // 5 km
+      const list: Array<{ id: string | number; name?: string; lat: number; lon: number; nearest: [number, number]; distM: number }> = [];
+      for (const poi of poiMarkers) {
+        const p: [number, number] = [poi.lat, poi.lon];
+        const { nearest, distM } = nearestPointOnPolyline(p, routeCoords);
+        if (Number.isFinite(distM) && distM <= maxDistM) {
+          list.push({ id: poi.id, name: poi.title, lat: poi.lat, lon: poi.lon, nearest, distM });
+        }
+      }
+      // sort nearest first for stable rendering
+      list.sort((a, b) => a.distM - b.distM);
+      setNearRoutePandals(list);
+    } catch { setNearRoutePandals([]); }
+  }, [routeCoords, poiMarkers]);
+
+  // Memoize route polylines (ahead/past/single) and near-route connectors to reduce re-renders
+  const routeElements = useMemo(() => {
+    const items: React.ReactNode[] = [];
+    if (routeAheadCoords.length > 0) {
+      if (routePastCoords.length > 1) {
+        items.push(
+          <RL.Polyline key="past-case" positions={routePastCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        );
+        items.push(
+          <RL.Polyline key="past" positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.65 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        );
+      }
+      items.push(
+        <RL.Polyline key="ahead-case" positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+      );
+      items.push(
+        <RL.Polyline key="ahead" positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+      );
+    } else if (routeCoords.length > 0) {
+      items.push(
+        <RL.Polyline key="single-case" positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+      );
+      items.push(
+        <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+      );
+    }
+    if (nearRoutePandals.length > 0) {
+      for (const n of nearRoutePandals) {
+        items.push(
+          <RL.Polyline
+            key={`near-${n.id}`}
+            positions={[n.nearest, [n.lat, n.lon]]}
+            pathOptions={{ color: '#0ea5e9', weight: 3, opacity: 0.9, dashArray: '4 6' }}
+            smoothFactor={1.5}
+            interactive={false}
+            bubblingMouseEvents={false}
+          />
+        );
+      }
+    }
+    return <>{items}</>;
+  }, [routeAheadCoords, routePastCoords, routeCoords, nearRoutePandals]);
+
+  // Skip polling when user hasn't moved significantly and there is no active navigation
+  const lastTickCenterRef = useRef<[number, number] | null>(null);
 
   // Auto-unlock nearest selection only when the user moves far enough from the position at which it was locked
   useEffect(() => {
@@ -740,6 +959,7 @@ export default function DashboardMapPage() {
   // Bearing and user arrow icon
   const [userHeading, setUserHeading] = useState<number | null>(null);
   const [userIcon, setUserIcon] = useState<any>(null);
+  const [userPulseIcon, setUserPulseIcon] = useState<any>(null);
   const [userArrowIcon, setUserArrowIcon] = useState<any>(null);
   const [userAccuracy, setUserAccuracy] = useState<number | null>(null);
   // Plan stop icons (visited/pending = red, current target = blue)
@@ -787,6 +1007,21 @@ export default function DashboardMapPage() {
       setUserArrowIcon(div);
     })();
   }, [routeBearingDeg, userHeading]);
+
+  // Build a pulsing user dot (CSS animated) as a Leaflet divIcon
+  useEffect(() => {
+    if (!mounted) return;
+    (async () => {
+      const L = await import('leaflet');
+      const html = `
+        <div class="user-pulse">
+          <div class="ring"></div>
+          <div class="dot"></div>
+        </div>`;
+      const icon = L.divIcon({ className: 'user-pulse-icon', html, iconSize: [36, 36], iconAnchor: [18, 18] });
+      setUserPulseIcon(icon);
+    })();
+  }, [mounted]);
 
   // Remove global geolocation watch; we start watching when navigation actually starts
 
@@ -982,6 +1217,49 @@ export default function DashboardMapPage() {
         // Play arrival tone
         try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
         const inNearest = searchParams.get('mode') === 'nearest';
+
+        // Persist visit to localStorage on arrival: upgrade to visited
+        try {
+          const approxeq = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+          // Try to determine a human-friendly name
+          let arrivedName: string = 'Destination';
+          let arrivedId: string | number | null = null;
+          // If in nearest mode, try to match selectedNearestId or nearestItems by coords
+          if (inNearest && nearestItems && nearestItems.length > 0) {
+            const byId = nearestItems.find(it => it.id === selectedNearestId);
+            if (byId) { arrivedName = byId.name || arrivedName; arrivedId = (byId.id as any) ?? null; }
+            else {
+              const byCoord = nearestItems.find(it => Math.hypot(it.lat - dest.lat, it.lon - dest.lon) < 0.0005);
+              if (byCoord) { arrivedName = byCoord.name || arrivedName; arrivedId = (byCoord.id as any) ?? null; }
+            }
+          }
+          // If multi-stop plan, use current stop name
+          if (arrivedName === 'Destination' && orderedPlanStops && orderedPlanStops.length > 0 && planIdx < orderedPlanStops.length) {
+            const cur = orderedPlanStops[planIdx];
+            if (cur?.name) arrivedName = cur.name;
+            if ((cur as any)?.id != null) arrivedId = (cur as any).id;
+          }
+          // Fallback to address from query if name is still generic
+          if (!arrivedName || arrivedName === 'Destination') {
+            const addr = searchParams.get('address');
+            if (addr) arrivedName = addr;
+          }
+          const raw = localStorage.getItem('visit-history');
+          const arr: Array<any> = raw ? JSON.parse(raw) : [];
+          // Find a recent not-visited entry for this dest (within 50m) and upgrade it
+          const within50m = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => haversine([a.lat, a.lon], [b.lat, b.lon]) <= 50;
+          const idx = arr.findIndex((e: any) => within50m({ lat: e.lat, lon: e.lon }, { lat: dest.lat, lon: dest.lon }));
+          if (idx >= 0) {
+            arr[idx].status = 'visited';
+            arr[idx].name = arrivedName || 'Destination';
+            arr[idx].id = arrivedId;
+            arr[idx].time = Date.now();
+          } else {
+            arr.unshift({ id: arrivedId, name: arrivedName || 'Destination', lat: dest.lat, lon: dest.lon, time: Date.now(), status: 'visited' });
+          }
+          localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+        } catch {}
+
         if (orderedPlanStops.length > 0 && planIdx < orderedPlanStops.length - 1) {
           const nextIdx = planIdx + 1;
           const next = orderedPlanStops[nextIdx];
@@ -1160,11 +1438,8 @@ export default function DashboardMapPage() {
     if (!mounted) return;
     (async () => {
       const L = await import('leaflet');
-      const icon = L.icon({
-        iconUrl: 'https://cdn-icons-png.flaticon.com/512/4601/4601807.png',
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-      });
+      const html = `<img src="https://cdn-icons-png.flaticon.com/512/4601/4601807.png" alt="mine" style="width:28px;height:28px;object-fit:contain;"/>`;
+      const icon = L.divIcon({ className: 'my-place poi-pop', html, iconSize: [28, 28], iconAnchor: [14, 28] });
       setMyPlaceIcon(icon);
     })();
   }, [mounted]);
@@ -1174,11 +1449,8 @@ export default function DashboardMapPage() {
     if (!mounted) return;
     (async () => {
       const L = await import('leaflet');
-      const icon = L.icon({
-        iconUrl: 'https://cdn-icons-png.flaticon.com/512/2776/2776067.png',
-        iconSize: [26, 26],
-        iconAnchor: [13, 26],
-      });
+      const html = `<img src="https://cdn-icons-png.flaticon.com/512/2776/2776067.png" alt="place" style="width:26px;height:26px;object-fit:contain;"/>`;
+      const icon = L.divIcon({ className: 'other-place poi-pop', html, iconSize: [26, 26], iconAnchor: [13, 26] });
       setOtherPlaceIcon(icon);
     })();
   }, [mounted]);
@@ -1199,8 +1471,8 @@ export default function DashboardMapPage() {
         <div style="width:${size[0]}px;height:${size[1]}px;display:grid;place-items:center;">
           <img src="${baseUrl}" alt="location" style="width:100%;height:100%;object-fit:contain;filter:hue-rotate(200deg) saturate(2) brightness(1.1);"/>
         </div>`;
-      setPlanIconRed(L.divIcon({ className: 'plan-stop-red', html: redHtml, iconSize: size, iconAnchor: anchor }));
-      setPlanIconBlue(L.divIcon({ className: 'plan-stop-blue', html: blueHtml, iconSize: size, iconAnchor: anchor }));
+      setPlanIconRed(L.divIcon({ className: 'plan-stop-red poi-pop', html: redHtml, iconSize: size, iconAnchor: anchor }));
+      setPlanIconBlue(L.divIcon({ className: 'plan-stop-blue poi-pop', html: blueHtml, iconSize: size, iconAnchor: anchor }));
     })();
   }, [mounted]);
 
@@ -1210,6 +1482,7 @@ export default function DashboardMapPage() {
     const address = searchParams.get('address');
     const fromLat = searchParams.get('fromLat');
     const fromLon = searchParams.get('fromLon');
+    const mode = searchParams.get('mode');
     // Helper to auto start a route to a known destination
     const autoStartTo = (to: { lat: number; lon: number }) => {
       // If fromLat/fromLon are provided via query, respect them and avoid prompting for geolocation
@@ -1266,7 +1539,9 @@ export default function DashboardMapPage() {
       setCenter([latNum, lonNum]);
       setZoom(15);
       // Start route immediately
-      autoStartTo({ lat: latNum, lon: lonNum });
+      if (mode !== 'nearest') {
+        autoStartTo({ lat: latNum, lon: lonNum });
+      }
     } else if (address) {
       // Geocode address using Nominatim
       const geocode = async () => {
@@ -1282,7 +1557,9 @@ export default function DashboardMapPage() {
               setCenter([latNum, lonNum]);
               setZoom(15);
               // Start route immediately
-              autoStartTo({ lat: latNum, lon: lonNum });
+              if (mode !== 'nearest') {
+                autoStartTo({ lat: latNum, lon: lonNum });
+              }
             }
           }
         } catch (_) {
@@ -1380,6 +1657,35 @@ export default function DashboardMapPage() {
         currentStepIdxRef.current = 0;
         setCurrentStepIdx(0);
         spokenRef.current = {};
+
+        // Persist this navigation attempt to history (so user sees it even if not arrived) as not-visited
+        try {
+          const inNearest = searchParams.get('mode') === 'nearest';
+          let name: string = 'Destination';
+          let pid: string | number | null = null;
+          if (inNearest && nearestItems && nearestItems.length > 0) {
+            const byId = nearestItems.find(it => it.id === selectedNearestId);
+            if (byId) { name = byId.name || name; pid = (byId.id as any) ?? null; }
+            else {
+              const byCoord = nearestItems.find(it => Math.hypot(it.lat - to.lat, it.lon - to.lon) < 0.0005);
+              if (byCoord) { name = byCoord.name || name; pid = (byCoord.id as any) ?? null; }
+            }
+          }
+          if (name === 'Destination' && orderedPlanStops && orderedPlanStops.length > 0) {
+            const match = orderedPlanStops.find(s => Math.hypot(s.lat - to.lat, s.lon - to.lon) < 0.0005);
+            if (match?.name) name = match.name;
+            if ((match as any)?.id != null) pid = (match as any).id;
+          }
+          const raw = localStorage.getItem('visit-history');
+          const arr: Array<any> = raw ? JSON.parse(raw) : [];
+          // If existing entry within 50m exists, do not downgrade visited; otherwise add not-visited
+          const toMeters = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => haversine([a.lat, a.lon], [b.lat, b.lon]);
+          const idx = arr.findIndex((e: any) => toMeters({ lat: e.lat, lon: e.lon }, { lat: to.lat, lon: to.lon }) <= 50);
+          if (idx === -1) {
+            arr.unshift({ id: pid, name, lat: to.lat, lon: to.lon, time: Date.now(), status: 'not-visited' });
+            localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+          }
+        } catch {}
       } else {
         setRouteCoords([]);
         setRouteDistance(null);
@@ -1570,7 +1876,7 @@ export default function DashboardMapPage() {
     );
   };
 
-  const { data: session } = useSession();
+  
 
   // Cleanup any active geolocation watch on unmount
   useEffect(() => {
@@ -1767,14 +2073,19 @@ export default function DashboardMapPage() {
               <RL.Marker position={[dest.lat, dest.lon]} icon={destIcon} />
             )}
             {browsePos && (
-              <RL.CircleMarker center={[browsePos.lat, browsePos.lon]} radius={4} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1 }} />
+              <RL.CircleMarker center={[browsePos.lat, browsePos.lon]} radius={4} pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 1, className: 'poi-pop' }} />
             )}
             {userPos && (
-              userArrowIcon ? (
-                <RL.Marker position={[userPos.lat, userPos.lon]} icon={userArrowIcon} />
-              ) : (
-                <RL.CircleMarker center={[userPos.lat, userPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
-              )
+              <>
+                {userPulseIcon && (
+                  <RL.Marker position={[userPos.lat, userPos.lon]} icon={userPulseIcon} zIndexOffset={-100} />
+                )}
+                {userArrowIcon ? (
+                  <RL.Marker position={[userPos.lat, userPos.lon]} icon={userArrowIcon} />
+                ) : (
+                  <RL.CircleMarker center={[userPos.lat, userPos.lon]} radius={5} pathOptions={{ color: '#2563eb', fillColor: '#2563eb', fillOpacity: 1 }} />
+                )}
+              </>
             )}
             {routeAheadCoords.length > 0 ? (
               <>
@@ -1789,7 +2100,7 @@ export default function DashboardMapPage() {
                 {/* Ahead segment casing */}
                 <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 {/* Ahead segment (remaining) */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
               </>
             ) : (
               routeCoords.length > 0 && (
@@ -1797,10 +2108,21 @@ export default function DashboardMapPage() {
                   {/* Single route casing */}
                   <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                   {/* Single route */}
-                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 </>
               )
             )}
+            {/* Pandals within 5km of route: draw connector polylines from route to POI */}
+            {nearRoutePandals.length > 0 && nearRoutePandals.map((n) => (
+              <RL.Polyline
+                key={`near-${n.id}`}
+                positions={[n.nearest, [n.lat, n.lon]]}
+                pathOptions={{ color: '#0ea5e9', weight: 3, opacity: 0.9, dashArray: '4 6' }}
+                smoothFactor={1.5}
+                interactive={false}
+                bubblingMouseEvents={false}
+              />
+            ))}
             {/* Future legs between planned stops: hide entirely in nearest mode */}
             {stopConnectors.length > 0 && searchParams.get('mode') !== 'nearest' && (
               <>
@@ -1981,7 +2303,7 @@ export default function DashboardMapPage() {
           </div>
         )}
         {/* Re-center and Exit controls (icon buttons), positioned above footer */}
-        <div className="absolute bottom-28 right-5 z-[3500] flex flex-col gap-3 items-end">
+        <div className="absolute bottom-56 right-5 z-[3500] flex flex-col gap-3 items-end">
           <button
             onClick={() => {
               try {
@@ -1989,8 +2311,21 @@ export default function DashboardMapPage() {
                 setRecenterPending(true);
                 // If we already know user position, use immediately
                 if (userPos) {
-                  setCenter([userPos.lat, userPos.lon]);
-                  setZoom((z) => Math.max(z, 16));
+                  // Smooth fly when map is ready; fallback to state update
+                  try {
+                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
+                      const nextZ = Math.max(zoom, 16);
+                      mapRef.current.flyTo([userPos.lat, userPos.lon], nextZ, { animate: true, duration: 0.6 });
+                      setZoom(nextZ);
+                      setCenter([userPos.lat, userPos.lon]);
+                    } else {
+                      setCenter([userPos.lat, userPos.lon]);
+                      setZoom((z) => Math.max(z, 16));
+                    }
+                  } catch {
+                    setCenter([userPos.lat, userPos.lon]);
+                    setZoom((z) => Math.max(z, 16));
+                  }
                   setTimeout(() => setRecenterPending(false), 150);
                   return;
                 }
@@ -1999,8 +2334,20 @@ export default function DashboardMapPage() {
                     (pos) => {
                       const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
                       setUserPos(me);
-                      setCenter([me.lat, me.lon]);
-                      setZoom((z) => Math.max(z, 16));
+                      try {
+                        if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
+                          const nextZ = Math.max(zoom, 16);
+                          mapRef.current.flyTo([me.lat, me.lon], nextZ, { animate: true, duration: 0.6 });
+                          setZoom(nextZ);
+                          setCenter([me.lat, me.lon]);
+                        } else {
+                          setCenter([me.lat, me.lon]);
+                          setZoom((z) => Math.max(z, 16));
+                        }
+                      } catch {
+                        setCenter([me.lat, me.lon]);
+                        setZoom((z) => Math.max(z, 16));
+                      }
                       setRecenterPending(false);
                     },
                     (err) => {
@@ -2013,20 +2360,44 @@ export default function DashboardMapPage() {
                   );
                 } else if (startPos) {
                   // Fallback: center to known start position
-                  setCenter([startPos.lat, startPos.lon]);
-                  setZoom((z) => Math.max(z, 15));
+                  try {
+                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
+                      const nextZ = Math.max(zoom, 15);
+                      mapRef.current.flyTo([startPos.lat, startPos.lon], nextZ, { animate: true, duration: 0.5 });
+                      setZoom(nextZ);
+                      setCenter([startPos.lat, startPos.lon]);
+                    } else {
+                      setCenter([startPos.lat, startPos.lon]);
+                      setZoom((z) => Math.max(z, 15));
+                    }
+                  } catch {
+                    setCenter([startPos.lat, startPos.lon]);
+                    setZoom((z) => Math.max(z, 15));
+                  }
                   setRecenterPending(false);
                 } else if (browsePos) {
                   // Fallback: center to last browsed position
-                  setCenter([browsePos.lat, browsePos.lon]);
-                  setZoom((z) => Math.max(z, 14));
+                  try {
+                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
+                      const nextZ = Math.max(zoom, 14);
+                      mapRef.current.flyTo([browsePos.lat, browsePos.lon], nextZ, { animate: true, duration: 0.5 });
+                      setZoom(nextZ);
+                      setCenter([browsePos.lat, browsePos.lon]);
+                    } else {
+                      setCenter([browsePos.lat, browsePos.lon]);
+                      setZoom((z) => Math.max(z, 14));
+                    }
+                  } catch {
+                    setCenter([browsePos.lat, browsePos.lon]);
+                    setZoom((z) => Math.max(z, 14));
+                  }
                   setRecenterPending(false);
                 } else {
                   setRecenterPending(false);
                 }
               } catch {}
             }}
-            className={`h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl hover:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-300/30 ${recenterPending ? 'opacity-70 cursor-wait' : ''}`}
+            className={`h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl hover:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-300/30 transition-transform duration-150 ease-out hover:scale-105 active:scale-95 ${recenterPending ? 'opacity-70 cursor-wait' : ''}`}
             title="Re-center"
             aria-label="Re-center"
             disabled={recenterPending}
@@ -2077,7 +2448,7 @@ export default function DashboardMapPage() {
                 setAutoRouted(false);
                 setAutoFollow(false);
               }}
-              className="h-12 w-12 inline-flex items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-red-700 text-white shadow-2xl hover:from-red-600 hover:to-red-800 focus:outline-none focus:ring-4 focus:ring-red-300/40"
+              className="h-12 w-12 inline-flex items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-red-700 text-white shadow-2xl hover:from-red-600 hover:to-red-800 focus:outline-none focus:ring-4 focus:ring-red-300/40 transition-transform duration-150 ease-out hover:scale-105 active:scale-95"
               title="Exit navigation"
               aria-label="Exit navigation"
             >
@@ -2090,7 +2461,7 @@ export default function DashboardMapPage() {
         </div>
         {/* Voice guidance + heading toggles (moved to right). Only when navigating (dest set and route exists), hidden while banner is visible */}
         {(dest && routeCoords.length > 0) && !(routeSteps.length > 0 && userPos) && (
-        <div className="absolute bottom-48 right-5 z-[1500]">
+        <div className="absolute bottom-64 right-5 z-[1500]">
           <button
             onClick={() => { const next = !voiceOn; setVoiceOn(next); if (next) speak('Voice guidance on'); else if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel(); }}
             className={`h-12 w-12 flex items-center justify-center rounded-full border backdrop-blur shadow-2xl focus:outline-none focus:ring-4 ${voiceOn ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white border-blue-500/60 focus:ring-blue-300/40' : 'bg-white/90 text-neutral-900 border-black/10 dark:bg-black/40 dark:text-white'}`}
