@@ -38,18 +38,22 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const body = await req.json();
-    const { id, author, avatarUrl, cardName, text, photos, createdAt, ownerEmail } = body || {};
+    const { id, author, avatarUrl, cardName, text, photos, createdAt, ownerEmail, poll } = body || {};
 
-    if (typeof id !== "string" || !cardName || (!text && (!Array.isArray(photos) || photos.length === 0))) {
+    // Allow post if it has either text, photos, or a valid poll (cardName optional)
+    const hasText = typeof text === 'string' && text.trim().length > 0;
+    const hasPhotos = Array.isArray(photos) && photos.length > 0;
+    const pollValid = poll && Array.isArray(poll.options) && poll.options.filter((s: any) => typeof s === 'string' && s.trim().length > 0).length >= 2;
+    if (typeof id !== "string" || (!hasText && !hasPhotos && !pollValid)) {
       return NextResponse.json({ ok: false, error: "Invalid payload" }, { status: 400 });
     }
 
     const db = await getDb();
-    const doc = {
+    const doc: any = {
       id,
       author: typeof author === 'string' ? author : null,
       avatarUrl: typeof avatarUrl === 'string' && avatarUrl.trim() ? avatarUrl : (session?.user?.image || null),
-      cardName: String(cardName),
+      cardName: typeof cardName === 'string' ? String(cardName) : '',
       text: typeof text === 'string' ? text : '',
       photos: Array.isArray(photos) ? photos.slice(0, 5) : [],
       createdAt: typeof createdAt === 'number' ? new Date(createdAt) : new Date(),
@@ -59,6 +63,20 @@ export async function POST(req: NextRequest) {
       ownerEmail: ownerEmail || session?.user?.email || null,
       edited: false,
     };
+
+    // Normalize poll if provided
+    if (pollValid) {
+      const cleanOptions = poll.options
+        .filter((s: any) => typeof s === 'string' && s.trim().length > 0)
+        .slice(0, 4)
+        .map((s: string, i: number) => ({ id: String(i + 1), text: s.trim(), votes: 0, voters: [] as string[] }));
+      doc.poll = {
+        options: cleanOptions,
+        allowMultiple: !!poll.allowMultiple,
+        expiresAt: typeof poll.expiresAt === 'number' ? new Date(poll.expiresAt) : null,
+        createdAt: new Date(),
+      };
+    }
 
     await db.collection("feed").updateOne({ id }, { $set: doc }, { upsert: true });
 

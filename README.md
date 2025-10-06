@@ -1,14 +1,35 @@
-# Manchitra - Collaborative Map
+# 🗺️ Manchitra - Your Hoping Partner
 
-Welcome to Manchitra, a collaborative mapping application that allows users to discover and contribute points of interest. This application is built with Next.js and Tailwind CSS, providing a modern and responsive user experience.
+[![Next.js](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwind-css)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## Overview
+A modern, intelligent navigation and location-sharing platform with real-time routing, smart history tracking, and social features. Built with Next.js, featuring advanced map integration, voice guidance, and collaborative exploration.
 
-Manchitra is a platform where users can:
-- Add new places (points of interest) with names, descriptions, locations, and photos.
-- View all contributed places on an interactive map.
-- See contributions from other users.
-- Report issues or provide feedback.
+## ✨ Overview
+
+Manchitra is a comprehensive location-based platform that enables users to:
+
+### 🎯 Core Features
+- 📍 **Smart Navigation** - Real-time routing with voice guidance and turn-by-turn directions
+- 🗺️ **Interactive Maps** - Powered by Leaflet and OpenStreetMap with smooth animations
+- 📊 **Location History** - Intelligent tracking with auto-status updates (Not Visited → On Routing → Visited)
+- 🤝 **Social Feed** - Share experiences, photos, and polls with the community
+- 🎨 **Modern UI** - Beautiful gradients, animations, and glassmorphism effects
+- 🔐 **Secure Auth** - Google OAuth and email/OTP authentication via NextAuth
+- 📱 **PWA Ready** - Offline support and installable as a mobile app
+- 🎤 **Voice Navigation** - Female voice guidance with pre-alerts and turn notifications
+
+### 🚀 Advanced Features
+- **Point-to-Point Routing** - Filter locations within 10km radius and create optimal routes
+- **Nearest-First Algorithm** - Greedy nearest-neighbor routing for multi-stop journeys
+- **Swipe to Delete** - Intuitive gesture controls for history management
+- **Auto-Status Updates** - Background location tracking with 175m visit detection
+- **Color-Coded Routes** - Visual distinction between active and completed segments
+- **Emoji Picker** - Rich emoji support in posts with search functionality
+- **Poll System** - Create and vote on polls with real-time updates
+- **Data Export** - Backup and restore your data anytime
 
 ## Getting Started
 
@@ -29,60 +50,99 @@ To run this project locally, follow these steps:
 3.  **Open in Browser:**
     The application will be available at [http://localhost:9002](http://localhost:9002).
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- **Framework:** [Next.js](https://nextjs.org/)
-- **UI Components:** [ShadCN/UI](https://ui.shadcn.com/)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
-- **AI Features:** [Genkit](https://firebase.google.com/docs/genkit)
-- **Maps:** [Leaflet](https://leafletjs.com/) & [OpenStreetMap](https://www.openstreetmap.org/)
+### Frontend
+- **Framework:** [Next.js 14.2](https://nextjs.org/) - React framework with App Router
+- **Language:** [TypeScript 5.0](https://www.typescriptlang.org/) - Type-safe development
+- **Styling:** [Tailwind CSS 3.4](https://tailwindcss.com/) - Utility-first CSS
+- **UI Components:** [ShadCN/UI](https://ui.shadcn.com/) - Accessible component library
+- **Maps:** [React Leaflet](https://react-leaflet.js.org/) - Interactive map components
+- **Icons:** [Lucide React](https://lucide.dev/) - Beautiful icon set
 
-## Animations & UX
+### Backend & Services
+- **Authentication:** [NextAuth.js](https://next-auth.js.org/) - OAuth & credential auth
+- **Database:** [MongoDB](https://www.mongodb.com/) - NoSQL database
+- **Email:** [Nodemailer](https://nodemailer.com/) - Email notifications
+- **AI:** [Google Genkit](https://firebase.google.com/docs/genkit) - AI-powered features
+- **Routing:** [OSRM](https://project-osrm.org/) - Open-source routing engine
 
-- **Welcome Animation (Login Only)**
-  - Shown immediately after a successful login, once per browser session.
-  - Controlled via `sessionStorage.welcome_after_login_shown`.
+### Additional Tools
+- **State Management:** React Hooks (useState, useEffect, useCallback, useMemo)
+- **Audio:** Web Speech API - Voice guidance
+- **Geolocation:** Navigator API - Real-time location tracking
+- **Storage:** LocalStorage & SessionStorage - Client-side persistence
 
-- **Love (Heart) Animation**
-  - Clicking the Love button on any place card shows a 1s full-screen heart pulse.
-  - The card is added to "What I've Seen" (`localStorage.seen-places`).
+## 🎨 Animations & UX
 
-- **Card Created Animation**
-  - After adding a new place, a 1s success pulse appears.
-  - The place is saved to `localStorage.user-places`.
+### Modern Animations
+- ✨ **Fade-in-up** - Smooth entrance animations
+- 💫 **Shimmer** - Loading state effects
+- 🎈 **Float** - Floating marker animations
+- 🌊 **Ripple** - User location pulse effect
+- 🎯 **Bounce-in** - Modal entrance animations
+- 📊 **Scale-pulse** - Interactive element feedback
+- 🌈 **Gradient-shift** - Animated button backgrounds
 
-## Core Features & How To Use
+### User Experience
+- **Dashboard Audio** - Welcome tone plays once per session
+- **Voice Guidance** - Turn-by-turn navigation with female voice
+- **Swipe Gestures** - Right-to-left swipe to delete history items
+- **Auto-redirect** - Logged-in users skip login page
+- **Smooth Zoom** - Enhanced map zoom with 0.5 increments
+- **Corner Accents** - Modern emerald borders on map container
+- **Status Tags** - Color-coded badges (Not Visited, On Routing, Visited)
+- **Glassmorphism** - Frosted glass effects on UI elements
 
-- **Add Place**
-  - Open the Add Place dialog from the profile menu.
-  - Fill in: `Name`, `Description`, `Area (required)`, and set `Location` by search, map click, or "Use my location".
-  - Optional single photo upload with preview and remove.
-  - The dialog is scrollable when content exceeds the viewport.
+## 📖 Feature Guide
 
-- **Location Search & Map**
-  - Suggestions show under the Location search (not under Name) to avoid overlap.
-  - Press Enter or click Go to jump the mini-map marker to the first result.
-  - Drag the marker or click the map to fine tune coordinates.
+### 🗺️ Navigation & Routing
+- **Smart Routing** - Point-to-point navigation with real-time updates
+- **Voice Guidance** - Female voice with 100m pre-alerts and 25m final alerts
+- **Multi-Stop Planning** - Nearest-first algorithm for optimal routes
+- **Color-Coded Routes** - Red (active), Green (completed), Blue (on-routing)
+- **Off-Route Detection** - Auto-alerts when 30m+ off planned path
+- **Smooth Zoom** - 0.5 increment zoom with animations
 
-- **Love a Place**
-  - Click the heart on any card to save its ID to `seen-places`.
-  - The heart turns red for loved items.
-  - A quick animation confirms the action.
+### 📊 History Tracking
+- **Auto-Status Updates** - Background location monitoring
+- **Three States**: Not Visited → On Routing → Visited
+- **175m Detection** - Auto-marks as visited within range
+- **Swipe to Delete** - Right-to-left gesture on cards
+- **Search & Filter** - Find locations by name
 
-- **What I've Seen**
-  - Page shows only the loved places.
-  - You can "Unlove" (remove) any place; it updates immediately.
+### 🤝 Social Features
+- **Feed Posts** - Share photos, text, and polls
+- **Emoji Picker** - 220+ emojis with search
+- **Poll System** - Create polls with multiple options
+- **Like & Comment** - Engage with community posts
+- **Real-time Updates** - 500ms auto-refresh
 
-- **Map Page**
-  - Opens centered to a small bounding box if `?lat&lon` are present.
-  - Supports searching via the header search box to move the view.
-  - All contributed places (from `user-places`) are visible.
+### 🔐 Authentication
+- **Google OAuth** - One-click sign in
+- **Email/OTP** - Secure email authentication
+- **30-Day Session** - Stay logged in for a month
+- **Auto-Redirect** - Skip login if already authenticated
 
-## Data Storage (Client-side)
+## 💾 Data Storage
 
-- `localStorage.user-places`: Array of contributed places.
-- `localStorage.seen-places`: Array of loved place IDs.
-- `sessionStorage.welcome_after_login_shown`: Prevents repeat welcome in same session.
+### LocalStorage
+- `visit-history` - Location visit records with status
+- `search-history` - Search query history
+- `seen-places` - Favorited location IDs
+- `user-places` - User-contributed places
+- `anon_id` - Anonymous user identifier
+
+### SessionStorage
+- `welcome_shown_[email]` - Welcome screen display flag
+- `dashboard_audio_played` - Audio playback flag
+- `welcome_after_login_shown` - Login welcome flag
+
+### Database (MongoDB)
+- `users` - User profiles and authentication
+- `places` - All contributed locations
+- `feed` - Social feed posts
+- `reports` - User-submitted reports
 
 ## Troubleshooting
 
@@ -96,12 +156,14 @@ To run this project locally, follow these steps:
 - **What I've Seen is empty**
   - Love a card first; it stores the place ID in `seen-places`.
 
-## Scripts
+## 🚀 Scripts
 
 ```bash
-npm run dev       # start development server (default port 9002)
-npm run build     # production build
-npm run start     # run production server
+npm install       # Install dependencies
+npm run dev       # Start development server (port 9002)
+npm run build     # Create production build
+npm run start     # Run production server
+npm run lint      # Run ESLint
 ```
 
 ## Email Reports & Notifications
@@ -169,3 +231,68 @@ npm install mongodb
 3. Restart the dev server.
 
 Now, every report submission will be saved in the `reports` collection of the `manchitra` database.
+
+## 🔐 Security Features
+
+### Implemented
+- ✅ Input validation and sanitization (`src/lib/validation.ts`)
+- ✅ Rate limiting helpers - 100 requests/second (`src/lib/auth-check.ts`)
+- ✅ Error logging system (`src/lib/logger.ts`)
+- ✅ Performance monitoring (`src/lib/performance.ts`)
+- ✅ Data export/backup (`src/lib/data-export.ts`)
+- ✅ Session management (30-day JWT)
+- ✅ HTTPS-only in production
+
+### Recommended
+- 🔧 Add CSP headers (see `SECURITY_RECOMMENDATIONS.md`)
+- 🔧 Enable rate limiting on API routes
+- 🔧 Implement 2FA for sensitive operations
+- 🔧 Add CORS configuration
+- 🔧 Regular security audits
+
+## 📱 PWA Support
+
+- ✅ Manifest file configured (`public/manifest.json`)
+- ✅ Offline-ready architecture
+- ✅ Installable on mobile devices
+- ✅ App shortcuts for quick access
+- 🔧 Service worker (TODO)
+
+## 📚 Documentation
+
+- `SECURITY_RECOMMENDATIONS.md` - Complete security guide
+- `IMPLEMENTATION_GUIDE.md` - Quick start implementation
+- `README.md` - This file
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🙏 Acknowledgments
+
+- [OpenStreetMap](https://www.openstreetmap.org/) - Map data
+- [OSRM](https://project-osrm.org/) - Routing engine
+- [Leaflet](https://leafletjs.com/) - Map library
+- [ShadCN/UI](https://ui.shadcn.com/) - UI components
+- [Vercel](https://vercel.com/) - Hosting platform
+
+## 📞 Support
+
+For issues and questions:
+- Open an issue on GitHub
+- Check existing documentation
+- Review security recommendations
+
+---
+
+**Built with ❤️ using Next.js and TypeScript**

@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Compass, MapPin, ArrowRight, LocateFixed } from "lucide-react";
+import { MapPin, ArrowRight, LocateFixed, ArrowRightLeft } from "lucide-react";
 
 export default function AIContinuePage() {
   const search = useSearchParams();
@@ -64,20 +64,20 @@ export default function AIContinuePage() {
             <ArrowRight className="h-5 w-5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
           </button>
 
-          {/* Option 2: Using location range */}
+          {/* Option 2: Point to point */}
           <button
             className="group flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all"
             onClick={() => {
-              router.push(`/ai/location-range`);
+              router.push(`/ai/point-to-point/start`);
             }}
           >
             <div className="flex items-center gap-3 sm:gap-4 text-left">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-sky-700">
-                <Compass className="h-5 w-5" />
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700">
+                <ArrowRightLeft className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-base sm:text-lg font-semibold text-neutral-900">Using location range</div>
-                <div className="text-xs sm:text-sm text-neutral-600">Pick an area on the map and plan around it</div>
+                <div className="text-base sm:text-lg font-semibold text-neutral-900">Point to point</div>
+                <div className="text-xs sm:text-sm text-neutral-600">Create a simple route between two places</div>
               </div>
             </div>
             <ArrowRight className="h-5 w-5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />

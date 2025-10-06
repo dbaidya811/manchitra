@@ -20,8 +20,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     const db = await getDb();
-    const doc = await db.collection("feed").findOne({ id });
-    if (!doc) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    let doc: any = await db.collection("feed").findOne({ id });
+    // If doc not found, allow creating it from body.card (save on first like)
+    if (!doc) {
+      const card = (body && typeof body.card === 'object' && body.card) || {};
+      const newDoc: any = {
+        id,
+        author: typeof card.author === 'string' ? card.author : null,
+        avatarUrl: typeof card.avatarUrl === 'string' && card.avatarUrl.trim() ? card.avatarUrl : (session?.user?.image || null),
+        cardName: typeof card.cardName === 'string' ? String(card.cardName) : '',
+        text: typeof card.text === 'string' ? card.text : '',
+        photos: Array.isArray(card.photos) ? card.photos.slice(0, 5) : [],
+        createdAt: new Date(),
+        updatedAt: null as Date | null,
+        likes: 0,
+        likedBy: [] as string[],
+        ownerEmail: bodyEmail || session?.user?.email || null,
+        edited: false,
+      };
+      await db.collection('feed').updateOne({ id }, { $set: newDoc }, { upsert: true });
+      doc = newDoc;
+    }
 
     const hasLiked = Array.isArray(doc.likedBy) && doc.likedBy.includes(email);
 

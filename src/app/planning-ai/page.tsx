@@ -74,6 +74,8 @@ export default function PlanningAIPage() {
           </div>
         </div>
 
+        
+
         <div className="mt-6 text-xs text-neutral-600 dark:text-neutral-400">
           Tip: When you see a place card, use the Steps button to view walking steps between your location and that spot.
         </div>

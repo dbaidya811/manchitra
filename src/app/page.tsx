@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
 import { useRouter } from "next/navigation";
 import { LoginDialog } from "@/components/login-dialog";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 
 const GuestIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
@@ -27,7 +27,29 @@ const GuestIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Home() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  // Auto-redirect to dashboard if already logged in
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-yellow-200 via-orange-300 to-red-400">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-white border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  // If authenticated, don't show login page (redirect is happening)
+  if (status === "authenticated") {
+    return null;
+  }
 
   // Ensure description on home page shows only 6 words regardless of length
   const truncateWords = (text: string, count: number) => {

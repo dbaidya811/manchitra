@@ -1,0 +1,14 @@
+{
+  "css.lint.unknownAtRules": "ignore",
+  "css.validate": true,
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "tailwindCSS.emmetCompletions": true,
+  "json.schemas": [
+    {
+      "fileMatch": ["/.vscode/settings.json"],
+      "url": "https://json.schemastore.org/vscode-settings"
+    }
+  ]
+}

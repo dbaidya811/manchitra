@@ -108,9 +108,33 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
       const lon = (minLon + maxLon) / 2;
       const raw = localStorage.getItem('search-history');
       const arr: Array<{ name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
-      arr.unshift({ name: suggestion.display_name, lat, lon, time: Date.now() });
+      const now = Date.now();
+      arr.unshift({ name: suggestion.display_name, lat, lon, time: now });
       const trimmed = arr.slice(0, 200);
       localStorage.setItem('search-history', JSON.stringify(trimmed));
+      // Best-effort server persist with user position to derive visited/not-visited
+      try {
+        const post = (coords?: { lat: number; lon: number }) => {
+          fetch('/api/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'search',
+              data: { name: suggestion.display_name, lat, lon, time: now, ...(coords ? { userLat: coords.lat, userLon: coords.lon } : {}) },
+            }),
+            cache: 'no-store',
+          }).catch(() => {});
+        };
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => post({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+            () => post(),
+            { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
+          );
+        } else {
+          post();
+        }
+      } catch {}
     } catch {}
     onLocationSelect(suggestion);
   };

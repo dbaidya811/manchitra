@@ -8,13 +8,14 @@ import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 import { Place } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { MapPin, Heart, Sparkles, CheckCircle, ListOrdered } from "lucide-react";
+import { MapPin, Heart, Sparkles, CheckCircle, ListOrdered, Star } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 import { RouteStepsDialog } from "@/components/dashboard/route-steps-dialog";
 import { useSession } from "next-auth/react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { StarRating } from "@/components/star-rating";
 
 export default function DashboardPage() {
   const { toast } = useToast();
@@ -27,6 +28,7 @@ export default function DashboardPage() {
   const [showLoveAnim, setShowLoveAnim] = useState(false);
   const [showCreateAnim, setShowCreateAnim] = useState(false);
   const [showWelcomeAnim, setShowWelcomeAnim] = useState(false);
+  const [placeRatings, setPlaceRatings] = useState<Record<number, Record<string, number>>>({});
   const isMobile = useIsMobile();
   const [geo, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [routeOpenFor, setRouteOpenFor] = useState<{ id: number; name: string } | null>(null);
@@ -37,6 +39,23 @@ export default function DashboardPage() {
   useEffect(() => {
     // used to stagger simple entrance animations
     setMountedAt(Date.now());
+    
+    // Play welcome audio only once per login session
+    try {
+      const audioPlayed = sessionStorage.getItem('dashboard_audio_played');
+      if (!audioPlayed) {
+        const audio = new Audio('/sound/A tone.wav');
+        audio.volume = 0.5; // 50% volume
+        audio.play().then(() => {
+          // Mark as played in session storage
+          sessionStorage.setItem('dashboard_audio_played', '1');
+        }).catch(() => {
+          // Silently fail if autoplay is blocked by browser
+        });
+      }
+    } catch {
+      // Ignore audio errors
+    }
   }, []);
   const requestLocation = () => {
     if (!navigator.geolocation) return;
@@ -172,6 +191,14 @@ export default function DashboardPage() {
       setSeenIds(rawSeen ? JSON.parse(rawSeen) : []);
     } catch (_) {}
     
+    // Load ratings from localStorage
+    try {
+      const rawRatings = localStorage.getItem("place-ratings");
+      if (rawRatings) {
+        setPlaceRatings(JSON.parse(rawRatings));
+      }
+    } catch (_) {}
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -300,8 +327,32 @@ export default function DashboardPage() {
         try {
           const raw = localStorage.getItem('visit-history');
           const arr: Array<{ id: number | string | null; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
-          arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: latNum, lon: lonNum, time: Date.now() });
+          const now = Date.now();
+          arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: latNum, lon: lonNum, time: now });
           localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+          // Best-effort server persist with user position to derive visited/not-visited
+          try {
+            const post = (coords?: { lat: number; lon: number }) => {
+              fetch('/api/history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  type: 'visit',
+                  data: { id: place.id ?? null, name: place.tags?.name || 'Place', lat: latNum, lon: lonNum, time: now, ...(coords ? { userLat: coords.lat, userLon: coords.lon } : {}) },
+                }),
+                cache: 'no-store',
+              }).catch(() => {});
+            };
+            if (typeof navigator !== 'undefined' && navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (pos) => post({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                () => post(),
+                { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
+              );
+            } else {
+              post();
+            }
+          } catch {}
         } catch {}
         router.push(`/dashboard/map?lat=${latNum}&lon=${lonNum}`);
         return;
@@ -313,8 +364,32 @@ export default function DashboardPage() {
       try {
         const raw = localStorage.getItem('visit-history');
         const arr: Array<{ id: number | string | null; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
-        arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: place.lat, lon: place.lon, time: Date.now() });
+        const now = Date.now();
+        arr.unshift({ id: place.id ?? null, name: place.tags?.name || 'Place', lat: place.lat, lon: place.lon, time: now });
         localStorage.setItem('visit-history', JSON.stringify(arr.slice(0, 200)));
+        // Best-effort server persist with user position to derive visited/not-visited
+        try {
+          const post = (coords?: { lat: number; lon: number }) => {
+            fetch('/api/history', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'visit',
+                data: { id: place.id ?? null, name: place.tags?.name || 'Place', lat: place.lat, lon: place.lon, time: now, ...(coords ? { userLat: coords.lat, userLon: coords.lon } : {}) },
+              }),
+              cache: 'no-store',
+            }).catch(() => {});
+          };
+          if (typeof navigator !== 'undefined' && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => post({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+              () => post(),
+              { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
+            );
+          } else {
+            post();
+          }
+        } catch {}
       } catch {}
       router.push(`/dashboard/map?lat=${place.lat}&lon=${place.lon}`);
       return;
@@ -347,6 +422,51 @@ export default function DashboardPage() {
         router.push("/dashboard/what-have-i-seen");
       }
     } catch (_) {}
+  };
+
+  // Rating handler
+  const handleRatePlace = async (placeId: number, rating: number) => {
+    try {
+      const userEmail =
+        status === "authenticated"
+          ? (typeof window !== "undefined" &&
+              localStorage.getItem("user")
+              ? JSON.parse(localStorage.getItem("user")!).email
+              : null)
+          : localStorage.getItem("anon_id") || `anon_`;
+
+      if (!userEmail) return;
+
+      const updatedRatings = { ...placeRatings } as Record<number, Record<string, number>>;
+      if (!updatedRatings[placeId]) {
+        updatedRatings[placeId] = {};
+      }
+      updatedRatings[placeId][userEmail] = rating;
+
+      localStorage.setItem("place-ratings", JSON.stringify(updatedRatings));
+      setPlaceRatings(updatedRatings);
+
+      toast({
+        title: "Rated!",
+        description: `You gave ${rating} star${rating !== 1 ? 's' : ''}`,
+      });
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to save rating",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getPlaceRating = (placeId: number) => {
+    const ratings = placeRatings[placeId];
+    if (!ratings || Object.keys(ratings).length === 0) {
+      return { average: 0, total: 0 };
+    }
+    const values = Object.values(ratings);
+    const average = values.reduce((a, b) => a + b, 0) / values.length;
+    return { average, total: values.length };
   };
 
   const groupedPlaces = useMemo(() => {
@@ -568,3 +688,4 @@ export default function DashboardPage() {
     </>
   );
 }
+

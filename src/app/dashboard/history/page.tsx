@@ -13,7 +13,7 @@ interface VisitItem {
   lat: number;
   lon: number;
   time: number; // epoch ms
-  status?: 'visited' | 'not-visited';
+  status?: 'visited' | 'not-visited' | 'on-routing';
 }
 
 interface SearchItem {
@@ -37,25 +37,98 @@ export default function HistoryPage() {
   const [searches, setSearches] = useState<SearchItem[]>([]);
   const [places, setPlaces] = useState<PlaceItem[]>([]);
 
+  // Check user location and auto-update visit status
   useEffect(() => {
+    let watchId: number | null = null;
+    
+    const checkAndUpdateStatus = (userLat: number, userLon: number) => {
+      try {
+        const raw = localStorage.getItem("visit-history");
+        if (!raw) return;
+        
+        const arrRaw: any[] = JSON.parse(raw);
+        let updated = false;
+        
+        const VISIT_THRESHOLD_M = 175; // 150-200m range for marking as visited
+        
+        const updatedArr = arrRaw.map((e) => {
+          // Skip if already visited
+          if (e.status === 'visited') return e;
+          
+          const dist = haversineM(
+            { lat: userLat, lon: userLon },
+            { lat: Number(e.lat), lon: Number(e.lon) }
+          );
+          
+          // Within 175m => mark as visited
+          if (dist <= VISIT_THRESHOLD_M && e.status !== 'visited') {
+            updated = true;
+            return { ...e, status: 'visited' };
+          }
+          
+          // Otherwise, if not visited and distance > threshold, mark as on-routing
+          if (e.status === 'not-visited') {
+            updated = true;
+            return { ...e, status: 'on-routing' };
+          }
+          
+          return e;
+        });
+        
+        if (updated) {
+          localStorage.setItem("visit-history", JSON.stringify(updatedArr));
+          // Reload visits
+          const arr: VisitItem[] = updatedArr.map((e) => ({
+            id: e.id ?? null,
+            name: typeof e.name === 'string' ? e.name : 'Destination',
+            lat: Number(e.lat),
+            lon: Number(e.lon),
+            time: Number(e.time) || Date.now(),
+            status: e.status === 'on-routing' ? 'on-routing' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
+          }));
+          arr.sort((a, b) => b.time - a.time);
+          setVisits(arr);
+        }
+      } catch {}
+    };
+    
+    // Initial load
     try {
       const raw = localStorage.getItem("visit-history");
       const arrRaw: any[] = raw ? JSON.parse(raw) : [];
-      // normalize legacy entries to have a status (default visited)
       const arr: VisitItem[] = arrRaw.map((e) => ({
         id: e.id ?? null,
         name: typeof e.name === 'string' ? e.name : 'Destination',
         lat: Number(e.lat),
         lon: Number(e.lon),
         time: Number(e.time) || Date.now(),
-        status: e.status === 'not-visited' ? 'not-visited' : 'visited',
+        status: e.status === 'on-routing' ? 'on-routing' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
       }));
-      // newest first
       arr.sort((a, b) => b.time - a.time);
       setVisits(arr);
     } catch {
       setVisits([]);
     }
+    
+    // Start watching user location
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          checkAndUpdateStatus(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      );
+    }
+    
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, []);
+  
+  useEffect(() => {
     try {
       const rawS = localStorage.getItem("search-history");
       const arrS: SearchItem[] = rawS ? JSON.parse(rawS) : [];
@@ -312,29 +385,33 @@ export default function HistoryPage() {
                   <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</h2>
                   <ol className="space-y-3">
                     {items.map((v, i) => (
-                      <li key={`${v.time}-${i}`} className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-900/60 p-3 sm:p-4 shadow-sm hover:shadow-md active:shadow transition">
-                        <div className="flex items-start gap-3">
-                          <Image src="/favicon.png" alt="Place" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="truncate text-[14px] font-semibold text-neutral-900 dark:text-neutral-100 max-w-[75%]">{resolveName(v)}</div>
-                              {/* Status tag based on entry status */}
-                              {v.status === 'not-visited' ? (
-                                <span className="shrink-0 rounded-full bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 text-[11px] font-semibold">Not-Visited</span>
-                              ) : (
-                                <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">Visited</span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-3 text-[12px] text-neutral-600 dark:text-neutral-400">
-                              <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {v.lat.toFixed(3)}, {v.lon.toFixed(3)}</span>
-                              <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {timeAgo(v.time)}</span>
+                      <SwipeableRow key={`${v.time}-${i}`} onDelete={() => deleteVisit(v)}>
+                        <li className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/90 dark:bg-neutral-900/60 p-3 sm:p-4 shadow-sm hover:shadow-md active:shadow transition">
+                          <div className="flex items-start gap-3">
+                            <Image src="/favicon.png" alt="Place" width={36} height={36} className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="truncate text-[14px] font-semibold text-neutral-900 dark:text-neutral-100 max-w-[75%]">{resolveName(v)}</div>
+                                {/* Status tag based on entry status */}
+                                {v.status === 'not-visited' ? (
+                                  <span className="shrink-0 rounded-full bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 text-[11px] font-semibold">Not Visited</span>
+                                ) : v.status === 'on-routing' ? (
+                                  <span className="shrink-0 rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-[11px] font-semibold animate-pulse">On Routing</span>
+                                ) : (
+                                  <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">Visited</span>
+                                )}
+                              </div>
+                              <div className="mt-0.5 flex items-center gap-3 text-[12px] text-neutral-600 dark:text-neutral-400">
+                                <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {v.lat.toFixed(3)}, {v.lon.toFixed(3)}</span>
+                                <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {timeAgo(v.time)}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="mt-3 flex justify-end">
-                          <Button size="sm" onClick={() => openOnMap(v)} className="rounded-full h-8 px-3 sm:h-9 sm:px-4">Open</Button>
-                        </div>
-                      </li>
+                          <div className="mt-3 flex justify-end">
+                            <Button size="sm" onClick={() => openOnMap(v)} className="rounded-full h-8 px-3 sm:h-9 sm:px-4">Open</Button>
+                          </div>
+                        </li>
+                      </SwipeableRow>
                     ))}
                   </ol>
                 </section>

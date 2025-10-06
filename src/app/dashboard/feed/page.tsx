@@ -15,6 +15,7 @@ import { Loader } from "@/components/ui/loader";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 import { Heart, PenLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { playLikeSound, playSaveSound } from "@/lib/sound";
  
 
 export default function FeedPage() {
@@ -85,11 +86,7 @@ export default function FeedPage() {
       onSelect();
       return () => { try { api.off('select', onSelect); } catch {} };
     }, [api]);
-    if (!photos || photos.length === 0) return (
-      <div className="relative w-full aspect-square overflow-hidden bg-black/5">
-        <img src="https://i.pinimg.com/736x/95/71/da/9571da0d80045d4c10d0fae897de6bab.jpg" alt="post" className="absolute inset-0 h-full w-full object-cover" />
-      </div>
-    );
+    if (!photos || photos.length === 0) return null;
     return (
       <div className="relative w-full">
         {photos.length > 1 ? (
@@ -134,9 +131,24 @@ export default function FeedPage() {
     edited?: boolean;
     updatedAt?: number | null;
     likedBy?: string[];
+    poll?: {
+      options: Array<{ id: string; text: string; votes: number; voters?: string[] }>;
+      allowMultiple: boolean;
+      expiresAt?: number | null;
+    };
   };
   const [posts, setPosts] = useState<Post[]>([]);
   const LS_KEY = "social_feed_posts_v2"; // legacy, no longer used for persistence
+
+  // Composer: emoji picker and poll
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const commonEmojis = ['😀','😁','😂','😊','😍','😎','😢','😡','🙏','👍','🔥','🎉','❤️','✨','✅'];
+  const [emojiList, setEmojiList] = useState<Array<{ character: string; slug: string }>>([]);
+  const [emojiLoading, setEmojiLoading] = useState(false);
+  const [emojiQuery, setEmojiQuery] = useState("");
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [pollAllowMultiple, setPollAllowMultiple] = useState<boolean>(false);
 
   // No author prefill needed anymore
 
@@ -188,6 +200,15 @@ export default function FeedPage() {
           ownerEmail: p.ownerEmail ?? null,
           edited: !!p.edited,
           updatedAt: p.updatedAt ? Date.parse(p.updatedAt) : null,
+          poll: p.poll && Array.isArray(p.poll.options)
+            ? {
+                options: p.poll.options.map((o: any) => ({
+                  id: String(o.id), text: String(o.text || ''), votes: typeof o.votes === 'number' ? o.votes : 0, voters: Array.isArray(o.voters) ? o.voters : [],
+                })),
+                allowMultiple: !!p.poll.allowMultiple,
+                expiresAt: p.poll.expiresAt ? Date.parse(p.poll.expiresAt) : null,
+              }
+            : undefined,
         }));
         // Merge with local liked set for current user so UI reflects liked state
         const setLocal = loadLikedSet(currentUserEmail);
@@ -243,6 +264,15 @@ export default function FeedPage() {
             ownerEmail: p.ownerEmail ?? null,
             edited: !!p.edited,
             updatedAt: p.updatedAt ? Date.parse(p.updatedAt) : null,
+            poll: p.poll && Array.isArray(p.poll.options)
+              ? {
+                  options: p.poll.options.map((o: any) => ({
+                    id: String(o.id), text: String(o.text || ''), votes: typeof o.votes === 'number' ? o.votes : 0, voters: Array.isArray(o.voters) ? o.voters : [],
+                  })),
+                  allowMultiple: !!p.poll.allowMultiple,
+                  expiresAt: p.poll.expiresAt ? Date.parse(p.poll.expiresAt) : null,
+                }
+              : undefined,
           }));
           const setLocal = loadLikedSet(currentUserEmail);
           setLikedSet(setLocal);
@@ -374,7 +404,34 @@ export default function FeedPage() {
     setSuggestions(matches);
   }, [cardQuery, allCards]);
 
-  const canPost = useMemo(() => allCards.includes(cardName.trim()) && (text.trim().length > 0 || photos.length > 0), [cardName, text, photos, allCards]);
+  // Fetch emoji set on demand when opening the picker (best-effort)
+  useEffect(() => {
+    const fetchEmojis = async () => {
+      try {
+        setEmojiLoading(true);
+        const res = await fetch('https://emoji-api.com/emojis?access_key=73094aaa6d540839afb981e07f15f63f32cdebba', { cache: 'force-cache' });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Only keep needed fields
+          const simplified = data.map((e: any) => ({ character: String(e.character || ''), slug: String(e.slug || '') })).filter((e: any) => e.character);
+          setEmojiList(simplified);
+        }
+      } catch {
+        // fall back to commonEmojis only
+      } finally {
+        setEmojiLoading(false);
+      }
+    };
+    if (emojiOpen && emojiList.length === 0 && !emojiLoading) fetchEmojis();
+  }, [emojiOpen, emojiList.length, emojiLoading]);
+
+  const canPost = useMemo(() => {
+    const hasText = text.trim().length > 0;
+    const hasPhotos = photos.length > 0;
+    const pollValid = pollOpen && pollOptions.filter(o => o.trim().length > 0).length >= 2;
+    // Card selection is optional
+    return hasText || hasPhotos || pollValid;
+  }, [text, photos, pollOpen, pollOptions]);
 
   function resetComposer() {
     setCardQuery("");
@@ -383,6 +440,90 @@ export default function FeedPage() {
     setText("");
     setPhotos([]);
   }
+
+  // Poll vote helper
+  async function voteOnPoll(postId: string, optionIds: string[]) {
+    try {
+      // Ensure we have an identifier
+      let email = currentUserEmail as string | null;
+      if (!email) {
+        try {
+          let aid = localStorage.getItem('anon_id');
+          if (!aid) { aid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2); localStorage.setItem('anon_id', aid); }
+          email = `anon:${aid}`;
+          setCurrentUserEmail(email);
+        } catch { email = `anon:${Date.now()}`; }
+      }
+      const res = await fetch(`/api/feed/${postId}/poll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionIds, voter: email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.options) {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, poll: { ...(p.poll || { allowMultiple: false, options: [] }), options: data.options } } : p));
+        // Play sound only if the chosen option now contains this voter (i.e., added vote)
+        try {
+          const chosen = String(optionIds[0]);
+          if (chosen && email) {
+            const found = Array.isArray(data.options)
+              ? data.options.find((o: any) => String(o.id) === chosen)
+              : null;
+            const nowHas = found && Array.isArray(found.voters) ? found.voters.includes(email) : false;
+            if (nowHas) { playLikeSound().catch(() => {}); }
+          }
+        } catch {}
+        toast({ title: 'Vote recorded', description: 'Thanks for voting!' });
+      } else {
+        const msg = typeof data?.error === 'string' ? data.error : 'Unable to vote right now.';
+        toast({ title: 'Vote failed', description: msg, variant: 'destructive' });
+      }
+    } catch {}
+  }
+
+  // Poll UI (click an option to vote/unvote; no separate vote button)
+  const PollBlock: React.FC<{ post: Post }> = ({ post }) => {
+    const poll = post.poll;
+    if (!poll || !Array.isArray(poll.options) || poll.options.length < 2) return null;
+    const total = poll.options.reduce((s, o) => s + (typeof o.votes === 'number' ? o.votes : 0), 0);
+    const me = currentUserEmail || null;
+    const hasVotedAny = !!me && poll.options.some(o => Array.isArray(o.voters) && o.voters.includes(me));
+    const onClickOption = async (id: string) => {
+      // Immediate vote toggle/switch via API; one id per click
+      await voteOnPoll(post.id, [id]);
+    };
+    return (
+      <div className="px-3 py-2">
+        <div className="mb-2 text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-2">
+          <span className="font-medium">Poll</span>
+          {poll.allowMultiple && <span className="px-2 py-0.5 rounded-full text-[10px] bg-neutral-100 dark:bg-neutral-800">Multiple choice</span>}
+        </div>
+        <div className="space-y-2">
+          {poll.options.map((o) => {
+            const pct = total > 0 ? Math.round((o.votes / total) * 100) : 0;
+            const mine = !!me && Array.isArray(o.voters) && o.voters.includes(me);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => onClickOption(o.id)}
+                className={`w-full text-left rounded-lg border border-black/10 dark:border-white/10 px-3 py-2 relative ${mine ? 'ring-2 ring-emerald-300' : ''}`}
+              >
+                <div className="flex items-center justify-between gap-3 relative z-10">
+                  <div className="truncate text-sm">{o.text}</div>
+                  <div className="text-xs text-neutral-600 dark:text-neutral-400">{pct}% • {o.votes}</div>
+                </div>
+                <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
+                  <div className={`${mine ? 'bg-emerald-500/25 dark:bg-emerald-400/20' : 'bg-indigo-500/15 dark:bg-indigo-400/15'} h-full`} style={{ width: `${pct}%` }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center justify-end text-xs text-neutral-600 dark:text-neutral-400">{total} votes</div>
+      </div>
+    );
+  };
 
   function handleFilesSelected(files: FileList | null) {
     if (!files) return;
@@ -430,6 +571,12 @@ export default function FeedPage() {
             photos: photos,
             createdAt: Date.now(),
             ownerEmail: (session?.user?.email as string | undefined) || currentUserEmail || null,
+            poll: (pollOpen && pollOptions.filter(o => o.trim().length > 0).length >= 2)
+              ? {
+                  options: pollOptions.filter(o => o.trim().length > 0).slice(0,4),
+                  allowMultiple: pollAllowMultiple,
+                }
+              : undefined,
           };
           const res = await fetch('/api/feed', {
             method: 'POST',
@@ -439,10 +586,7 @@ export default function FeedPage() {
           if (!res.ok) throw new Error('Create failed');
           toast({ title: 'Posted', description: 'Your post has been shared.' });
           // Play success tone for new card upload
-          try {
-            const audio = new Audio('/sound/b%20tone.wav');
-            audio.play().catch(() => {});
-          } catch {}
+          try { playSaveSound(); } catch {}
         }
         await fetchPosts();
       } catch (err) {
@@ -542,6 +686,7 @@ export default function FeedPage() {
         const liked = !!data?.liked;
         const likes = typeof data?.likes === 'number' ? data.likes : undefined;
         setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p)));
+        if (liked) { try { playLikeSound(); } catch {} }
       })
       .catch(() => {
         // rollback local like
@@ -599,81 +744,131 @@ export default function FeedPage() {
                   </div>
                 </div>
 
-                {/* Media */}
-                <div className="relative w-full bg-black/5">
-                  <PostMedia
-                    photos={p.photos || []}
-                    onDoubleLike={() => {
-                      if (!p.likedByMe) {
-                        toggleLike(p.id);
-                      }
-                    }}
-                  />
-                  {/* Heart overlay */}
-                  <div className={`pointer-events-none absolute inset-0 ${overlayLikedId === p.id ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}> 
-                    <div className="absolute inset-0 grid place-items-center">
-                      <Heart className="h-20 w-20 text-amber-400 drop-shadow-[0_6px_12px_rgba(249,115,22,0.45)] fill-amber-400 animate-heart-pop" />
-                    </div>
-                    {/* Gradient ripple */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.45),rgba(253,186,116,0.35),rgba(249,115,22,0.2),rgba(253,186,116,0)_65%)] animate-like-ripple" />
-                    {/* Confetti burst */}
-                    {[...Array(10)].map((_, i) => (
-                      <span key={i} className={`confetti confetti-${i} ${overlayLikedId === p.id ? 'animate-confetti' : ''}`} />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="px-3 py-2 flex items-center gap-3 justify-between">
-                  <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
-                    <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
-                  </button>
-                  {currentUserEmail && p.ownerEmail === currentUserEmail && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Prefill composer for editing
-                          setCardName(p.cardName);
-                          setText(p.text);
-                          setPhotos(p.photos || []);
-                          setEditPostId(p.id);
-                          setOpen(true);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={async () => {
-                          const ok = window.confirm('Delete this post?');
-                          if (!ok) return;
-                          try {
-                            // Play feedback tone immediately after confirmation (keeps user gesture context)
-                            try { const audio = new Audio('/sound/b%20tone.wav'); audio.play().catch(() => {}); } catch {}
-                            const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
-                            const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
-                            if (!res.ok) throw new Error('Delete failed');
-                            toast({ title: 'Deleted', description: 'Your post has been removed.' });
-                            await fetchPosts();
-                          } catch (_) {
-                            toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                {/* Content layout depends on whether there are photos */}
+                {Array.isArray(p.photos) && p.photos.length > 0 ? (
+                  <>
+                    {/* Media */}
+                    <div className="relative w-full bg-black/5">
+                      <PostMedia
+                        photos={p.photos}
+                        onDoubleLike={() => {
+                          if (!p.likedByMe) {
+                            toggleLike(p.id);
                           }
                         }}
-                      >
-                        Delete
-                      </Button>
+                      />
+                      {/* Heart overlay */}
+                      <div className={`pointer-events-none absolute inset-0 ${overlayLikedId === p.id ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}>
+                        <div className="absolute inset-0 grid place-items-center">
+                          <Heart className="h-20 w-20 text-amber-400 drop-shadow-[0_6px_12px_rgba(249,115,22,0.45)] fill-amber-400 animate-heart-pop" />
+                        </div>
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.45),rgba(253,186,116,0.35),rgba(249,115,22,0.2),rgba(253,186,116,0)_65%)] animate-like-ripple" />
+                        {[...Array(10)].map((_, i) => (
+                          <span key={i} className={`confetti confetti-${i} ${overlayLikedId === p.id ? 'animate-confetti' : ''}`} />
+                        ))}
+                      </div>
                     </div>
-                  )}
-                </div>
-                {/* Likes count */}
-                <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
-                {/* Caption */}
-                {p.text && <div className="px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
-                {/* Timestamp */}
-                <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
+                    {/* Actions under media */}
+                    <div className="px-3 py-2 flex items-center gap-3 justify-between">
+                      <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
+                        <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
+                      </button>
+                      {currentUserEmail && p.ownerEmail === currentUserEmail && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setCardName(p.cardName);
+                              setText(p.text);
+                              setPhotos(p.photos || []);
+                              setEditPostId(p.id);
+                              setOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              const ok = window.confirm('Delete this post?');
+                              if (!ok) return;
+                              try {
+                                const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
+                                const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
+                                if (!res.ok) throw new Error('Delete failed');
+                                toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                                await fetchPosts();
+                              } catch (_) {
+                                toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
+                    {p.text && <div className="px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
+                    {/* Poll (if any) */}
+                    {p.poll && <PollBlock post={p} />}
+                    <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
+                  </>
+                ) : (
+                  <>
+                    {/* No images: caption first */}
+                    {p.text && <div className="px-3 pt-3 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
+                    {/* Actions under caption */}
+                    <div className="px-3 py-2 flex items-center gap-3 justify-between">
+                      <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
+                        <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
+                      </button>
+                      {currentUserEmail && p.ownerEmail === currentUserEmail && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setCardName(p.cardName);
+                              setText(p.text);
+                              setPhotos(p.photos || []);
+                              setEditPostId(p.id);
+                              setOpen(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                              const ok = window.confirm('Delete this post?');
+                              if (!ok) return;
+                              try {
+                                try { const audio = new Audio('/sound/B%20tone.wav'); audio.play().catch(() => {}); } catch {}
+                                const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
+                                const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
+                                if (!res.ok) throw new Error('Delete failed');
+                                toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                                await fetchPosts();
+                              } catch (_) {
+                                toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
+                    {/* Poll (if any) */}
+                    {p.poll && <PollBlock post={p} />}
+                    <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
+                  </>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -859,6 +1054,98 @@ export default function FeedPage() {
                 )}
               </div>
               <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something..." rows={4} className="resize-none bg-white/80 dark:bg-white/10 rounded-xl ring-1 ring-black/10 dark:ring-white/10 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:border-emerald-500" disabled={submitting} />
+              {/* Emoji + Poll controls */}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setEmojiOpen(v => !v)}
+                  disabled={submitting}
+                  className="rounded-xl bg-gradient-to-r from-yellow-400 via-orange-400 to-pink-500 text-white hover:from-yellow-500 hover:via-orange-500 hover:to-pink-600 shadow-lg border-0 transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <span className="mr-1.5 text-lg">😊</span> Emojis
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setPollOpen(v => !v)}
+                  disabled={submitting}
+                  className="rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 shadow-lg border-0 transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <span className="mr-1.5 text-base">📊</span>
+                  {pollOpen ? 'Remove poll' : 'Add poll'}
+                </Button>
+              </div>
+              {emojiOpen && (
+                <div className="mt-2 rounded-2xl border border-black/10 dark:border-white/10 p-4 bg-gradient-to-br from-white via-orange-50 to-pink-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800 shadow-xl bounce-in">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">✨</span>
+                      <div className="text-sm font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">Find emojis</div>
+                    </div>
+                    {emojiLoading && <div className="text-[11px] text-neutral-500 shimmer">Loading…</div>}
+                  </div>
+                  <div className="mb-3">
+                    <Input
+                      value={emojiQuery}
+                      onChange={(e) => setEmojiQuery(e.target.value)}
+                      placeholder="🔍 Search (e.g., smile, heart)"
+                      className="h-10 text-sm bg-white dark:bg-neutral-800 rounded-xl border-2 border-orange-200 dark:border-orange-900 focus:border-orange-400 dark:focus:border-orange-600 transition-colors"
+                    />
+                  </div>
+                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-1.5 max-h-64 overflow-auto pr-1 scrollbar-thin scrollbar-thumb-orange-300 dark:scrollbar-thumb-orange-700">
+                    {((emojiList.length > 0
+                      ? emojiList.filter(e => !emojiQuery.trim() || e.slug.includes(emojiQuery.trim().toLowerCase()))
+                      : commonEmojis.map((c) => ({ character: c, slug: c }))
+                    ).slice(0, 220)).map((em) => (
+                      <button
+                        key={em.slug}
+                        type="button"
+                        className="text-2xl p-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 hover:bg-gradient-to-br hover:from-orange-100 hover:to-pink-100 dark:hover:from-orange-900/30 dark:hover:to-pink-900/30 transition-all duration-200 hover:scale-125 active:scale-95 hover:shadow-lg"
+                        onClick={() => setText(prev => prev + em.character)}
+                        title={em.slug}
+                        aria-label={em.slug}
+                      >
+                        {em.character}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {pollOpen && (
+                <div className="mt-2 rounded-xl ring-1 ring-black/10 dark:ring-white/10 p-3 bg-white/70 dark:bg-white/5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold">Poll</div>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 ring-1 ring-amber-300/50">Max 4 options</span>
+                  </div>
+                  {pollOptions.map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="text-xs w-6 h-8 grid place-items-center rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 select-none">{idx + 1}</div>
+                      <Input
+                        value={opt}
+                        placeholder={`Option ${idx + 1}`}
+                        onChange={(e) => {
+                          const next = [...pollOptions];
+                          next[idx] = e.target.value;
+                          setPollOptions(next);
+                        }}
+                        className="bg-white/80 dark:bg-white/10 border border-black/10 dark:border-white/10 rounded-lg"
+                      />
+                      {pollOptions.length > 2 && (
+                        <Button type="button" variant="ghost" className="text-xs" onClick={() => setPollOptions(prev => prev.filter((_, i) => i !== idx))}>Remove</Button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {pollOptions.length < 4 && (
+                      <Button type="button" variant="secondary" className="rounded-lg" onClick={() => setPollOptions(prev => (prev.length < 4 ? [...prev, ""] : prev))}>Add option</Button>
+                    )}
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={pollAllowMultiple} onChange={(e) => setPollAllowMultiple(e.target.checked)} /> Allow multiple votes
+                    </label>
+                  </div>
+                </div>
+              )}
               <div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
                 <div className="flex items-center justify-between">

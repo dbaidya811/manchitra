@@ -1,7 +1,7 @@
 "use client";
 
 // Code-split heavy UI pieces to speed up initial render
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -22,7 +22,6 @@ const RL = {
 } as const;
 
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
-import { Loader } from "@/components/ui/loader";
 
 // Lazy-load header components to reduce first contentful paint
 const AnimatedSearch = dynamic(() => import("@/components/dashboard/animated-search").then(m => m.AnimatedSearch), { ssr: false, loading: () => null });
@@ -108,6 +107,8 @@ export default function DashboardMapPage() {
   const [visitedPlanIds, setVisitedPlanIds] = useState<Set<number>>(new Set());
   // Background connectors between consecutive stops (1->2, 2->3, ...)
   const [stopConnectors, setStopConnectors] = useState<Array<Array<[number, number]>>>([]);
+  // Point-to-point: connectors from user location to each found place
+  const [ptpConnectors, setPtpConnectors] = useState<Array<Array<[number, number]>>>([]);
   // Pandals (POIs) near the active route within a buffer (meters)
   const [nearRoutePandals, setNearRoutePandals] = useState<Array<{ id: string | number; name?: string; lat: number; lon: number; nearest: [number, number]; distM: number }>>([]);
   // Nearest list for mode=nearest
@@ -131,6 +132,24 @@ export default function DashboardMapPage() {
   const [nearestHidden, setNearestHidden] = useState<boolean>(false);
   // Mobile: draggable Y position for the right-edge opener button (in px from top)
   const [edgeBtnTop, setEdgeBtnTop] = useState<number>(0);
+  // Session (used for greeting and labeling own POIs)
+  const { data: session } = useSession();
+  
+  // Speech synthesis helper (defined early so all functions can use it)
+  const speak = useCallback((text: string) => {
+    try {
+      if (!voiceOn) return;
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.pitch = 1.15; // slightly higher pitch for a more feminine tone
+      utter.lang = 'en-US';
+      if (voiceRef.current) utter.voice = voiceRef.current;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utter);
+    } catch {}
+  }, [voiceOn]);
+  
   useEffect(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -140,8 +159,22 @@ export default function DashboardMapPage() {
     } catch {}
   }, []);
 
-  // Session (used to label own POIs); declared before memo usage
-  const { data: session } = useSession();
+  // Silent background refresh (no spinner) at a fixed interval when tab is visible
+  useEffect(() => {
+    let timer: any;
+    const tick = () => {
+      try {
+        if (!document.hidden) router.refresh();
+      } catch {}
+    };
+    // Refresh every 30 seconds (tune as needed)
+    timer = setInterval(tick, 30_000);
+    // Also refresh when tab becomes visible again
+    const onVis = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { try { clearInterval(timer); document.removeEventListener('visibilitychange', onVis); } catch {} };
+  }, [router]);
+
 
   // Memoize POI marker elements to avoid re-creating JSX on each render
   const poiMarkerElements = useMemo(() => {
@@ -334,14 +367,14 @@ export default function DashboardMapPage() {
         <RL.Polyline key="ahead-case" positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
       items.push(
-        <RL.Polyline key="ahead" positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        <RL.Polyline key="ahead" positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim route-glow' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
     } else if (routeCoords.length > 0) {
       items.push(
         <RL.Polyline key="single-case" positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
       items.push(
-        <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim route-glow' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
     }
     if (nearRoutePandals.length > 0) {
@@ -492,6 +525,8 @@ export default function DashboardMapPage() {
           }
         };
 
+  // Duplicate speak function removed - now defined at component top
+
   // Wrong route warning controller
   useEffect(() => {
     try {
@@ -503,22 +538,7 @@ export default function DashboardMapPage() {
         setShowWrongRoute(false);
       }
     } catch {}
-  }, [onRoute, offRouteMeters, routeCoords.length, userPos, voiceOn]);
-  
-  // Speech synthesis helper (top-level)
-  const speak = (text: string) => {
-    try {
-      if (!voiceOn) return;
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.0;
-      utter.pitch = 1.15; // slightly higher pitch for a more feminine tone
-      utter.lang = 'en-US';
-      if (voiceRef.current) utter.voice = voiceRef.current;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
-    } catch {}
-  };
+  }, [onRoute, offRouteMeters, routeCoords.length, userPos, voiceOn, speak]);
 
   // Load voices and prefer a female-sounding one
   useEffect(() => {
@@ -643,6 +663,11 @@ export default function DashboardMapPage() {
   useEffect(() => {
     const plan = searchParams.get('plan');
     if (!plan) return;
+    const fromLat = searchParams.get('fromLat');
+    const fromLon = searchParams.get('fromLon');
+    const toLat = searchParams.get('toLat');
+    const toLon = searchParams.get('toLon');
+    const isPtP = fromLat && fromLon && toLat && toLon; // Point-to-point mode if from/to present
     const ids = plan.split(',').map((s) => parseInt(s, 10)).filter((n) => Number.isFinite(n));
     if (ids.length === 0) return;
     (async () => {
@@ -676,6 +701,108 @@ export default function DashboardMapPage() {
         if (stops.length > 0) {
           setPlanStops(stops);
           setPlanIdx(0);
+          
+          // If point-to-point mode, filter and order locations along the route
+          if (isPtP && fromLat && fromLon && toLat && toLon) {
+            const startLat = parseFloat(fromLat);
+            const startLon = parseFloat(fromLon);
+            const endLat = parseFloat(toLat);
+            const endLon = parseFloat(toLon);
+            
+            if (!Number.isNaN(startLat) && !Number.isNaN(startLon) && !Number.isNaN(endLat) && !Number.isNaN(endLon)) {
+              // First, get the main route from start to end
+              const mainRouteUrl = `https://router.project-osrm.org/route/v1/foot/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
+              const routeRes = await fetch(mainRouteUrl, { cache: 'no-store' });
+              const routeData = await routeRes.json();
+              const mainRoute = routeData?.routes?.[0];
+              
+              if (mainRoute && Array.isArray(mainRoute.geometry?.coordinates)) {
+                const mainRouteCoords: Array<[number, number]> = mainRoute.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
+                
+                // Helper: Haversine distance in meters
+                const haversineM = (a: [number, number], b: [number, number]) => {
+                  const R = 6371000;
+                  const toRad = (v: number) => (v * Math.PI) / 180;
+                  const dLat = toRad(b[0] - a[0]);
+                  const dLon = toRad(b[1] - a[1]);
+                  const la1 = toRad(a[0]);
+                  const la2 = toRad(b[0]);
+                  const A = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+                  return 2 * R * Math.asin(Math.sqrt(A));
+                };
+                
+                // Helper: Find nearest point on route to a location
+                const nearestOnRoute = (loc: { lat: number; lon: number }) => {
+                  let minDist = Infinity;
+                  for (const pt of mainRouteCoords) {
+                    const d = haversineM([loc.lat, loc.lon], pt);
+                    if (d < minDist) minDist = d;
+                  }
+                  return minDist;
+                };
+                
+                // Filter locations within 10km of start OR end OR within 10km of the route
+                const RADIUS_M = 10000; // 10km
+                const filteredStops = stops.filter(s => {
+                  const distFromStart = haversineM([s.lat, s.lon], [startLat, startLon]);
+                  const distFromEnd = haversineM([s.lat, s.lon], [endLat, endLon]);
+                  const distFromRoute = nearestOnRoute(s);
+                  return distFromStart <= RADIUS_M || distFromEnd <= RADIUS_M || distFromRoute <= RADIUS_M;
+                });
+                
+                if (filteredStops.length === 0) {
+                  // No locations found within range
+                  setPlanStops([]);
+                  setPtpConnectors([]);
+                  return;
+                }
+                
+                // Order locations by their position along the route (nearest-first chain)
+                const connectors: Array<Array<[number, number]>> = [];
+                const remaining = [...filteredStops];
+                let currentPos = { lat: startLat, lon: startLon };
+                const orderedStops: typeof stops = [];
+                
+                // Greedy nearest-neighbor algorithm
+                while (remaining.length > 0) {
+                  let nearestIdx = 0;
+                  let nearestDist = Infinity;
+                  for (let i = 0; i < remaining.length; i++) {
+                    const dist = haversineM([currentPos.lat, currentPos.lon], [remaining[i].lat, remaining[i].lon]);
+                    if (dist < nearestDist) {
+                      nearestDist = dist;
+                      nearestIdx = i;
+                    }
+                  }
+                  
+                  const nextStop = remaining[nearestIdx];
+                  orderedStops.push(nextStop);
+                  
+                  // Create connector from current position to next stop
+                  connectors.push([
+                    [currentPos.lat, currentPos.lon] as [number, number],
+                    [nextStop.lat, nextStop.lon] as [number, number]
+                  ]);
+                  
+                  // Update current position and remove visited stop
+                  currentPos = { lat: nextStop.lat, lon: nextStop.lon };
+                  remaining.splice(nearestIdx, 1);
+                }
+                
+                // Update stops order to match the chain
+                setPlanStops(orderedStops);
+                setPtpConnectors(connectors);
+                
+                // Center map to show all points
+                const allLats = [startLat, ...orderedStops.map(s => s.lat), endLat];
+                const allLons = [startLon, ...orderedStops.map(s => s.lon), endLon];
+                const centerLat = (Math.min(...allLats) + Math.max(...allLats)) / 2;
+                const centerLon = (Math.min(...allLons) + Math.max(...allLons)) / 2;
+                setCenter([centerLat, centerLon]);
+                setZoom(12);
+              }
+            }
+          }
         }
       } catch {}
     })();
@@ -761,7 +888,7 @@ export default function DashboardMapPage() {
 
   // Load all places and extract lon/lat for markers (lightweight polling with backoff and change-detection)
   useEffect(() => {
-    const BASE_REFRESH_MS = 4000;
+    const BASE_REFRESH_MS = 10000; // Increased from 4s to 10s for better performance
     let stopped = false;
     let timer: any;
     const backoffRef = { v: 1 }; // 1x, 2x, 4x ... up to 8x
@@ -1707,19 +1834,7 @@ export default function DashboardMapPage() {
     }
   };
 
-  // Voice guidance: speech helper and guidance effect
-  const speak = (text: string) => {
-    try {
-      if (!voiceOn) return;
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = 1.0;
-      utter.pitch = 1.0;
-      utter.lang = 'en-US';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utter);
-    } catch {}
-  };
+  // Duplicate speak function removed - using the one defined earlier with voice preferences
 
   useEffect(() => {
     if (!voiceOn) return;
@@ -1892,7 +2007,7 @@ export default function DashboardMapPage() {
 
   return (
     <div className="relative h-screen bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
-       <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
+       <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg slide-in-right">
         <div className="flex items-center gap-2 md:flex-1">
           <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
             Manchitra
@@ -2047,12 +2162,19 @@ export default function DashboardMapPage() {
         </div>
       )}
       <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
-        {!mounted || !mapKey ? (
-          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] grid place-items-center">
-            <Loader />
-          </div>
+        {(!mounted || !mapKey) ? (
+          // Render a blank container without any spinner or loading text
+          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden" />
         ) : (
-          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10">
+          <div className="relative h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 fade-in">
+          {/* Ambient and grid overlays */}
+          <div className="map-ambient" />
+          <div className="map-grid-overlay" />
+          {/* Modern corner accents */}
+          <div className="absolute top-0 left-0 w-20 h-20 border-l-2 border-t-2 border-emerald-500/30 rounded-tl-2xl pointer-events-none z-[1000]"></div>
+          <div className="absolute top-0 right-0 w-20 h-20 border-r-2 border-t-2 border-emerald-500/30 rounded-tr-2xl pointer-events-none z-[1000]"></div>
+          <div className="absolute bottom-0 left-0 w-20 h-20 border-l-2 border-b-2 border-emerald-500/30 rounded-bl-2xl pointer-events-none z-[1000]"></div>
+          <div className="absolute bottom-0 right-0 w-20 h-20 border-r-2 border-b-2 border-emerald-500/30 rounded-br-2xl pointer-events-none z-[1000]"></div>
           <RL.MapContainer
             key={mapKey}
             center={center}
@@ -2060,10 +2182,14 @@ export default function DashboardMapPage() {
             ref={mapRef as any}
             style={{ height: '100%', width: '100%' }}
             preferCanvas={true}
-            zoomAnimation={false}
-            markerZoomAnimation={false}
-            fadeAnimation={false}
-            wheelDebounceTime={50}
+            zoomAnimation={true}
+            markerZoomAnimation={true}
+            fadeAnimation={true}
+            zoomAnimationThreshold={4}
+            wheelDebounceTime={40}
+            wheelPxPerZoomLevel={60}
+            zoomSnap={0.5}
+            zoomDelta={0.5}
           >
             <RL.TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -2123,6 +2249,17 @@ export default function DashboardMapPage() {
                 bubblingMouseEvents={false}
               />
             ))}
+            {/* User -> near-route POI connectors */}
+            {userPos && nearRoutePandals.length > 0 && nearRoutePandals.map((n) => (
+              <RL.Polyline
+                key={`user-to-${n.id}`}
+                positions={[[userPos.lat, userPos.lon], [n.lat, n.lon]]}
+                pathOptions={{ color: '#0ea5e9', weight: 2, opacity: 0.8, dashArray: '2 6' }}
+                smoothFactor={1.5}
+                interactive={false}
+                bubblingMouseEvents={false}
+              />
+            ))}
             {/* Future legs between planned stops: hide entirely in nearest mode */}
             {stopConnectors.length > 0 && searchParams.get('mode') !== 'nearest' && (
               <>
@@ -2133,6 +2270,23 @@ export default function DashboardMapPage() {
                 {/* Colored future connectors */}
                 {stopConnectors.slice(Math.max(0, planIdx)).map((seg, i) => (
                   <RL.Polyline key={`conn-${i + planIdx}`} positions={seg} pathOptions={{ color: '#2563eb', weight: 5, opacity: 0.95, lineCap: 'round' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                ))}
+              </>
+            )}
+            {/* Point-to-point connectors: first is red (user → 1st), rest are green */}
+            {ptpConnectors.length > 0 && (
+              <>
+                {/* Casing for ptp connectors */}
+                {ptpConnectors.map((seg, i) => (
+                  <RL.Polyline key={`ptp-case-${i}`} positions={seg} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9, lineCap: 'round' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                ))}
+                {/* First connector: red (user → 1st location) */}
+                {ptpConnectors.length > 0 && (
+                  <RL.Polyline key="ptp-first" positions={ptpConnectors[0]} pathOptions={{ color: '#ef4444', weight: 5, opacity: 0.95, lineCap: 'round', dashArray: '8 4' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                )}
+                {/* Rest of connectors: green (1st → 2nd, 2nd → 3rd, etc.) */}
+                {ptpConnectors.slice(1).map((seg, i) => (
+                  <RL.Polyline key={`ptp-${i + 1}`} positions={seg} pathOptions={{ color: '#10b981', weight: 5, opacity: 0.95, lineCap: 'round', dashArray: '8 4' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 ))}
               </>
             )}
@@ -2521,12 +2675,12 @@ export default function DashboardMapPage() {
 
         {/* Journey Completed overlay (hidden in nearest mode) */}
         {journeyCompleted && searchParams.get('mode') !== 'nearest' && (
-          <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
-            <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10">
-              <div className="text-2xl font-bold text-emerald-600 mb-2">Journey Completed</div>
+          <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50 fade-in">
+            <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10 bounce-in glow-pulse">
+              <div className="text-2xl font-bold text-emerald-600 mb-2">🎉 Journey Completed</div>
               <div className="text-sm opacity-80 mb-4">You have arrived at your destination.</div>
               <div className="flex gap-2 justify-center">
-                <button onClick={() => setJourneyCompleted(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800">Close</button>
+                <button onClick={() => setJourneyCompleted(false)} className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 transition-all duration-300 shadow-lg">Close</button>
               </div>
             </div>
           </div>
@@ -2534,15 +2688,15 @@ export default function DashboardMapPage() {
 
       {/* Off-route full-screen notice with re-route option */}
       {showOffRouteScreen && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
-          <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-black/10 dark:border-white/10">
-            <div className="text-lg font-semibold text-red-600 mb-2">You are off the route</div>
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50 fade-in">
+          <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-red-500/30 dark:border-red-400/30 bounce-in">
+            <div className="text-lg font-semibold text-red-600 mb-2">⚠️ You are off the route</div>
             <div className="text-sm opacity-80 mb-4">About {Math.round(offRouteMeters)} m away from the planned path.</div>
             <div className="flex gap-2 justify-center">
-              <button onClick={() => setShowOffRouteScreen(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800">Dismiss</button>
+              <button onClick={() => setShowOffRouteScreen(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all duration-300">Dismiss</button>
               <button
                 onClick={() => { if (userPos && dest) { fetchRoute({ lat: userPos.lat, lon: userPos.lon }, dest); setShowOffRouteScreen(false); } }}
-                className="px-4 py-2 rounded-lg bg-orange-500 text-white"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 transition-all duration-300 shadow-lg"
               >
                 Re-route
               </button>
@@ -2550,90 +2704,7 @@ export default function DashboardMapPage() {
           </div>
         </div>
       )}
-        {/* Route summary and steps panel (removed; using inline banner only) */}
-        {false && (
-          <div
-            className="fixed z-[2000]"
-            style={{ left: panelPos.x, top: panelPos.y, width: 'min(86vw, 320px)' }}
-          >
-            {/* Collapsed pill */}
-            {panelCollapsed ? (
-              <div
-                onMouseDown={onMouseDownHeader}
-                onTouchStart={onTouchStartHeader}
-                className="flex items-center gap-2 rounded-full border border-white/20 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg px-3 py-2 cursor-move"
-              >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/90 text-white text-xs font-bold">R</span>
-                <div className="text-sm font-semibold">Route</div>
-                <div className="ml-auto flex items-center gap-2">
-                  {routeDistance != null && (
-                    <span className="text-[11px] text-orange-700 bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-200">{(routeDistance/1000).toFixed(1)} km</span>
-                  )}
-                  {routeDuration != null && (
-                    <span className="text-[11px] text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-200">{Math.ceil(routeDuration/60)} min</span>
-                  )}
-                </div>
-                <button onClick={() => setPanelCollapsed(false)} className="ml-2 text-xs px-2 py-1 rounded-full bg-black/10 dark:bg-white/10">Open</button>
-              </div>
-            ) : (
-              <div className="relative rounded-2xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-2xl overflow-hidden">
-                <div
-                  onMouseDown={onMouseDownHeader}
-                  onTouchStart={onTouchStartHeader}
-                  className="px-4 py-3 flex items-center justify-between bg-gradient-to-r from-yellow-300/20 to-orange-500/25 cursor-move"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/90 text-white text-xs font-bold">R</span>
-                    <div className="text-sm font-semibold">Route Preview</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {routeDistance != null && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 text-orange-600 border border-orange-200 px-2 py-1 text-[11px] font-medium">{(routeDistance/1000).toFixed(1)} km</span>
-                    )}
-                    {routeDuration != null && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 px-2 py-1 text-[11px] font-medium">{Math.ceil(routeDuration/60)} min</span>
-                    )}
-                    <button onClick={() => setPanelCollapsed(true)} className="text-xs px-2 py-1 rounded-full bg-black/10 dark:bg-white/10">Fold</button>
-                  </div>
-                </div>
-                <div className="px-4 pt-3 pb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {routeDistance != null && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 text-orange-600 border border-orange-200 px-2 py-1 text-[11px] font-medium">
-                        {(routeDistance/1000).toFixed(1)} km
-                      </span>
-                    )}
-                    {routeDuration != null && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-200 px-2 py-1 text-[11px] font-medium">
-                        {Math.ceil(routeDuration/60)} min
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {routeSteps.length > 0 && (
-                  <div className="px-2 pb-3">
-                    <ol ref={stepsListRef} className="max-h-48 overflow-auto space-y-2 pr-1">
-                      {routeSteps.slice(0, 20).map((s, i) => {
-                        const active = i === currentStepIdx;
-                        return (
-                          <li
-                            key={i}
-                            className={`flex items-start gap-2 rounded-xl px-2.5 py-2 transition-colors border ${active ? 'bg-orange-50/90 dark:bg-orange-500/10 border-orange-200 ring-1 ring-orange-300/60 shadow-sm' : 'border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
-                          >
-                            <span className={`mt-0.5 h-5 w-5 shrink-0 flex items-center justify-center ${active ? 'text-orange-600' : ''}`}>
-                              {renderStepIcon(s.type, s.modifier)}
-                            </span>
-                            <span className={`text-[12px] leading-5 ${active ? 'text-orange-900 dark:text-orange-200 font-semibold' : 'text-neutral-800 dark:text-neutral-200'}`}>{s.text}</span>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {/* Removed legacy route summary panel */}
       </main>
       <div className="relative z-[2000]"><MobileNav /></div>
     </div>
