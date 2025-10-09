@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Loader } from "@/components/ui/loader";
 import { LocateFixed, Navigation, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -20,6 +21,7 @@ export default function NearestPandalSetupPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [noResults, setNoResults] = useState<boolean>(false);
+  const [locationLoading, setLocationLoading] = useState<boolean>(false);
 
   // init map
   useEffect(() => {
@@ -96,11 +98,19 @@ export default function NearestPandalSetupPage() {
 
   const useMyLocation = () => {
     if (!("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const { latitude: lat, longitude: lon } = pos.coords;
-      setCenter({ lat, lon });
-      setQuery(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
-    });
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        setCenter({ lat, lon });
+        setQuery(`${lat.toFixed(6)}, ${lon.toFixed(6)}`);
+        setLocationLoading(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setLocationLoading(false);
+      }
+    );
   };
 
   const proceed = async () => {
@@ -185,8 +195,20 @@ export default function NearestPandalSetupPage() {
                 />
               </div>
               <div className="flex w-full sm:w-auto gap-2 sm:gap-3 justify-stretch sm:justify-end flex-col sm:flex-row">
-                <Button onClick={useMyLocation} className="rounded-full bg-violet-600 hover:bg-violet-700 text-white shadow-md w-full sm:w-auto">
-                  <LocateFixed className="h-4 w-4 mr-2" /> Use my location
+                <Button
+                  onClick={useMyLocation}
+                  disabled={locationLoading}
+                  className="rounded-full bg-violet-600 hover:bg-violet-700 text-white shadow-md w-full sm:w-auto disabled:opacity-50"
+                >
+                  {locationLoading ? (
+                    <>
+                      <Loader className="h-4 w-4 mr-2" /> Getting location...
+                    </>
+                  ) : (
+                    <>
+                      <LocateFixed className="h-4 w-4 mr-2" /> Use my location
+                    </>
+                  )}
                 </Button>
                 <div className="flex items-center gap-3 rounded-full bg-white/90 border border-neutral-200 px-3 py-2 shadow-sm w-full sm:w-auto">
                   <span className="text-xs sm:text-sm text-neutral-600">Radius</span>

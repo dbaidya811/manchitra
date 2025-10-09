@@ -285,6 +285,7 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
             dragFree: true,
             containScroll: "trimSnaps",
             // Lower angle tolerance so vertical drags bubble to page scroll
+            // @ts-ignore - dragAngleTolerance is a valid Embla option
             dragAngleTolerance: isRecent ? 20 : 40,
           }}
           className={isRecent ? "w-full touch-pan-y overscroll-x-contain md:touch-auto" : "w-full touch-auto"}

@@ -215,8 +215,8 @@ export default function HistoryPage() {
         onTouchEnd={onEnd}
       >
         {/* Delete background (on right side) */}
-        <div className="absolute inset-0 flex items-center justify-end pr-4 bg-red-500/90 text-white">
-          <span className="text-sm font-semibold">Delete</span>
+        <div className="absolute inset-0 flex items-center justify-end pr-4 bg-transparent text-white">
+          <span className="text-sm font-semibold opacity-0">Delete</span>
         </div>
         {/* Foreground content */}
         <div className="transition-[transform,opacity] duration-200" style={{ transform: `translateX(${removing ? '-110%' : dx + 'px'})`, opacity: removing ? 0.15 : 1 }}>
@@ -419,100 +419,11 @@ export default function HistoryPage() {
             </>
           )}
 
-          {/* 3-column Search History: All | Visited | Not-Visited (visible independently) */}
-          {filteredSearches.length > 0 && (
-            <section>
-              <h2 className="mb-2 px-1 text-[13px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Search History</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* All */}
-                  <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/60 p-3">
-                    <div className="mb-2 text-sm font-semibold">All</div>
-                    <ol className="space-y-2 max-h-[50vh] overflow-auto pr-1">
-                      {filteredSearches.map((s, i) => {
-                        const visited = isSearchVisited(s);
-                        return (
-                          <li key={`all-${s.time}-${i}`} className="rounded-xl border border-black/5 dark:border-white/5 p-2">
-                            <div className="flex items-start gap-2">
-                              <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-sky-500 to-indigo-600 text-white flex items-center justify-center text-[12px] font-bold">
-                                {(s.name || 'S')[0].toUpperCase()}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2"><div className="truncate text-sm font-medium">{s.name}</div>
-                                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${visited ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-100 text-red-700 border-red-200'}`}>{visited ? 'Visited' : 'Not-Visited'}</span>
-                                </div>
-                                <div className="mt-0.5 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
-                                  <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {s.lat.toFixed(3)}, {s.lon.toFixed(3)}</span>
-                                  <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" /> {timeAgo(s.time)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-2 flex justify-end"><Button size="sm" onClick={() => router.push(`/dashboard/map?lat=${s.lat}&lon=${s.lon}`)} className="rounded-full px-3 py-1 h-7">Open</Button></div>
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </div>
-                  {/* Visited */}
-                  <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/60 p-3">
-                    <div className="mb-2 text-sm font-semibold">Visited</div>
-                    {visitedSearches.length === 0 ? (
-                      <div className="text-sm text-neutral-500">No visited searches</div>
-                    ) : (
-                      <ol className="space-y-2 max-h-[50vh] overflow-auto pr-1">
-                        {visitedSearches.map((s, i) => (
-                          <li key={`vis-${s.time}-${i}`} className="rounded-xl border border-emerald-200/60 bg-emerald-50/40 p-2">
-                            <div className="flex items-start gap-2">
-                              <div className="h-8 w-8 shrink-0 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-[12px] font-bold">
-                                {(s.name || 'S')[0].toUpperCase()}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2"><div className="truncate text-sm font-medium">{s.name}</div>
-                                  <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">Visited</span>
-                                </div>
-                                <div className="mt-0.5 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
-                                  <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {s.lat.toFixed(3)}, {s.lon.toFixed(3)}</span>
-                                  <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" /> {timeAgo(s.time)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-2 flex justify-end"><Button size="sm" onClick={() => router.push(`/dashboard/map?lat=${s.lat}&lon=${s.lon}`)} className="rounded-full px-3 py-1 h-7">Open</Button></div>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-                  {/* Not-Visited */}
-                  <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/60 p-3">
-                    <div className="mb-2 text-sm font-semibold">Not-Visited</div>
-                    {notVisitedSearches.length === 0 ? (
-                      <div className="text-sm text-neutral-500">No not-visited searches</div>
-                    ) : (
-                      <ol className="space-y-2 max-h-[50vh] overflow-auto pr-1">
-                        {notVisitedSearches.map((s, i) => (
-                          <li key={`nvis-${s.time}-${i}`} className="rounded-xl border border-red-200/60 bg-red-50/40 p-2">
-                            <div className="flex items-start gap-2">
-                              <div className="h-8 w-8 shrink-0 rounded-lg bg-red-500 text-white flex items-center justify-center text-[12px] font-bold">
-                                {(s.name || 'S')[0].toUpperCase()}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2"><div className="truncate text-sm font-medium">{s.name}</div>
-                                  <span className="shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 border-red-200">Not-Visited</span>
-                                </div>
-                                <div className="mt-0.5 text-[11px] text-neutral-600 dark:text-neutral-400 flex items-center gap-2">
-                                  <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {s.lat.toFixed(3)}, {s.lon.toFixed(3)}</span>
-                                  <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" /> {timeAgo(s.time)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-2 flex justify-end"><Button size="sm" onClick={() => router.push(`/dashboard/map?lat=${s.lat}&lon=${s.lon}`)} className="rounded-full px-3 py-1 h-7">Open</Button></div>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-              </div>
-            </section>
-          )}
+          {/* Search history section removed as requested */}
+          {/*
+            Search history section commented out to fix JSX syntax errors
+            This includes the All, Visited, and Not-Visited columns
+          */}
 
           {/* Overall empty state only if both are empty */}
           {filtered.length === 0 && filteredSearches.length === 0 && (

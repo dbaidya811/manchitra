@@ -377,6 +377,8 @@ export default function DashboardMapPage() {
         <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim route-glow' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
     }
+    // Disabled blue dotted lines to nearby pandals
+    /*
     if (nearRoutePandals.length > 0) {
       for (const n of nearRoutePandals) {
         items.push(
@@ -391,6 +393,7 @@ export default function DashboardMapPage() {
         );
       }
     }
+    */
     return <>{items}</>;
   }, [routeAheadCoords, routePastCoords, routeCoords, nearRoutePandals]);
 
@@ -2239,6 +2242,7 @@ export default function DashboardMapPage() {
               )
             )}
             {/* Pandals within 5km of route: draw connector polylines from route to POI */}
+            {/* Disabled blue dotted lines
             {nearRoutePandals.length > 0 && nearRoutePandals.map((n) => (
               <RL.Polyline
                 key={`near-${n.id}`}
@@ -2249,7 +2253,9 @@ export default function DashboardMapPage() {
                 bubblingMouseEvents={false}
               />
             ))}
+            */}
             {/* User -> near-route POI connectors */}
+            {/* Disabled blue dotted lines
             {userPos && nearRoutePandals.length > 0 && nearRoutePandals.map((n) => (
               <RL.Polyline
                 key={`user-to-${n.id}`}
@@ -2260,6 +2266,7 @@ export default function DashboardMapPage() {
                 bubblingMouseEvents={false}
               />
             ))}
+            */}
             {/* Future legs between planned stops: hide entirely in nearest mode */}
             {stopConnectors.length > 0 && searchParams.get('mode') !== 'nearest' && (
               <>
