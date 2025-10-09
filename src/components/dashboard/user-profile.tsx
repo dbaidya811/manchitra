@@ -152,7 +152,6 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   };
 
   const handlePlanSave = () => {
-    // Navigate to plan save functionality - you can customize this route
     router.push("/dashboard/plan-save");
   };
 

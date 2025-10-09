@@ -42,7 +42,7 @@ export default function FeedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [realtimeOn] = useState(true);
   const [lastFeedHash, setLastFeedHash] = useState<string>("");
-  const FEED_REFRESH_MS = 60000; // 60s auto-refresh (increased to prevent deployment issues)
+  const FEED_REFRESH_MS = 30000; // 30s auto-refresh (was 0.5s causing constant reloads)
   // Track liked posts per email locally to keep UI state consistent during polling
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   // Throttle guard to avoid rapid double toggles
@@ -238,13 +238,11 @@ export default function FeedPage() {
     } catch { return String(Date.now()); }
   };
 
-  // Realtime polling every 60s when visible and dialog not open
+  // Realtime polling every 10s when visible and dialog not open
   useEffect(() => {
     if (!realtimeOn) return;
     let timer: any;
     let stopped = false;
-    let currentHash = lastFeedHash; // Capture initial hash
-
     const tick = async () => {
       if (stopped) return;
       if (document.hidden || open) { schedule(); return; }
@@ -290,11 +288,9 @@ export default function FeedPage() {
             };
           });
           const newHash = computeFeedHash(withLiked);
-          // Only update if hash actually changed to prevent infinite loops
-          if (newHash !== currentHash) {
+          if (newHash !== lastFeedHash) {
             setPosts(withLiked);
             setLastFeedHash(newHash);
-            currentHash = newHash; // Update local reference
           }
         }
       } catch {}
@@ -305,7 +301,7 @@ export default function FeedPage() {
     const onVisibility = () => { /* restart schedule immediately */ if (timer) clearTimeout(timer); schedule(); };
     document.addEventListener('visibilitychange', onVisibility);
     return () => { stopped = true; if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
-  }, [realtimeOn, open]); // Removed lastFeedHash dependency to prevent infinite loops
+  }, [realtimeOn, open, lastFeedHash]);
 
   // If another page requests to edit a post, open composer prefilled
   useEffect(() => {
