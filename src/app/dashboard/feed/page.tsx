@@ -42,7 +42,7 @@ export default function FeedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [realtimeOn] = useState(true);
   const [lastFeedHash, setLastFeedHash] = useState<string>("");
-  const FEED_REFRESH_MS = 500; // 0.5s auto-refresh
+  const FEED_REFRESH_MS = 30000; // 30s auto-refresh (was 0.5s causing constant reloads)
   // Track liked posts per email locally to keep UI state consistent during polling
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   // Throttle guard to avoid rapid double toggles
