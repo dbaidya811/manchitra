@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -151,6 +151,11 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
     router.push("/dashboard/history");
   };
 
+  const handlePlanSave = () => {
+    // Navigate to plan save functionality - you can customize this route
+    router.push("/dashboard/plan-save");
+  };
+
   // SOS utilities
   const getLocation = (): Promise<{ lat: number; lon: number } | null> => {
     return new Promise((resolve) => {
@@ -250,6 +255,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
             const isSeen = pathname === "/dashboard/what-have-i-seen";
             const isReport = pathname === "/dashboard/report-issue";
             const isHistory = pathname === "/dashboard/history";
+            const isPlanSave = pathname === "/dashboard/plan-save";
             return (
               <>
                 <DropdownMenuItem onClick={handleContributions} className={`${baseCls} ${isContrib ? activeCls : ""} group`}>
@@ -263,6 +269,10 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
                 <DropdownMenuItem onClick={handleHistory} className={`${baseCls} ${isHistory ? activeCls : ""} group`}>
                   <HistoryIcon className={`mr-2 h-4 w-4 ${isHistory ? "text-white" : "text-sky-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
                   <span className={`${isHistory ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>History</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePlanSave} className={`${baseCls} ${isPlanSave ? activeCls : ""} group`}>
+                  <Save className={`mr-2 h-4 w-4 ${isPlanSave ? "text-white" : "text-purple-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  <span className={`${isPlanSave ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Plan Save</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleReportIssue} className={`${baseCls} ${isReport ? activeCls : ""} group`}>
                   <ShieldAlert className={`mr-2 h-4 w-4 ${isReport ? "text-white" : "text-amber-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
