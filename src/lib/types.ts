@@ -37,17 +37,28 @@ export interface Template {
 }
 
 
+export interface SharedPlan {
+  id: string;
+  name: string;
+  description: string;
+  destinations: string[];
+  createdAt: number;
+  updatedAt: number;
+  sharedBy?: string;
+}
+
 export interface Place {
   id: number;
   lat: number;
   lon: number;
-  tags: {
-    name: string;
-    [key: string]: string;
-  };
-  area?: string;
-  photos?: {file: File, preview: string}[];
   location?: string;
-  name?: string;
-  description?: string;
+  area?: string;
+  tags?: {
+    name?: string;
+    description?: string;
+  };
+  photos?: Array<{
+    preview?: string;
+    full?: string;
+  }>;
 }

@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, MapPin, Calendar, Clock, Save, Trash2, Share2 } from "lucide-react";
-import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { ArrowLeft, Plus, MapPin, Calendar, Clock, Save, Trash2, Share, Map } from "lucide-react";
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { useToast } from "@/hooks/use-toast";
+import { LocationRequired } from "@/components/location-required";
 
 interface SavedPlan {
   id: string;
@@ -25,10 +25,235 @@ export default function PlanSavePage() {
   const { data: session } = useSession();
   const router = useRouter();
   const { toast } = useToast();
-
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SavedPlan | null>(null);
+  const [swipeStates, setSwipeStates] = useState<Record<string, { startX: number; currentX: number; action: 'edit' | 'delete' | null }>>({});
+
+  const handleTouchStart = (e: React.TouchEvent, planId: string) => {
+    const touch = e.touches[0];
+    setSwipeStates(prev => ({
+      ...prev,
+      [planId]: { startX: touch.clientX, currentX: touch.clientX, action: null }
+    }));
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, planId: string) => {
+    const touch = e.touches[0];
+    const currentSwipeState = swipeStates[planId];
+
+    if (!currentSwipeState) return;
+
+    const deltaX = touch.clientX - currentSwipeState.startX;
+
+    if (Math.abs(deltaX) > 10) { // Minimum swipe distance
+      // deltaX > 0 means finger moved RIGHT, deltaX < 0 means finger moved LEFT
+      const action = deltaX > 0 ? 'edit' : 'delete'; // Right swipe = edit, Left swipe = delete
+      setSwipeStates(prev => ({
+        ...prev,
+        [planId]: { ...currentSwipeState, currentX: touch.clientX, action }
+      }));
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent, planId: string) => {
+    const currentSwipeState = swipeStates[planId];
+
+    if (!currentSwipeState || !currentSwipeState.startX) {
+      setSwipeStates(prev => ({
+        ...prev,
+        [planId]: { startX: 0, currentX: 0, action: null }
+      }));
+      return;
+    }
+
+    const deltaX = currentSwipeState.startX - e.changedTouches[0].clientX;
+    const absDeltaX = Math.abs(deltaX);
+
+    if (absDeltaX > 80) { // Swipe threshold
+      const plan = plans.find(p => p.id === planId);
+      if (plan) {
+        if (deltaX < 0) {
+          // deltaX < 0 means startX < endX, which means RIGHT swipe - edit
+          setEditingPlan(plan);
+          setPlanName(plan.name);
+          setPlanDescription(plan.description);
+          // Ensure destinations are strings for editing
+          const stringDestinations = Array.isArray(plan.destinations)
+            ? plan.destinations.map(dest => String(dest))
+            : [];
+          setPlanDestinations(stringDestinations.length > 0 ? stringDestinations : []);
+        } else {
+          // deltaX > 0 means startX > endX, which means LEFT swipe - delete
+          if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
+            const updatedPlans = plans.filter(p => p.id !== planId);
+            savePlans(updatedPlans);
+
+            toast({
+              title: "Plan Deleted",
+              description: `"${plan.name}" has been removed`
+            });
+          }
+        }
+      }
+    }
+
+    // Reset swipe state with smooth animation
+    setSwipeStates(prev => ({
+      ...prev,
+      [planId]: { startX: 0, currentX: 0, action: null }
+    }));
+  };
+
+  const getSwipeStyle = (planId: string) => {
+    const swipeState = swipeStates[planId];
+    if (!swipeState || !swipeState.action) return {};
+
+    const distance = Math.abs(swipeState.currentX - swipeState.startX);
+    const opacity = Math.min(distance / 100, 1);
+
+    // Enhanced animations with smooth transitions
+    const baseTransform = swipeState.action === 'edit'
+      ? `translateX(${Math.min(distance, 60)}px)`  // Right swipe - slide right
+      : `translateX(-${Math.min(distance, 60)}px)`; // Left swipe - slide left
+
+    const baseBackgroundColor = swipeState.action === 'edit'
+      ? `rgba(34, 197, 94, ${opacity * 0.15})`
+      : `rgba(239, 68, 68, ${opacity * 0.15})`;
+
+    return {
+      transform: `${baseTransform} scale(${1 + (opacity * 0.02)})`,
+      backgroundColor: baseBackgroundColor,
+      borderRadius: `${8 + (opacity * 4)}px`,
+      boxShadow: swipeState.action === 'edit'
+        ? `0 8px 25px rgba(34, 197, 94, ${opacity * 0.3}), 0 0 0 1px rgba(34, 197, 94, ${opacity * 0.2})`
+        : `0 8px 25px rgba(239, 68, 68, ${opacity * 0.3}), 0 0 0 1px rgba(239, 68, 68, ${opacity * 0.2})`,
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      zIndex: 10
+    };
+  };
+
+  const getActionIndicator = (planId: string) => {
+    const swipeState = swipeStates[planId];
+    if (!swipeState || !swipeState.action) return null;
+
+    const distance = Math.abs(swipeState.currentX - swipeState.startX);
+    const opacity = Math.min(distance / 50, 1);
+
+    if (swipeState.action === 'edit') {
+      return (
+        <div
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg animate-pulse"
+          style={{
+            opacity: opacity * 0.9,
+            transform: `translateY(-50%) scale(${0.8 + (opacity * 0.3)})`,
+            boxShadow: `0 4px 20px rgba(34, 197, 94, ${opacity * 0.4})`
+          }}
+        >
+          ✏️ Edit
+        </div>
+      );
+    } else if (swipeState.action === 'delete') {
+      return (
+        <div
+          className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg"
+          style={{
+            opacity: opacity * 0.9,
+            transform: `translateY(-50%) scale(${0.8 + (opacity * 0.3)})`,
+            boxShadow: `0 4px 20px rgba(239, 68, 68, ${opacity * 0.4})`,
+            animation: 'pulse 1.5s ease-in-out infinite'
+          }}
+        >
+          🗑️ Delete
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  // Mouse event handlers for desktop swipe
+  const mouseStartXRef = useRef<number>(0);
+  const mousePlanIdRef = useRef<string | null>(null);
+
+  const handleMouseDown = (planId: string, e: React.MouseEvent) => {
+    mouseStartXRef.current = e.clientX;
+    mousePlanIdRef.current = planId;
+
+    // Initialize swipe state for this plan
+    setSwipeStates(prev => ({
+      ...prev,
+      [planId]: { startX: e.clientX, currentX: e.clientX, action: null }
+    }));
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (mousePlanIdRef.current) {
+        const deltaX = e.clientX - mouseStartXRef.current;
+
+        if (Math.abs(deltaX) > 10) {
+          const action = deltaX > 0 ? 'edit' : 'delete';
+          setSwipeStates(prev => ({
+            ...prev,
+            [mousePlanIdRef.current!]: {
+              startX: mouseStartXRef.current,
+              currentX: e.clientX,
+              action
+            }
+          }));
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (mousePlanIdRef.current) {
+        const currentSwipeState = swipeStates[mousePlanIdRef.current];
+        if (currentSwipeState && currentSwipeState.action) {
+          // Calculate the distance moved
+          const deltaX = currentSwipeState.startX - currentSwipeState.currentX;
+          const absDeltaX = Math.abs(deltaX);
+
+          if (absDeltaX > 80) {
+            const plan = plans.find(p => p.id === mousePlanIdRef.current);
+            if (plan) {
+              if (currentSwipeState.action === 'edit') {
+                setEditingPlan(plan);
+                setPlanName(plan.name);
+                setPlanDescription(plan.description);
+                // Ensure destinations are strings for editing
+                const stringDestinations = Array.isArray(plan.destinations)
+                  ? plan.destinations.map(dest => String(dest))
+                  : [];
+                setPlanDestinations(stringDestinations.length > 0 ? stringDestinations : []);
+              } else if (currentSwipeState.action === 'delete') {
+                if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
+                  const updatedPlans = plans.filter(p => p.id !== mousePlanIdRef.current);
+                  savePlans(updatedPlans);
+
+                  toast({
+                    title: "Plan Deleted",
+                    description: `"${plan.name}" has been removed"`
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        setSwipeStates(prev => ({
+          ...prev,
+          [mousePlanIdRef.current!]: { startX: 0, currentX: 0, action: null }
+        }));
+      }
+
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      mouseStartXRef.current = 0;
+      mousePlanIdRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
 
   // New plan form state - start with empty array and add first destination when needed
   const [planName, setPlanName] = useState("");
@@ -308,13 +533,91 @@ export default function PlanSavePage() {
     }
   };
 
-  const copyToClipboard = (url: string, plan: SavedPlan) => {
-    navigator.clipboard.writeText(url).then(() => {
+  const handleViewMap = async (plan: SavedPlan) => {
+    if (!navigator.geolocation) {
       toast({
-        title: "Link Copied!",
-        description: `Share link for "${plan.name}" copied to clipboard`,
+        title: "Error",
+        description: "Geolocation is not supported by this browser",
+        variant: "destructive"
       });
-    });
+      return;
+    }
+
+    try {
+      // Get user's current location
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        });
+      });
+
+      const userLat = position.coords.latitude;
+      const userLng = position.coords.longitude;
+
+      if (plan.destinations.length === 0) {
+        // If no destinations, just show user location on internal map
+        const mapUrl = `/dashboard/map?lat=${userLat}&lon=${userLng}&zoom=15`;
+        router.push(mapUrl);
+        toast({
+          title: "Map Opened",
+          description: "Showing your current location"
+        });
+        return;
+      }
+
+      // Get places data to find matching destination IDs
+      const placesRes = await fetch('/api/places', { cache: 'no-store' });
+      const placesData = await placesRes.json();
+      const places = Array.isArray(placesData?.places) ? placesData.places : [];
+
+      // Find matching place IDs for destinations
+      const destinationIds: number[] = [];
+
+      for (const destinationName of plan.destinations) {
+        // Find place with matching name (case-insensitive)
+        const matchingPlace = places.find((place: any) => {
+          const placeName = place.tags?.name || place.name || '';
+          return placeName.toLowerCase().includes(destinationName.toLowerCase()) ||
+                 destinationName.toLowerCase().includes(placeName.toLowerCase());
+        });
+
+        if (matchingPlace && matchingPlace.id) {
+          destinationIds.push(matchingPlace.id);
+        }
+      }
+
+      // If we found matching places, use their IDs
+      if (destinationIds.length > 0) {
+        const planParam = destinationIds.join(',');
+        const mapUrl = `/dashboard/map?plan=${planParam}&fromLat=${userLat}&fromLon=${userLng}&mode=plan`;
+        router.push(mapUrl);
+
+        toast({
+          title: "Map Opened",
+          description: `Showing route through ${destinationIds.length} destinations`
+        });
+      } else {
+        // If no matching places found, navigate to map with just user location
+        const mapUrl = `/dashboard/map?lat=${userLat}&lon=${userLng}&zoom=15`;
+        router.push(mapUrl);
+
+        toast({
+          title: "Map Opened",
+          description: "Showing your location. Some destinations couldn't be found on map.",
+          variant: "destructive"
+        });
+      }
+
+    } catch (error) {
+      console.error('Error getting location or places:', error);
+      toast({
+        title: "Error",
+        description: "Unable to get your location or load places. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatDate = (timestamp: number) => {
@@ -327,10 +630,19 @@ export default function PlanSavePage() {
     });
   };
 
+  const copyToClipboard = (url: string, plan: SavedPlan) => {
+    navigator.clipboard.writeText(url).then(() => {
+      toast({
+        title: "Link Copied!",
+        description: `Share link for "${plan.name}" copied to clipboard`,
+      });
+    });
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
       {/* Glass header */}
-      <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
+      <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -351,7 +663,7 @@ export default function PlanSavePage() {
       </header>
 
       <main className="relative flex-1 px-3 md:px-6 pt-20 md:pt-24 pb-[calc(4.5rem+28px)]">
-        <div className="mx-auto w-full max-w-2xl space-y-6">
+        <div className="mx-auto w-full max-w-sm sm:max-w-md md:max-w-lg xl:max-w-2xl">
 
           {/* Create/Edit Plan Form */}
           {(isCreating || editingPlan) && (
@@ -478,7 +790,7 @@ export default function PlanSavePage() {
           {/* Plans List */}
           {!isCreating && !editingPlan && (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-lg font-semibold">My Saved Plans</h2>
                 <Button
                   onClick={() => setIsCreating(true)}
@@ -509,7 +821,16 @@ export default function PlanSavePage() {
               ) : (
                 <div className="grid gap-4">
                   {plans.map((plan) => (
-                    <Card key={plan.id} className="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 shadow-lg hover:shadow-xl transition-shadow">
+                    <Card
+                      key={plan.id}
+                      className="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 shadow-lg hover:shadow-xl transition-shadow relative overflow-hidden"
+                      style={getSwipeStyle(plan.id)}
+                      onTouchStart={(e) => handleTouchStart(e, plan.id)}
+                      onTouchMove={(e) => handleTouchMove(e, plan.id)}
+                      onTouchEnd={(e) => handleTouchEnd(e, plan.id)}
+                      onMouseDown={(e) => handleMouseDown(plan.id, e)}
+                    >
+                      {getActionIndicator(plan.id)}
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
@@ -526,47 +847,19 @@ export default function PlanSavePage() {
                                   <MapPin className="h-4 w-4" />
                                   <span className="font-medium">Destinations:</span>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1.5 min-w-0">
                                   {plan.destinations.map((destination, index) => (
                                     <span
                                       key={index}
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 flex-shrink-0"
                                     >
-                                      <MapPin className="h-3 w-3" />
-                                      {String(destination)}
+                                      <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
+                                      <span className="text-xs whitespace-nowrap">{String(destination)}</span>
                                     </span>
                                   ))}
                                 </div>
                               </div>
                             )}
-                          </div>
-
-                          <div className="flex gap-2 ml-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSharePlan(plan)}
-                              className="rounded-xl"
-                              title="Share plan"
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditPlan(plan)}
-                              className="rounded-xl"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeletePlan(plan.id)}
-                              className="rounded-xl"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
 
@@ -583,6 +876,28 @@ export default function PlanSavePage() {
                               </div>
                             )}
                           </div>
+                          <div className="flex items-center gap-2">
+                            <LocationRequired feature="show maps and routes">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewMap(plan)}
+                                className="h-6 w-6 p-0 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                                title="View on map"
+                              >
+                                <Map className="h-3 w-3 text-blue-500" />
+                              </Button>
+                            </LocationRequired>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSharePlan(plan)}
+                              className="h-6 w-6 p-0 rounded-full hover:bg-orange-100 dark:hover:bg-orange-900/20"
+                              title="Share plan"
+                            >
+                              <Share className="h-3 w-3 text-orange-500" />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -593,10 +908,6 @@ export default function PlanSavePage() {
           )}
         </div>
       </main>
-
-      <div className="relative z-[2000]">
-        <MobileNav />
-      </div>
     </div>
   );
 }

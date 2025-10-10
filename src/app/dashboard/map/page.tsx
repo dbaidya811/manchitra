@@ -2713,7 +2713,6 @@ export default function DashboardMapPage() {
       )}
         {/* Removed legacy route summary panel */}
       </main>
-      <div className="relative z-[2000]"><MobileNav /></div>
     </div>
   );
 }

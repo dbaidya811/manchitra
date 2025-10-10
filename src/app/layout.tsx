@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { FetchSpinner } from "@/components/providers/fetch-spinner";
 import { NavigationSpinner } from "@/components/providers/navigation-spinner";
+import { LocationPermissionGate } from "@/components/location-permission-gate";
 // import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
@@ -45,7 +46,9 @@ export default function RootLayout({
       </head>
       <body className={cn("font-body antialiased")}>
         <AuthSessionProvider>
-          {children}
+          <LocationPermissionGate>
+            {children}
+          </LocationPermissionGate>
           <Toaster />
           <FetchSpinner />
           <NavigationSpinner />

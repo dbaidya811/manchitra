@@ -700,7 +700,7 @@ export default function FeedPage() {
   return (
     <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
       {/* Glass header */}
-      <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
+      <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
         <div className="flex items-center gap-2">
           <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
             Feed
@@ -879,34 +879,6 @@ export default function FeedPage() {
           )}
         </div>
       </main>
-
-      <div className="relative z-[2000]"><MobileNav /></div>
-
-      {/* Floating Action Button (right-aligned) */}
-      <div
-        className="fixed inset-x-0 z-[2200]"
-        style={{
-          bottom: 'max(88px, calc(env(safe-area-inset-bottom, 0px) + 96px))',
-          pointerEvents: 'none',
-        }}
-      >
-        <div
-          className="mx-0 flex justify-end"
-          style={{ paddingRight: 'calc(16px + env(safe-area-inset-right, 0px))' }}
-        >
-          <button
-            onClick={() => setOpen(true)}
-            className="h-14 w-14 rounded-full text-white grid place-items-center relative select-none bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-[0_12px_24px_rgba(234,88,12,0.35)] ring-1 ring-white/40 focus:outline-none focus:ring-4 focus:ring-orange-300/40 transition-transform duration-200 ease-out hover:scale-105 active:scale-100"
-            style={{ pointerEvents: 'auto' }}
-            aria-label="Create post"
-            title="Create post"
-          >
-            <span className="relative inline-flex items-center justify-center">
-              <PenLine className="h-6 w-6" />
-            </span>
-          </button>
-        </div>
-      </div>
 
       {/* macOS-like bounce animation and loader + dialog pager-like animation styles */}
       <style jsx global>{`

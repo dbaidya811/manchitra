@@ -235,7 +235,7 @@ export default function DashboardPage() {
     prevStatusRef.current = status;
   }, [status]);
   
-  const handleAddPlace = async (newPlace: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => {
+  const handleAddPlace = async (newPlace: Omit<Place, 'id' | 'lat' | 'lon' | 'tags'> & { name?: string; description?: string; }) => {
     // Validate location
     if (!newPlace.location) {
       toast({
@@ -246,7 +246,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const [latStr = "", lonStr = ""] = newPlace.location.split(",").map((s) => s.trim());
+    const [latStr = "", lonStr = ""] = newPlace.location.split(",").map((s: string) => s.trim());
     const lat = parseFloat(latStr);
     const lon = parseFloat(lonStr);
 
@@ -311,7 +311,7 @@ export default function DashboardPage() {
   const handleShowOnMap = (place: Place) => {
     // Prefer explicit location if provided ("lat,lon" string)
     if (place.location && place.location.includes(',')) {
-      const parts = place.location.split(',').map(s => s.trim());
+      const parts = place.location.split(',').map((s: string) => s.trim());
       const a = parseFloat(parts[0] || '');
       const b = parseFloat(parts[1] || '');
       if (!Number.isNaN(a) && !Number.isNaN(b)) {
@@ -491,142 +491,141 @@ export default function DashboardPage() {
 
   return (
     <>
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
-      <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
-        <div className="flex items-center gap-2">
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
-            Manchitra
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <UserProfile onPlaceSubmit={handleAddPlace} />
-        </div>
-      </header>
-      <main className="relative flex-1 space-y-8 px-3 md:px-6 pt-20 md:pt-24 pb-[calc(4.5rem+28px)]">
-        {showLoveAnim && (
-          <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
-            <div className="relative">
-              <div className="absolute -inset-6 rounded-full bg-red-400/40 animate-ping" />
-              <Heart className="h-20 w-20 text-red-500 drop-shadow-2xl" />
-            </div>
+      <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+        <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
+          <div className="flex items-center gap-2">
+            <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
+              Manchitra
+            </h1>
           </div>
-        )}
-        {showCreateAnim && (
-          <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
-            <div className="relative">
-              <div className="absolute -inset-6 rounded-full bg-emerald-400/40 animate-ping" />
-              <CheckCircle className="h-20 w-20 text-emerald-500 drop-shadow-2xl" />
-            </div>
+          <div className="flex items-center gap-2">
+            <UserProfile onPlaceSubmit={handleAddPlace} />
           </div>
-        )}
-        {showWelcomeAnim && (
-          <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
-            <div className="relative text-center">
-              <div className="absolute -inset-10 rounded-full bg-yellow-300/30 animate-ping" />
-              <div className="flex items-center justify-center gap-3">
-                <Sparkles className="h-8 w-8 text-yellow-400" />
-                <span className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">Welcome!</span>
-                <Sparkles className="h-8 w-8 text-yellow-400" />
+        </header>
+        <main className="relative flex-1 space-y-8 px-3 md:px-6 pt-20 md:pt-24 pb-[calc(4.5rem+28px)]">
+          {showLoveAnim && (
+            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
+              <div className="relative">
+                <div className="absolute -inset-6 rounded-full bg-red-400/40 animate-ping" />
+                <Heart className="h-20 w-20 text-red-500 drop-shadow-2xl" />
               </div>
             </div>
-          </div>
-        )}
-        {groupedPlaces.recentPlaces.length > 0 ? (
-          <PoiCarousel title="Recent" places={groupedPlaces.recentPlaces} isLoading={isLoading} />
-        ) : (
-          isLoading && (
-            <div className="mb-6">
-              <div className="h-6 w-40 bg-foreground/10 rounded mb-3 animate-pulse" />
-              <div className="flex gap-3 overflow-hidden">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="min-w-[70%] sm:min-w-[260px]">
-                    <div className="space-y-2">
-                      <div className="h-40 w-full bg-foreground/10 rounded-2xl animate-pulse" />
-                      <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse" />
-                      <div className="h-3 w-1/2 bg-foreground/10 rounded animate-pulse" />
+          )}
+          {showCreateAnim && (
+            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
+              <div className="relative">
+                <div className="absolute -inset-6 rounded-full bg-emerald-400/40 animate-ping" />
+                <CheckCircle className="h-20 w-20 text-emerald-500 drop-shadow-2xl" />
+              </div>
+            </div>
+          )}
+          {showWelcomeAnim && (
+            <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
+              <div className="relative text-center">
+                <div className="absolute -inset-10 rounded-full bg-yellow-300/30 animate-ping" />
+                <div className="flex items-center justify-center gap-3">
+                  <Sparkles className="h-8 w-8 text-yellow-400" />
+                  <span className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">Welcome!</span>
+                  <Sparkles className="h-8 w-8 text-yellow-400" />
+                </div>
+              </div>
+            </div>
+          )}
+          {groupedPlaces.recentPlaces.length > 0 ? (
+            <PoiCarousel title="Recent" places={groupedPlaces.recentPlaces} isLoading={isLoading} />
+          ) : (
+            isLoading && (
+              <div className="mb-6">
+                <div className="h-6 w-40 bg-foreground/10 rounded mb-3 animate-pulse" />
+                <div className="flex gap-3 overflow-hidden">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="min-w-[70%] sm:min-w-[260px]">
+                      <div className="space-y-2">
+                        <div className="h-40 w-full bg-foreground/10 rounded-2xl animate-pulse" />
+                        <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse" />
+                        <div className="h-3 w-1/2 bg-foreground/10 rounded animate-pulse" />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        )}
-        {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
-           areaPlaces.length > 0 && (
-            <section key={area}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold tracking-tight">Places in {area}</h2>
-              </div>
-              <div className="flex gap-2 sm:gap-4 overflow-x-auto touch-auto overscroll-x-contain pb-2 -mx-2 px-2 snap-x snap-mandatory sm:mx-0 sm:px-0 sm:overflow-visible sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {areaPlaces.map((place, idx) => (
-                  <div
-                    key={place.id}
-                    className="shrink-0 min-w-[80%] sm:min-w-0 snap-start"
-                    style={{
-                      transition: 'transform 400ms ease-out, opacity 400ms ease-out',
-                      transform: `translateY(${isLoading ? 8 : 0}px)`,
-                      opacity: isLoading ? 0.6 : 1,
-                      // slight stagger based on index
-                      transitionDelay: `${Math.min(idx * 40, 200)}ms`,
-                    }}
-                  >
-                    <Card className="group flex flex-col overflow-hidden transition-all hover:shadow-xl rounded-2xl will-change-transform">
-                      {isMobile ? (
-                        <>
-                          <div className="relative">
-                            <div className="overflow-hidden rounded-2xl">
-                              <Image
-                                src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                                alt={place.tags.name}
-                                width={600}
-                                height={450}
-                                className="h-48 w-full object-cover"
-                                data-ai-hint="building location"
-                              />
-                            </div>
-                            {/* Like button overlay (top-right) */}
-                            <button
-                              onClick={() => handleMarkSeen(place)}
-                              title="Love"
-                              className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
-                            >
-                              <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
-                            </button>
-                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent rounded-b-2xl">
-                              <div className="text-white font-semibold text-base truncate">{place.tags.name}</div>
-                              <div className="text-white/80 text-xs truncate">{place.area ? `Starts near: ${place.area}` : ''}</div>
-                            </div>
-                          </div>
-                          <div className="p-3 pt-2">
-                            {place.tags.description && (
-                              <CardDescription className="text-[11px] text-muted-foreground">
-                                {truncateWords(place.tags.description, 4)}
-                              </CardDescription>
-                            )}
-
-                          </div>
-                          <CardFooter className="mt-auto flex items-center justify-between gap-2 p-3 pt-0">
-                            <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full text-[12px]">
-                              <ListOrdered className="mr-2 h-4 w-4" />
-                              Step
-                            </Button>
-                            <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full text-[12px]">
-                              <MapPin className="mr-2 h-4 w-4" />
-                              Directions
-                            </Button>
-                          </CardFooter>
-                        </>
-                      ) : (
-                        <>
-                          <CardContent className="p-0">
-                            <div className="aspect-[2/1] sm:aspect-[4/3] overflow-hidden relative">
+            )
+          )}
+          {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
+            areaPlaces.length > 0 && (
+              <section key={area}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-2xl font-bold tracking-tight">Places in {area}</h2>
+                </div>
+                <div className="flex gap-2 sm:gap-4 overflow-x-auto touch-auto overscroll-x-contain pb-2 -mx-2 px-2 snap-x snap-mandatory sm:mx-0 sm:px-0 sm:overflow-visible sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {areaPlaces.map((place, idx) => (
+                    <div
+                      key={place.id}
+                      className="shrink-0 min-w-[80%] sm:min-w-0 snap-start"
+                      style={{
+                        transition: 'transform 400ms ease-out, opacity 400ms ease-out',
+                        transform: `translateY(${isLoading ? 8 : 0}px)`,
+                        opacity: isLoading ? 0.6 : 1,
+                        // slight stagger based on index
+                        transitionDelay: `${Math.min(idx * 40, 200)}ms`,
+                      }}
+                    >
+                      <Card className="group flex flex-col overflow-hidden transition-all hover:shadow-xl rounded-2xl will-change-transform">
+                        {isMobile ? (
+                          <>
+                            <div className="relative">
+                              <div className="overflow-hidden rounded-2xl">
                                 <Image
-                                src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                                alt={place.tags.name}
-                                width={600}
-                                height={450}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                data-ai-hint="building location"
+                                  src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
+                                  alt={place.tags?.name || 'Place'}
+                                  width={600}
+                                  height={450}
+                                  className="h-48 w-full object-cover"
+                                  data-ai-hint="building location"
+                                />
+                              </div>
+                              {/* Like button overlay (top-right) */}
+                              <button
+                                onClick={() => handleMarkSeen(place)}
+                                title="Love"
+                                className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
+                              >
+                                <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
+                              </button>
+                              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent rounded-b-2xl">
+                                <div className="text-white font-semibold text-base truncate">{place.tags?.name || 'Place'}</div>
+                                <div className="text-white/80 text-xs truncate">{place.area ? `Starts near: ${place.area}` : ''}</div>
+                              </div>
+                            </div>
+                            <div className="p-3 pt-2">
+                              {place.tags?.description && (
+                                <CardDescription className="text-[11px] text-muted-foreground">
+                                  {truncateWords(place.tags.description, 4)}
+                                </CardDescription>
+                              )}
+                            </div>
+                            <CardFooter className="mt-auto flex items-center justify-between gap-2 p-3 pt-0">
+                              <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full text-[12px]">
+                                <ListOrdered className="mr-2 h-4 w-4" />
+                                Step
+                              </Button>
+                              <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full text-[12px]">
+                                <MapPin className="mr-2 h-4 w-4" />
+                                Directions
+                              </Button>
+                            </CardFooter>
+                          </>
+                        ) : (
+                          <>
+                            <CardContent className="p-0">
+                              <div className="aspect-[2/1] sm:aspect-[4/3] overflow-hidden relative">
+                                <Image
+                                  src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
+                                  alt={place.tags?.name || 'Place'}
+                                  width={600}
+                                  height={450}
+                                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                  data-ai-hint="building location"
                                 />
                                 {/* Like button overlay (top-right) */}
                                 <button
@@ -636,42 +635,40 @@ export default function DashboardPage() {
                                 >
                                   <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
                                 </button>
-                            </div>
-                          </CardContent>
-                          <CardHeader className="p-1 sm:p-3 pb-1 sm:pb-2">
-                            <CardTitle className="text-[12px] sm:text-base font-semibold truncate">{place.tags.name}</CardTitle>
-                            {place.tags.description && (
-                              <CardDescription className="text-[10px] sm:text-xs truncate">
-                                {place.tags.description}
-                              </CardDescription>
-                            )}
-
-                          </CardHeader>
-                          <CardFooter className="mt-auto flex flex-col gap-2 p-1 sm:p-3 pt-0">
-                            <div className="flex gap-2">
-                              <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full text-[11px]">
-                                <ListOrdered className="mr-2 h-4 w-4" />
-                                Step
-                              </Button>
-                              <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full text-[11px]">
-                                <MapPin className="mr-2 h-4 w-4" />
-                                Directions
-                              </Button>
-                            </div>
-                          </CardFooter>
-                        </>
-                      )}
-                    </Card>
-                  </div>
-                ))}
-              </div>
-            </section>
-           )
-        ))}
-      </main>
-      <div className="relative z-[2000]"><MobileNav /></div>
-    </div>
-    <AddPlaceDialog
+                              </div>
+                            </CardContent>
+                            <CardHeader className="p-1 sm:p-3 pb-1 sm:pb-2">
+                              <CardTitle className="text-[12px] sm:text-base font-semibold truncate">{place.tags?.name || 'Place'}</CardTitle>
+                              {place.tags?.description && (
+                                <CardDescription className="text-[10px] sm:text-xs truncate">
+                                  {place.tags.description}
+                                </CardDescription>
+                              )}
+                            </CardHeader>
+                            <CardFooter className="mt-auto flex flex-col gap-2 p-1 sm:p-3 pt-0">
+                              <div className="flex gap-2">
+                                <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full text-[11px]">
+                                  <ListOrdered className="mr-2 h-4 w-4" />
+                                  Step
+                                </Button>
+                                <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full text-[11px]">
+                                  <MapPin className="mr-2 h-4 w-4" />
+                                  Directions
+                                </Button>
+                              </div>
+                            </CardFooter>
+                          </>
+                        )}
+                      </Card>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )
+          ))}
+        </main>
+      </div>
+      <AddPlaceDialog
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         placeToEdit={placeToEdit}

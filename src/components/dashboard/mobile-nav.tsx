@@ -22,7 +22,7 @@ export function MobileNav() {
     { id: "home", icon: Home, label: "Home", href: "/dashboard" },
     { id: "map", icon: Map, label: "Map", href: "/dashboard/map" },
     { id: "feed", icon: Newspaper, label: "Feed", href: "/dashboard/feed" },
-    { id: "plan", icon: Sparkles, label: "Planning AI", href: "/planning-ai" },
+    { id: "plan", icon: Sparkles, label: "AI Plan", href: "/planning-ai" },
   ];
 
   const activeIndex = navItems.findIndex(item => item.id === activeTab);
@@ -37,20 +37,19 @@ export function MobileNav() {
             onClick={() => setActiveTab(item.id)}
             className={cn(
               "z-10 flex flex-col items-center justify-center gap-1 rounded-full p-2 text-muted-foreground transition-colors w-full",
-              activeTab === item.id && "text-primary-foreground",
+              activeTab === item.id && "text-white bg-[#22c55e]/40",
             )}
           >
-            <item.icon className="h-6 w-6" />
-            <span className="text-xs font-medium">{item.label}</span>
+            <item.icon className={cn(
+              "h-6 w-6 transition-colors",
+              activeTab === item.id ? "text-white" : "text-muted-foreground"
+            )} />
+            <span className={cn(
+              "text-xs font-medium transition-colors",
+              activeTab === item.id ? "text-white" : "text-muted-foreground"
+            )}>{item.label}</span>
           </Link>
         ))}
-        <div
-          className="absolute left-2 top-2 h-[calc(100%-1rem)] w-[calc((100%-1rem)/4)] rounded-full bg-primary"
-          style={{
-            transform: `translateX(${activeIndex * 100}%)`,
-            transition: 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
-          }}
-        />
       </nav>
     </footer>
   );

@@ -8,16 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, Calendar, Clock, Save, UserPlus, LogIn } from "lucide-react";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useToast } from "@/hooks/use-toast";
-
-interface SharedPlan {
-  id: string;
-  name: string;
-  description: string;
-  destinations: string[];
-  createdAt: number;
-  updatedAt: number;
-  sharedBy?: string;
-}
+import { SharedPlan } from "@/lib/types";
 
 export default function SharedPlanPage() {
   const { data: session } = useSession();
@@ -251,21 +242,26 @@ export default function SharedPlanPage() {
               )}
 
               {plan.destinations.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm text-neutral-500">
                     <MapPin className="h-4 w-4" />
                     <span className="font-medium">Destinations:</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {plan.destinations.map((destination, index) => (
-                      <span
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2 min-w-0">
+                    {plan.destinations.slice(0, 4).map((destination, index) => (
+                      <div
                         key={index}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                        className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md sm:rounded-lg bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200 dark:border-orange-800 flex-shrink-0"
                       >
-                        <MapPin className="h-3 w-3" />
-                        {String(destination)}
-                      </span>
+                        <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                        <span className="text-xs sm:text-sm font-medium whitespace-nowrap">{String(destination)}</span>
+                      </div>
                     ))}
+                    {plan.destinations.length > 4 && (
+                      <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md sm:rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
+                        <span className="text-xs sm:text-sm font-medium">+{plan.destinations.length - 4} more</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
