@@ -27,12 +27,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, description, destinations, sharedBy } = body;
+    const { name, description = "", destinations, sharedBy } = body;
 
     // Validate required fields
-    if (!name || !description || !Array.isArray(destinations)) {
+    if (!name || !Array.isArray(destinations)) {
       return NextResponse.json(
-        { error: 'Name, description, and destinations are required' },
+        { error: 'Name and destinations are required' },
         { status: 400 }
       );
     }

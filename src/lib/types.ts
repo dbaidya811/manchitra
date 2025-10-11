@@ -40,11 +40,21 @@ export interface Template {
 export interface SharedPlan {
   id: string;
   name: string;
-  description: string;
+  description?: string;
   destinations: string[];
   createdAt: number;
   updatedAt: number;
   sharedBy?: string;
+}
+
+export interface SavedPlan {
+  id: string;
+  userEmail?: string;
+  name: string;
+  description: string;
+  destinations: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Place {

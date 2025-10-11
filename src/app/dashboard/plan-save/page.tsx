@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -11,24 +11,217 @@ import { ArrowLeft, Plus, MapPin, Calendar, Clock, Save, Trash2, Share, Map } fr
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { useToast } from "@/hooks/use-toast";
 import { LocationRequired } from "@/components/location-required";
+import { SavedPlan } from "@/lib/types";
+import { Loader } from "@/components/ui/loader";
 
-interface SavedPlan {
-  id: string;
-  name: string;
-  description: string;
-  destinations: string[];
-  createdAt: number;
-  updatedAt: number;
-}
+type PlansUpdater = SavedPlan[] | ((prev: SavedPlan[]) => SavedPlan[]);
 
 export default function PlanSavePage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const { toast } = useToast();
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SavedPlan | null>(null);
   const [swipeStates, setSwipeStates] = useState<Record<string, { startX: number; currentX: number; action: 'edit' | 'delete' | null }>>({});
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [sharingPlanId, setSharingPlanId] = useState<string | null>(null);
+  const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const isAuthenticated = status === "authenticated" && !!session?.user?.email;
+  const sortPlans = useCallback((items: SavedPlan[]) => {
+    return [...items].sort((a, b) => b.updatedAt - a.updatedAt);
+  }, []);
+
+  const applyPlans = useCallback((items: SavedPlan[]) => {
+    setPlans(sortPlans(items));
+  }, [sortPlans]);
+
+  const persistLocalPlans = useCallback((updater: PlansUpdater) => {
+    setPlans(prev => {
+      const next = typeof updater === "function" ? (updater as (prev: SavedPlan[]) => SavedPlan[])(prev) : updater;
+      const sorted = sortPlans(next);
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("saved-plans", JSON.stringify(sorted));
+        } catch (error) {
+          console.error("Failed to save plans locally", error);
+          setTimeout(() => {
+            toast({
+              title: "Storage Error",
+              description: "Failed to save plans locally. Please clear some space and try again.",
+              variant: "destructive",
+            });
+          }, 0);
+        }
+      }
+
+      return sorted;
+    });
+  }, [sortPlans, toast]);
+
+  const loadLocalPlans = useCallback((): SavedPlan[] => {
+    if (typeof window === "undefined") return [];
+
+    try {
+      const raw = localStorage.getItem("saved-plans");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+
+      const normalized = parsed.map((plan: any) => ({
+        ...plan,
+        destinations: Array.isArray(plan?.destinations)
+          ? plan.destinations.map((dest: any) => (typeof dest === "string" ? dest : (dest?.name ?? ""))).filter(Boolean)
+          : [],
+      }));
+
+      return sortPlans(normalized as SavedPlan[]);
+    } catch (error) {
+      console.error("Failed to load plans from local storage", error);
+      return [];
+    }
+  }, [sortPlans]);
+
+  const loadPlans = useCallback(async () => {
+    if (status === "loading") return;
+
+    setIsLoadingPlans(true);
+    setSyncError(null);
+
+    if (isAuthenticated) {
+      try {
+        const res = await fetch("/api/saved-plans", { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error(`Failed to fetch saved plans (${res.status})`);
+        }
+        const data = await res.json();
+        const serverPlans = Array.isArray(data?.plans) ? (data.plans as SavedPlan[]) : [];
+        applyPlans(serverPlans);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("saved-plans");
+        }
+      } catch (error) {
+        console.error("Failed to fetch plans from server", error);
+        const fallback = loadLocalPlans();
+        if (fallback.length > 0) {
+          setSyncError("Showing locally saved plans because syncing failed.");
+          applyPlans(fallback);
+        } else {
+          setSyncError("Failed to load saved plans. Please try again.");
+          setPlans([]);
+        }
+      } finally {
+        setIsLoadingPlans(false);
+      }
+      return;
+    }
+
+    applyPlans(loadLocalPlans());
+    setIsLoadingPlans(false);
+  }, [applyPlans, isAuthenticated, loadLocalPlans, status]);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
+
+  const upsertPlan = useCallback(
+    async (plan: SavedPlan, mode: "create" | "update"): Promise<SavedPlan | null> => {
+      if (!isAuthenticated) {
+        persistLocalPlans(prev => {
+          const filtered = prev.filter(p => p.id !== plan.id);
+          return [...filtered, plan];
+        });
+        return plan;
+      }
+
+      setIsSaving(true);
+      setPendingPlanId(plan.id);
+      setSyncError(null);
+
+      try {
+        const res = await fetch("/api/saved-plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: plan.id,
+            name: plan.name,
+            description: plan.description,
+            destinations: plan.destinations,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to save plan (${res.status})`);
+        }
+
+        const data = await res.json();
+        const saved = (data?.plan as SavedPlan | undefined) ?? null;
+
+        if (saved) {
+          setPlans(prev => sortPlans([...prev.filter(p => p.id !== saved.id), saved]));
+          return saved;
+        }
+
+        return null;
+      } catch (error) {
+        console.error("Failed to sync plan", error);
+        toast({
+          title: mode === "create" ? "Failed to create plan" : "Failed to update plan",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+        setSyncError("Failed to sync plan. Please try again.");
+        return null;
+      } finally {
+        setIsSaving(false);
+        setPendingPlanId(null);
+      }
+    },
+    [isAuthenticated, persistLocalPlans, sortPlans, toast]
+  );
+
+  const deletePlan = useCallback(
+    async (plan: SavedPlan): Promise<boolean> => {
+      if (!isAuthenticated) {
+        persistLocalPlans(prev => prev.filter(p => p.id !== plan.id));
+        return true;
+      }
+
+      setIsSaving(true);
+      setPendingPlanId(plan.id);
+      setSyncError(null);
+
+      try {
+        const res = await fetch(`/api/saved-plans?id=${encodeURIComponent(plan.id)}`, {
+          method: "DELETE",
+        });
+
+        if (!res.ok) {
+          throw new Error(`Failed to delete plan (${res.status})`);
+        }
+
+        setPlans(prev => prev.filter(p => p.id !== plan.id));
+        return true;
+      } catch (error) {
+        console.error("Failed to delete plan", error);
+        toast({
+          title: "Failed to delete plan",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+        setSyncError("Failed to sync plan changes. Please try again.");
+        return false;
+      } finally {
+        setIsSaving(false);
+        setPendingPlanId(null);
+      }
+    },
+    [isAuthenticated, persistLocalPlans, toast]
+  );
 
   const handleTouchStart = (e: React.TouchEvent, planId: string) => {
     const touch = e.touches[0];
@@ -86,12 +279,13 @@ export default function PlanSavePage() {
         } else {
           // deltaX > 0 means startX > endX, which means LEFT swipe - delete
           if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
-            const updatedPlans = plans.filter(p => p.id !== planId);
-            savePlans(updatedPlans);
-
-            toast({
-              title: "Plan Deleted",
-              description: `"${plan.name}" has been removed`
+            deletePlan(plan).then((success) => {
+              if (success) {
+                toast({
+                  title: "Plan Deleted",
+                  description: `"${plan.name}" has been removed`
+                });
+              }
             });
           }
         }
@@ -226,12 +420,13 @@ export default function PlanSavePage() {
                 setPlanDestinations(stringDestinations.length > 0 ? stringDestinations : []);
               } else if (currentSwipeState.action === 'delete') {
                 if (confirm(`Are you sure you want to delete "${plan.name}"?`)) {
-                  const updatedPlans = plans.filter(p => p.id !== mousePlanIdRef.current);
-                  savePlans(updatedPlans);
-
-                  toast({
-                    title: "Plan Deleted",
-                    description: `"${plan.name}" has been removed"`
+                  deletePlan(plan).then(success => {
+                    if (success) {
+                      toast({
+                        title: "Plan Deleted",
+                        description: `"${plan.name}" has been removed`
+                      });
+                    }
                   });
                 }
               }
@@ -265,58 +460,7 @@ export default function PlanSavePage() {
   const [isLoadingLocations, setIsLoadingLocations] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Only run on client side to avoid SSR issues
-    if (typeof window !== 'undefined') {
-      loadPlans();
-    }
-  }, []);
-
-  const loadPlans = () => {
-    try {
-      if (typeof window === 'undefined') return;
-
-      const saved = localStorage.getItem("saved-plans");
-      if (saved) {
-        const plansData = JSON.parse(saved);
-        // Ensure plansData is an array and handle old format compatibility
-        if (Array.isArray(plansData)) {
-          const convertedPlans = plansData.map((plan: any) => ({
-            ...plan,
-            destinations: Array.isArray(plan.destinations)
-              ? plan.destinations.map((dest: any) =>
-                  typeof dest === 'string' ? dest : (dest?.name || dest)
-                )
-              : []
-          }));
-          setPlans(convertedPlans);
-        } else {
-          setPlans([]);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load plans:", error);
-      setPlans([]); // Reset to empty array on error
-    }
-  };
-
-  const savePlans = (plansToSave: SavedPlan[]) => {
-    try {
-      if (typeof window === 'undefined') return;
-
-      localStorage.setItem("saved-plans", JSON.stringify(plansToSave));
-      setPlans(plansToSave);
-    } catch (error) {
-      console.error("Failed to save plans:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save plans. Storage may be full.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleCreatePlan = () => {
+  const handleCreatePlan = async () => {
     if (!planName.trim()) {
       toast({
         title: "Error",
@@ -337,17 +481,24 @@ export default function PlanSavePage() {
       return;
     }
 
+    const now = Date.now();
     const newPlan: SavedPlan = {
       id: crypto.randomUUID(),
       name: planName.trim(),
       description: planDescription.trim(),
       destinations,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: now,
+      updatedAt: now
     };
 
-    const updatedPlans = [...plans, newPlan];
-    savePlans(updatedPlans);
+    if (isAuthenticated) {
+      const saved = await upsertPlan(newPlan, "create");
+      if (!saved) {
+        return;
+      }
+    } else {
+      persistLocalPlans(prev => [...prev, newPlan]);
+    }
 
     // Reset form
     setPlanName("");
@@ -373,7 +524,7 @@ export default function PlanSavePage() {
     setPlanDestinations(stringDestinations.length > 0 ? stringDestinations : []);
   };
 
-  const handleUpdatePlan = () => {
+  const handleUpdatePlan = async () => {
     if (!editingPlan || !planName.trim()) return;
 
     const destinations = planDestinations.filter(dest => dest && dest.trim().length > 0);
@@ -395,8 +546,14 @@ export default function PlanSavePage() {
       updatedAt: Date.now()
     };
 
-    const updatedPlans = plans.map(p => p.id === editingPlan.id ? updatedPlan : p);
-    savePlans(updatedPlans);
+    if (isAuthenticated) {
+      const saved = await upsertPlan(updatedPlan, "update");
+      if (!saved) {
+        return;
+      }
+    } else {
+      persistLocalPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+    }
 
     // Reset form
     setEditingPlan(null);
@@ -415,12 +572,13 @@ export default function PlanSavePage() {
     if (!planToDelete) return;
 
     if (confirm(`Are you sure you want to delete "${planToDelete.name}"?`)) {
-      const updatedPlans = plans.filter(p => p.id !== planId);
-      savePlans(updatedPlans);
-
-      toast({
-        title: "Plan Deleted",
-        description: `"${planToDelete.name}" has been removed`
+      deletePlan(planToDelete).then(success => {
+        if (success) {
+          toast({
+            title: "Plan Deleted",
+            description: `"${planToDelete.name}" has been removed`
+          });
+        }
       });
     }
   };
@@ -515,21 +673,53 @@ export default function PlanSavePage() {
   };
 
   const handleSharePlan = async (plan: SavedPlan) => {
-    const shareUrl = `${window.location.origin}/shared-plan/${plan.id}`;
+    try {
+      // First, create a shared plan in the database
+      const shareRes = await fetch("/api/shared-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: plan.name,
+          description: plan.description || "",
+          destinations: plan.destinations,
+          sharedBy: session?.user?.name || "Anonymous User"
+        }),
+      });
 
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: plan.name,
-          text: `Check out this travel plan: ${plan.name}`,
-          url: shareUrl,
-        });
-      } catch (err) {
-        console.log('Error sharing:', err);
+      if (!shareRes.ok) {
+        throw new Error(`Failed to create shared plan (${shareRes.status})`);
+      }
+
+      const shareData = await shareRes.json();
+      const sharedPlanId = shareData.plan?.id;
+
+      if (!sharedPlanId) {
+        throw new Error("Failed to get shared plan ID");
+      }
+
+      const shareUrl = `${window.location.origin}/shared-plan/${sharedPlanId}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: plan.name,
+            text: `Check out this travel plan: ${plan.name}`,
+            url: shareUrl,
+          });
+        } catch (err) {
+          console.log('Error sharing:', err);
+          copyToClipboard(shareUrl, plan);
+        }
+      } else {
         copyToClipboard(shareUrl, plan);
       }
-    } else {
-      copyToClipboard(shareUrl, plan);
+    } catch (error) {
+      console.error("Failed to share plan:", error);
+      toast({
+        title: "Error",
+        description: "Failed to share plan. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 

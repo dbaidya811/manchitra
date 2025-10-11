@@ -71,8 +71,6 @@ export default function SharedPlanPage() {
 
     setSaving(true);
     try {
-      // In a real app, this would save to your database
-      // For now, we'll save to user's localStorage
       const userEmail = session.user?.email;
       if (!userEmail) {
         toast({
@@ -83,35 +81,44 @@ export default function SharedPlanPage() {
         return;
       }
 
-      const saved = localStorage.getItem(`saved-plans-${userEmail}`);
-      const userPlans = saved ? JSON.parse(saved) : [];
+      // Check if plan already exists for this user
+      const checkRes = await fetch("/api/saved-plans", { cache: "no-store" });
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        const existingPlans = checkData.plans || [];
+        const existingPlan = existingPlans.find((p: any) => p.name === plan.name && p.destinations.join(',') === plan.destinations.join(','));
 
-      // Check if plan already exists
-      const existingPlan = userPlans.find((p: any) => p.id === plan.id);
-
-      if (existingPlan) {
-        toast({
-          title: "Plan Already Exists",
-          description: "This plan is already in your saved plans",
-        });
-        setSaving(false);
-        return;
+        if (existingPlan) {
+          toast({
+            title: "Plan Already Exists",
+            description: "This plan is already in your saved plans",
+          });
+          setSaving(false);
+          return;
+        }
       }
 
-      // Add the shared plan to user's plans
-      const planToSave = {
-        ...plan,
-        id: crypto.randomUUID(), // Create new ID for user's copy
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+      // Create a new plan based on the shared plan
+      const newPlan = {
+        name: plan.name,
+        description: plan.description,
+        destinations: plan.destinations,
       };
 
-      const updatedPlans = [...userPlans, planToSave];
-      localStorage.setItem(`saved-plans-${userEmail}`, JSON.stringify(updatedPlans));
+      // Save to backend
+      const res = await fetch("/api/saved-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPlan),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to save plan (${res.status})`);
+      }
 
       toast({
         title: "Plan Saved!",
-        description: `"${plan.name}" has been saved to your plans`,
+        description: `"${plan.name}" has been saved to your account and can be accessed from any device`,
       });
 
       // Redirect to plan save page after a short delay
@@ -294,7 +301,7 @@ export default function SharedPlanPage() {
                 ) : (
                   <div className="space-y-3">
                     <p className="text-sm text-center text-neutral-600">
-                      Login to save this plan to your account
+                      Login to save this plan to your account and access it across all your devices
                     </p>
                     <div className="flex gap-2">
                       <Button
