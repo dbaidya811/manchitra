@@ -3,7 +3,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwind-css)](https://tailwindcss.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 A modern, intelligent navigation and location-sharing platform with real-time routing, smart history tracking, and social features. Built with Next.js, featuring advanced map integration, voice guidance, and collaborative exploration.
 
@@ -165,6 +165,10 @@ npm run build     # Create production build
 npm run start     # Run production server
 npm run lint      # Run ESLint
 ```
+
+## 📄 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
 
 ## Email Reports & Notifications
 

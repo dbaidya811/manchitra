@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -6,7 +5,6 @@ import Link from "next/link";
 import { Home, Map, Newspaper, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePathname } from 'next/navigation'
-
 
 export function MobileNav() {
   const pathname = usePathname();

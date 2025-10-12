@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { MobileNav } from "@/components/dashboard/mobile-nav";
+import { useToast } from "@/hooks/use-toast";
 import { UserProfile } from "@/components/dashboard/user-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
 import { Loader } from "@/components/ui/loader";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
-import { Heart, PenLine } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Heart, Images, Plus, Smile, Video } from "lucide-react";
 import { playLikeSound, playSaveSound } from "@/lib/sound";
- 
 
 export default function FeedPage() {
   const { toast } = useToast();
@@ -42,7 +40,7 @@ export default function FeedPage() {
   const [submitting, setSubmitting] = useState(false);
   const [realtimeOn] = useState(true);
   const [lastFeedHash, setLastFeedHash] = useState<string>("");
-  const FEED_REFRESH_MS = 30000; // 30s auto-refresh (was 0.5s causing constant reloads)
+  const FEED_REFRESH_MS = 1000; // 1s auto-refresh
   // Track liked posts per email locally to keep UI state consistent during polling
   const [likedSet, setLikedSet] = useState<Set<string>>(new Set());
   // Throttle guard to avoid rapid double toggles
@@ -140,6 +138,15 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const LS_KEY = "social_feed_posts_v2"; // legacy, no longer used for persistence
 
+  type OnlineUser = {
+    email?: string | null;
+    name?: string | null;
+    image?: string | null;
+    updatedAt?: string | number | Date | null;
+    createdAt?: string | number | Date | null;
+  };
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+
   // Composer: emoji picker and poll
   const [emojiOpen, setEmojiOpen] = useState(false);
   const commonEmojis = ['😀','😁','😂','😊','😍','😎','😢','😡','🙏','👍','🔥','🎉','❤️','✨','✅'];
@@ -225,6 +232,25 @@ export default function FeedPage() {
   useEffect(() => {
     fetchPosts();
   }, [currentUserEmail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/users/online', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && Array.isArray(data?.users)) {
+          setOnlineUsers(data.users as OnlineUser[]);
+        }
+      } catch {}
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Compute a small hash from feed to detect changes (ids + updatedAt + likes)
   const computeFeedHash = (items: Post[]): string => {
@@ -601,19 +627,20 @@ export default function FeedPage() {
   }
 
   function toggleLike(id: string) {
-    // Throttle per-post to avoid rapid duplicate toggles
     const now = Date.now();
     const lastAt = lastToggleAtRef.current[id] || 0;
     if (now - lastAt < 500) return;
     lastToggleAtRef.current[id] = now;
+
     const target = posts.find((pp) => pp.id === id);
-    // Ensure we have an identifier; if missing, create anon on the fly
     let email = currentUserEmail as string | null;
     if (!email) {
       try {
         let aid = localStorage.getItem('anon_id');
         if (!aid) {
-          aid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+          aid = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+            ? crypto.randomUUID()
+            : String(Date.now()) + Math.random().toString(36).slice(2);
           localStorage.setItem('anon_id', aid);
         }
         email = `anon:${aid}`;
@@ -622,266 +649,408 @@ export default function FeedPage() {
         email = `anon:${Date.now()}`;
       }
     }
+
     const isLiked = !!target?.likedByMe;
     if (isLiked) {
-      // Optimistic UNLIKE
       setPosts((prev) => prev.map((p) => {
         if (p.id !== id) return p;
         const nextLikes = Math.max(0, p.likes - 1);
-        const nextLikedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]).filter(e => e !== email) : [];
+        const nextLikedBy = Array.isArray(p.likedBy)
+          ? (p.likedBy as string[]).filter((entry) => entry !== email)
+          : [];
         return { ...p, likedByMe: false, likes: nextLikes, likedBy: nextLikedBy };
       }));
-      // Update local liked set
+
       setLikedSet((prev) => {
         const next = new Set(prev);
         next.delete(id);
         saveLikedSet(email, next);
         return next;
       });
+
       fetch(`/api/feed/${id}/like`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, unlike: true }),
       })
-        .then(async (r) => {
-          const data = await r.json().catch(() => ({}));
-          if (!r.ok || data?.ok === false) throw new Error('unlike failed');
+        .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data?.ok === false) throw new Error('unlike failed');
           const liked = !!data?.liked;
           const likes = typeof data?.likes === 'number' ? data.likes : undefined;
-          setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p)));
-          // liked should be false for unlike
+          setPosts((prev) => prev.map((p) => (
+            p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p
+          )));
         })
         .catch(() => {
-          // rollback local unlike
           setLikedSet((prev) => {
-            const next = new Set(prev); next.add(id); saveLikedSet(currentUserEmail, next); return next;
+            const next = new Set(prev);
+            next.add(id);
+            saveLikedSet(currentUserEmail, next);
+            return next;
           });
-          setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1 } : p)));
+          setPosts((prev) => prev.map((p) => (
+            p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1 } : p
+          )));
         });
       return;
     }
-    // Optimistic LIKE
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: true, likes: p.likes + 1, likedBy: Array.isArray(p.likedBy) ? Array.from(new Set([...(p.likedBy as string[]), email!])) : [email!] } : p)));
-    // Update local liked set
+
+    setPosts((prev) => prev.map((p) => (
+      p.id === id
+        ? {
+            ...p,
+            likedByMe: true,
+            likes: p.likes + 1,
+            likedBy: Array.isArray(p.likedBy)
+              ? Array.from(new Set([...(p.likedBy as string[]), email!]))
+              : [email!],
+          }
+        : p
+    )));
+
     setLikedSet((prev) => {
       const next = new Set(prev);
       next.add(id);
       saveLikedSet(email, next);
       return next;
     });
-    // Heart overlays
+
     setOverlayLikedId(id);
     setOverlayPopId(id);
-    setTimeout(() => setOverlayLikedId((x) => (x === id ? null : x)), 700);
-    setTimeout(() => setOverlayPopId((x) => (x === id ? null : x)), 450);
-    // Notify backend like
+    setTimeout(() => setOverlayLikedId((value) => (value === id ? null : value)), 700);
+    setTimeout(() => setOverlayPopId((value) => (value === id ? null : value)), 450);
+
     fetch(`/api/feed/${id}/like`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, unlike: false }),
     })
-      .then(async (r) => {
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || data?.ok === false) throw new Error('like failed');
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) throw new Error('like failed');
         const liked = !!data?.liked;
         const likes = typeof data?.likes === 'number' ? data.likes : undefined;
-        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p)));
-        if (liked) { try { playLikeSound(); } catch {} }
+        setPosts((prev) => prev.map((p) => (
+          p.id === id ? { ...p, likedByMe: liked, likes: typeof likes === 'number' ? likes : p.likes } : p
+        )));
+        if (liked) {
+          try { playLikeSound(); } catch {}
+        }
       })
       .catch(() => {
-        // rollback local like
         setLikedSet((prev) => {
-          const next = new Set(prev); next.delete(id); saveLikedSet(currentUserEmail, next); return next;
+          const next = new Set(prev);
+          next.delete(id);
+          saveLikedSet(currentUserEmail, next);
+          return next;
         });
-        setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likedByMe: false, likes: Math.max(0, p.likes - 1) } : p)));
+        setPosts((prev) => prev.map((p) => (
+          p.id === id ? { ...p, likedByMe: false, likes: Math.max(0, p.likes - 1) } : p
+        )));
       });
   }
 
+  const currentDisplayName = useMemo(
+    () => session?.user?.name || authorName || nameFromEmail(currentUserEmail) || 'User',
+    [session?.user?.name, authorName, currentUserEmail]
+  );
+  const currentAvatarUrl = useMemo(
+    () => (session?.user?.image as string | undefined) || authorAvatar || null,
+    [session?.user?.image, authorAvatar]
+  );
+  const currentFirstName = useMemo(() => {
+    const name = currentDisplayName.split(' ')[0];
+    return name || 'you';
+  }, [currentDisplayName]);
+  const stories = useMemo(() => {
+    const items = posts
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map((story) => ({
+        id: story.id,
+        cover:
+          (Array.isArray(story.photos) && story.photos.length > 0 && story.photos[0]) ||
+          story.avatarUrl ||
+          `https://placehold.co/300x450?text=${encodeURIComponent(displayNameForPost(story).slice(0, 12))}`,
+        name: displayNameForPost(story),
+        avatar: story.avatarUrl || null,
+      }));
+    return items.slice(0, 8);
+  }, [posts]);
+
+  const displayNameForOnlineUser = (user: OnlineUser): string => {
+    const raw = user.name?.trim();
+    if (raw) return raw;
+    return nameFromEmail(user.email) || 'User';
+  };
+
   return (
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
-      {/* Glass header */}
+    <div className="relative min-h-screen flex flex-col bg-neutral-100 dark:bg-neutral-950">
       <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
         <div className="flex items-center gap-2">
           <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
             Feed
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <UserProfile />
         </div>
       </header>
 
-      <main className="relative flex-1 px-3 md:px-6 pt-20 md:pt-24 pb-[calc(4.5rem+28px)]">
-        <div className="mx-auto w-full max-w-md md:max-w-lg space-y-6">
-          {posts.map((p) => (
-            <Card key={p.id} className="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 shadow rounded-xl overflow-hidden">
-              <CardContent className="p-0">
-                {/* Header */}
-                <div className="flex items-center justify-between px-3 py-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={p.avatarUrl || authorAvatar || ''}
-                        alt={displayNameForPost(p)}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const t = e.currentTarget as HTMLImageElement;
-                          t.src = '';
-                        }}
-                      />
-                      <AvatarFallback>{displayNameForPost(p).slice(0,2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{displayNameForPost(p)}</div>
-                      <div className="text-[12px] text-neutral-600 dark:text-neutral-300 truncate">{p.cardName}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {p.edited && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-black/10 dark:border-white/10">Edited</span>
-                    )}
-                    <div className="text-[11px] text-neutral-500 whitespace-nowrap ml-2">{new Date(p.createdAt).toLocaleString()}</div>
-                  </div>
-                </div>
-
-                {/* Content layout depends on whether there are photos */}
-                {Array.isArray(p.photos) && p.photos.length > 0 ? (
-                  <>
-                    {/* Media */}
-                    <div className="relative w-full bg-black/5">
-                      <PostMedia
-                        photos={p.photos}
-                        onDoubleLike={() => {
-                          if (!p.likedByMe) {
-                            toggleLike(p.id);
-                          }
-                        }}
-                      />
-                      {/* Heart overlay */}
-                      <div className={`pointer-events-none absolute inset-0 ${overlayLikedId === p.id ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}>
-                        <div className="absolute inset-0 grid place-items-center">
-                          <Heart className="h-20 w-20 text-amber-400 drop-shadow-[0_6px_12px_rgba(249,115,22,0.45)] fill-amber-400 animate-heart-pop" />
+      <main className="relative flex-1 px-3 md:px-6 pt-20 md:pt-24 pb-10">
+        <div className="mx-auto w-full max-w-2xl space-y-5">
+          {onlineUsers.length > 0 && (
+            <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm px-4 py-4 online-users-animate" style={{ animationDelay: '40ms' }}>
+              <div className="flex items-center gap-4 overflow-x-auto">
+                {onlineUsers.slice(0, 18).map((user, index) => {
+                  const label = displayNameForOnlineUser(user);
+                  const key = user.email || `${label}-${index}`;
+                  return (
+                    <div
+                      key={key}
+                      className="flex w-20 flex-shrink-0 flex-col items-center gap-2 presence-animate"
+                      style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
+                    >
+                      <div className="relative">
+                        <div className="rounded-full bg-gradient-to-tr from-pink-500 via-amber-400 to-purple-500 p-[2px]">
+                          <Avatar className="h-14 w-14 border-2 border-white dark:border-neutral-900">
+                            <AvatarImage src={(user.image as string | undefined) || ''} alt={label} referrerPolicy="no-referrer" />
+                            <AvatarFallback>{label.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
                         </div>
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.45),rgba(253,186,116,0.35),rgba(249,115,22,0.2),rgba(253,186,116,0)_65%)] animate-like-ripple" />
-                        {[...Array(10)].map((_, i) => (
-                          <span key={i} className={`confetti confetti-${i} ${overlayLikedId === p.id ? 'animate-confetti' : ''}`} />
-                        ))}
+                        <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full border-2 border-white dark:border-neutral-900 bg-emerald-400"></span>
                       </div>
+                      <span className="w-full truncate text-center text-xs text-neutral-600 dark:text-neutral-300">{label}</span>
                     </div>
-                    {/* Actions under media */}
-                    <div className="px-3 py-2 flex items-center gap-3 justify-between">
-                      <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
-                        <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
-                      </button>
-                      {currentUserEmail && p.ownerEmail === currentUserEmail && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setCardName(p.cardName);
-                              setText(p.text);
-                              setPhotos(p.photos || []);
-                              setEditPostId(p.id);
-                              setOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              const ok = window.confirm('Delete this post?');
-                              if (!ok) return;
-                              try {
-                                const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
-                                const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
-                                if (!res.ok) throw new Error('Delete failed');
-                                toast({ title: 'Deleted', description: 'Your post has been removed.' });
-                                await fetchPosts();
-                              } catch (_) {
-                                toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
-                    {p.text && <div className="px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
-                    {/* Poll (if any) */}
-                    {p.poll && <PollBlock post={p} />}
-                    <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
-                  </>
-                ) : (
-                  <>
-                    {/* No images: caption first */}
-                    {p.text && <div className="px-3 pt-3 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
-                    {/* Actions under caption */}
-                    <div className="px-3 py-2 flex items-center gap-3 justify-between">
-                      <button onClick={() => toggleLike(p.id)} className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`} aria-label="Like">
-                        <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
-                      </button>
-                      {currentUserEmail && p.ownerEmail === currentUserEmail && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setCardName(p.cardName);
-                              setText(p.text);
-                              setPhotos(p.photos || []);
-                              setEditPostId(p.id);
-                              setOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={async () => {
-                              const ok = window.confirm('Delete this post?');
-                              if (!ok) return;
-                              try {
-                                try { const audio = new Audio('/sound/B%20tone.wav'); audio.play().catch(() => {}); } catch {}
-                                const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
-                                const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
-                                if (!res.ok) throw new Error('Delete failed');
-                                toast({ title: 'Deleted', description: 'Your post has been removed.' });
-                                await fetchPosts();
-                              } catch (_) {
-                                toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
-                              }
-                            }}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
-                    {/* Poll (if any) */}
-                    {p.poll && <PollBlock post={p} />}
-                    <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-          {posts.length === 0 && (
-            <div className="text-center text-sm text-neutral-600 dark:text-neutral-300 py-16 border border-dashed rounded-2xl border-black/10 dark:border-white/10">
-              No posts yet. Tap + to create your first post.
+                  );
+                })}
+              </div>
             </div>
           )}
+
+          <Card className="bg-white dark:bg-neutral-900 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm feed-card-animate" style={{ animationDelay: '80ms' }}>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-11 w-11">
+                  <AvatarImage src={currentAvatarUrl || ''} alt={currentDisplayName} referrerPolicy="no-referrer" />
+                  <AvatarFallback>{currentDisplayName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  onClick={() => setOpen(true)}
+                  className="h-11 flex-1 rounded-full border border-black/10 dark:border-white/10 bg-neutral-100/80 dark:bg-neutral-800/60 px-4 text-left text-sm text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60"
+                >
+                  {`What's on your mind, ${currentFirstName}?`}
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-5">
+            {posts.map((p, index) => (
+              <Card
+                key={p.id}
+                className="bg-white dark:bg-neutral-900 border border-black/5 dark:border-white/10 shadow-sm rounded-2xl overflow-hidden feed-card-animate"
+                style={{ animationDelay: `${Math.min(index, 8) * 60 + 120}ms` }}
+              >
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage
+                          src={p.avatarUrl || authorAvatar || ''}
+                          alt={displayNameForPost(p)}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const t = e.currentTarget as HTMLImageElement;
+                            t.src = '';
+                          }}
+                        />
+                        <AvatarFallback>{displayNameForPost(p).slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold truncate">{displayNameForPost(p)}</div>
+                        <div className="text-[12px] text-neutral-600 dark:text-neutral-300 truncate">{p.cardName}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {p.edited && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-black/10 dark:border-white/10">Edited</span>
+                      )}
+                      <div className="text-[11px] text-neutral-500 whitespace-nowrap ml-2">{new Date(p.createdAt).toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  {Array.isArray(p.photos) && p.photos.length > 0 ? (
+                    <>
+                      <div className="relative w-full bg-black/5">
+                        <PostMedia
+                          photos={p.photos}
+                          onDoubleLike={() => {
+                            if (!p.likedByMe) {
+                              toggleLike(p.id);
+                            }
+                          }}
+                        />
+                        <div className={`pointer-events-none absolute inset-0 ${overlayLikedId === p.id ? 'opacity-100' : 'opacity-0'} transition-opacity duration-150`}>
+                          <div className="absolute inset-0 grid place-items-center">
+                            <Heart className="h-20 w-20 text-amber-400 drop-shadow-[0_6px_12px_rgba(249,115,22,0.45)] fill-amber-400 animate-heart-pop" />
+                          </div>
+                          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.45),rgba(253,186,116,0.35),rgba(249,115,22,0.2),rgba(253,186,116,0)_65%)] animate-like-ripple" />
+                          {[...Array(10)].map((_, i) => (
+                            <span key={i} className={`confetti confetti-${i} ${overlayLikedId === p.id ? 'animate-confetti' : ''}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="px-3 py-2 flex items-center gap-3 justify-between">
+                        <button
+                          onClick={() => toggleLike(p.id)}
+                          className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`}
+                          aria-label="Like"
+                        >
+                          <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
+                        </button>
+                        {currentUserEmail && p.ownerEmail === currentUserEmail && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setCardName(p.cardName);
+                                setText(p.text);
+                                setPhotos(p.photos || []);
+                                setEditPostId(p.id);
+                                setOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                const ok = window.confirm('Delete this post?');
+                                if (!ok) return;
+                                try {
+                                  const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
+                                  const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
+                                  if (!res.ok) throw new Error('Delete failed');
+                                  toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                                  await fetchPosts();
+                                } catch (_) {
+                                  toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
+                      {p.text && <div className="px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
+                      {p.poll && <PollBlock post={p} />}
+                      <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
+                    </>
+                  ) : (
+                    <>
+                      {p.text && <div className="px-3 pt-3 text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap">{p.text}</div>}
+                      <div className="px-3 py-2 flex items-center gap-3 justify-between">
+                        <button
+                          onClick={() => toggleLike(p.id)}
+                          className={`inline-flex items-center gap-1 ${p.likedByMe ? 'text-rose-600' : 'text-neutral-800 dark:text-neutral-200'}`}
+                          aria-label="Like"
+                        >
+                          <Heart className={`h-6 w-6 ${p.likedByMe ? 'fill-rose-600' : ''} ${overlayPopId === p.id ? 'animate-like-pop' : ''}`} />
+                        </button>
+                        {currentUserEmail && p.ownerEmail === currentUserEmail && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setCardName(p.cardName);
+                                setText(p.text);
+                                setPhotos(p.photos || []);
+                                setEditPostId(p.id);
+                                setOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={async () => {
+                                const ok = window.confirm('Delete this post?');
+                                if (!ok) return;
+                                try {
+                                  try { const audio = new Audio('/sound/B%20tone.wav'); audio.play().catch(() => {}); } catch {}
+                                  const q = currentUserEmail ? `?email=${encodeURIComponent(currentUserEmail)}` : '';
+                                  const res = await fetch(`/api/feed/${p.id}${q}`, { method: 'DELETE' });
+                                  if (!res.ok) throw new Error('Delete failed');
+                                  toast({ title: 'Deleted', description: 'Your post has been removed.' });
+                                  await fetchPosts();
+                                } catch (_) {
+                                  toast({ title: 'Error', description: 'Failed to delete. Please try again.', variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="px-3 text-sm font-semibold">{p.likes} likes</div>
+                      {p.poll && <PollBlock post={p} />}
+                      <div className="px-3 pb-3 text-[11px] uppercase tracking-wide text-neutral-500">{new Date(p.createdAt).toLocaleDateString()}</div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            {posts.length === 0 && (
+              <div className="text-center text-sm text-neutral-600 dark:text-neutral-300 py-16 border border-dashed rounded-2xl border-black/10 dark:border-white/10">
+                No posts yet.
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
-      {/* macOS-like bounce animation and loader + dialog pager-like animation styles */}
       <style jsx global>{`
+        .feed-card-animate {
+          animation: feed-card-rise 420ms cubic-bezier(.2,.8,.2,1);
+          animation-fill-mode: backwards;
+        }
+        .story-tile-animate {
+          animation: story-tile-float 480ms cubic-bezier(.2,.8,.2,1);
+          animation-fill-mode: backwards;
+        }
+        .presence-animate {
+          animation: presence-pop 360ms cubic-bezier(.2,.8,.2,1);
+          animation-fill-mode: backwards;
+        }
+        .online-users-animate {
+          animation: feed-card-rise 380ms cubic-bezier(.2,.8,.2,1);
+          animation-fill-mode: backwards;
+        }
+        @keyframes feed-card-rise {
+          0% { opacity: 0; transform: translateY(18px) scale(.97); }
+          60% { opacity: 1; transform: translateY(-2px) scale(1.01); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes story-tile-float {
+          0% { opacity: 0; transform: translateY(14px) rotate(-1deg) scale(.95); }
+          65% { opacity: 1; transform: translateY(-4px) rotate(0deg) scale(1.02); }
+          100% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+        }
+        @keyframes presence-pop {
+          0% { opacity: 0; transform: translateY(12px) scale(.85); }
+          55% { opacity: 1; transform: translateY(-2px) scale(1.05); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
         @keyframes mac-bounce {
           0% { transform: translateY(0) scale(1); }
           20% { transform: translateY(-8px) scale(1.06); }
@@ -1025,35 +1194,37 @@ export default function FeedPage() {
                   <p className="mt-1 text-xs text-neutral-500">Selected: {cardName || "—"}</p>
                 )}
               </div>
-              <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something..." rows={4} className="resize-none bg-white/80 dark:bg-white/10 rounded-xl ring-1 ring-black/10 dark:ring-white/10 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:border-emerald-500" disabled={submitting} />
-              {/* Emoji + Poll controls */}
-              <div className="flex items-center gap-2">
+              <div className="relative">
+                <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Write something..." rows={4} className="resize-none bg-white/80 dark:bg-white/10 rounded-xl ring-1 ring-black/10 dark:ring-white/10 focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:border-emerald-500 pl-12 pr-12 pb-12" disabled={submitting} />
                 <Button
                   type="button"
-                  size="sm"
+                  size="icon"
+                  variant="ghost"
                   onClick={() => setEmojiOpen(v => !v)}
                   disabled={submitting}
-                  className="rounded-xl bg-gradient-to-r from-yellow-400 via-orange-400 to-pink-500 text-white hover:from-yellow-500 hover:via-orange-500 hover:to-pink-600 shadow-lg border-0 transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="absolute left-3 bottom-3 flex h-10 w-10 items-center justify-center bg-transparent text-2xl transition-transform duration-200 hover:scale-110 hover:!bg-transparent focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:!bg-transparent active:!bg-transparent"
+                  aria-label="Toggle emojis"
                 >
-                  <span className="mr-1.5 text-lg">😊</span> Emojis
+                  <span>😊</span>
                 </Button>
                 <Button
                   type="button"
-                  size="sm"
-                  onClick={() => setPollOpen(v => !v)}
-                  disabled={submitting}
-                  className="rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 shadow-lg border-0 transition-all duration-300 hover:scale-105 active:scale-95"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={photos.length >= 5 || submitting}
+                  className="absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white transition-transform duration-200 focus-visible:!ring-0 focus-visible:!ring-offset-0 hover:!bg-emerald-500 active:!bg-emerald-600"
+                  aria-label="Add photos"
                 >
-                  <span className="mr-1.5 text-base">📊</span>
-                  {pollOpen ? 'Remove poll' : 'Add poll'}
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
               {emojiOpen && (
-                <div className="mt-2 rounded-2xl border border-black/10 dark:border-white/10 p-4 bg-gradient-to-br from-white via-orange-50 to-pink-50 dark:from-neutral-900 dark:via-neutral-900 dark:to-neutral-800 shadow-xl bounce-in">
+                <div className="mt-2 rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white dark:bg-neutral-900 shadow-sm">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">✨</span>
-                      <div className="text-sm font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">Find emojis</div>
+                      <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Find emojis</div>
                     </div>
                     {emojiLoading && <div className="text-[11px] text-neutral-500 shimmer">Loading…</div>}
                   </div>
@@ -1065,7 +1236,7 @@ export default function FeedPage() {
                       className="h-10 text-sm bg-white dark:bg-neutral-800 rounded-xl border-2 border-orange-200 dark:border-orange-900 focus:border-orange-400 dark:focus:border-orange-600 transition-colors"
                     />
                   </div>
-                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-1.5 max-h-64 overflow-auto pr-1 scrollbar-thin scrollbar-thumb-orange-300 dark:scrollbar-thumb-orange-700">
+                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-1.5 max-h-64 overflow-auto pr-1">
                     {((emojiList.length > 0
                       ? emojiList.filter(e => !emojiQuery.trim() || e.slug.includes(emojiQuery.trim().toLowerCase()))
                       : commonEmojis.map((c) => ({ character: c, slug: c }))
@@ -1073,7 +1244,7 @@ export default function FeedPage() {
                       <button
                         key={em.slug}
                         type="button"
-                        className="text-2xl p-2.5 rounded-xl bg-white/50 dark:bg-neutral-800/50 hover:bg-gradient-to-br hover:from-orange-100 hover:to-pink-100 dark:hover:from-orange-900/30 dark:hover:to-pink-900/30 transition-all duration-200 hover:scale-125 active:scale-95 hover:shadow-lg"
+                        className="text-2xl p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                         onClick={() => setText(prev => prev + em.character)}
                         title={em.slug}
                         aria-label={em.slug}
@@ -1120,11 +1291,8 @@ export default function FeedPage() {
               )}
               <div>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFilesSelected(e.target.files)} />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center">
                   <p className="text-xs text-neutral-600 dark:text-neutral-300">Photos (optional) • {photos.length}/5</p>
-                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={photos.length >= 5 || submitting} className="bg-orange-500 text-white hover:bg-orange-600 border-none rounded-xl shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
-                    Add photos
-                  </Button>
                 </div>
                 {photos.length > 0 && (
                   <div className="mt-2 grid grid-cols-3 gap-2">
@@ -1149,7 +1317,7 @@ export default function FeedPage() {
                 type="button"
                 variant="ghost"
                 onClick={() => { if (submitting) return; setOpen(false); resetComposer(); }}
-                className="rounded-xl hover:bg-neutral-100/60 dark:hover:bg-white/10"
+                className="rounded-xl"
                 disabled={submitting}
               >
                 Cancel

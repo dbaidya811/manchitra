@@ -13,7 +13,7 @@ interface VisitItem {
   lat: number;
   lon: number;
   time: number; // epoch ms
-  status?: 'visited' | 'not-visited' | 'on-routing';
+  status?: 'visited' | 'not-visited' | 'pending';
 }
 
 interface SearchItem {
@@ -65,11 +65,17 @@ export default function HistoryPage() {
             updated = true;
             return { ...e, status: 'visited' };
           }
-          
-          // Otherwise, if not visited and distance > threshold, mark as on-routing
+
+          // Pending items within 100m should be marked visited
+          if (e.status === 'pending' && dist <= 100) {
+            updated = true;
+            return { ...e, status: 'visited' };
+          }
+
+          // Otherwise, if not visited and distance > threshold, mark as pending
           if (e.status === 'not-visited') {
             updated = true;
-            return { ...e, status: 'on-routing' };
+            return { ...e, status: 'pending' };
           }
           
           return e;
@@ -84,7 +90,7 @@ export default function HistoryPage() {
             lat: Number(e.lat),
             lon: Number(e.lon),
             time: Number(e.time) || Date.now(),
-            status: e.status === 'on-routing' ? 'on-routing' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
+            status: e.status === 'pending' || e.status === 'on-routing' ? 'pending' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
           }));
           arr.sort((a, b) => b.time - a.time);
           setVisits(arr);
@@ -102,7 +108,7 @@ export default function HistoryPage() {
         lat: Number(e.lat),
         lon: Number(e.lon),
         time: Number(e.time) || Date.now(),
-        status: e.status === 'on-routing' ? 'on-routing' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
+        status: e.status === 'pending' || e.status === 'on-routing' ? 'pending' : (e.status === 'not-visited' ? 'not-visited' : 'visited'),
       }));
       arr.sort((a, b) => b.time - a.time);
       setVisits(arr);
@@ -395,8 +401,8 @@ export default function HistoryPage() {
                                 {/* Status tag based on entry status */}
                                 {v.status === 'not-visited' ? (
                                   <span className="shrink-0 rounded-full bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 text-[11px] font-semibold">Not Visited</span>
-                                ) : v.status === 'on-routing' ? (
-                                  <span className="shrink-0 rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-[11px] font-semibold animate-pulse">On Routing</span>
+                                ) : v.status === 'pending' ? (
+                                  <span className="shrink-0 rounded-full bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 text-[11px] font-semibold animate-pulse">Pending</span>
                                 ) : (
                                   <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px] font-semibold">Visited</span>
                                 )}

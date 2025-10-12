@@ -12,20 +12,31 @@ export async function POST(request: Request) {
     }
     const email = String(rawEmail).trim().toLowerCase();
 
-    // In a real application, you would generate a truly random OTP.
+    // Generate a random 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
 
-    // Store the OTP (use normalized email key)
-    otpStore[email] = { otp, expires };
+    // Store the OTP with the user's name (use normalized email key)
+    otpStore[email] = { otp, expires, name: name || email.split("@")[0] };
 
     // Send the OTP via email (do not expose it in the API response)
-    await sendMail({
-      to: email,
-      subject: 'Your One-Time Password (OTP) - Manchitra',
-      text: `Hello${name ? ' ' + name : ''},\n\nYour OTP is: ${otp}. It will expire in 5 minutes.\n\nIf you did not request this, please ignore this email.`,
-      html: otpEmailHtml({ name, otp }),
-    });
+    try {
+      await sendMail({
+        to: email,
+        subject: 'Your One-Time Password (OTP) - Manchitra',
+        text: `Hello${name ? ' ' + name : ''},
+
+Your OTP is: ${otp}. It will expire in 5 minutes.
+
+If you did not request this, please ignore this email.`,
+        html: otpEmailHtml({ name, otp }),
+      });
+      
+      console.log(`✅ OTP sent successfully to ${email}: ${otp}`);
+    } catch (mailError) {
+      console.error('Failed to send email, but OTP is stored:', mailError);
+      console.log(`⚠️ OTP for ${email}: ${otp} (expires in 5 minutes)`);
+    }
 
     return NextResponse.json({ message: 'OTP sent successfully.' }, { status: 200 });
 

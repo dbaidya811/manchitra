@@ -12,13 +12,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
 import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Place } from "@/lib/types";
 import { useSession, signOut } from "next-auth/react";
 import { Loader } from "@/components/ui/loader";
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 
 interface UserProfileProps {
   onPlaceSubmit?: (place: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => void;
@@ -90,46 +91,91 @@ const SlideToCall: React.FC<{ label: string; onConfirm: () => void }> = ({ label
 export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session, status } = useSession();
+  const { session, status, refreshSessionWithRetry, isLoggingOut, setLogoutState } = useSessionRefresh();
   const { toast } = useToast();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isAddPlaceOpen, setIsAddPlaceOpen] = useState(false);
   const [isSosOpen, setIsSosOpen] = useState(false);
-  const [guestName, setGuestName] = useState<string>("");
-  const [guestEmail, setGuestEmail] = useState<string>("");
-  const [guestImage, setGuestImage] = useState<string>("");
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
 
   const isLoading = status === "loading";
+
+  // Force session refresh if authenticated but missing user data
   useEffect(() => {
-    // Fallback for Guest login: read name/email from localStorage set by OTP flow
-    try {
-      const stored = localStorage.getItem("user");
-      if (stored) {
-        const parsed = JSON.parse(stored) as { name?: string; email?: string; image?: string };
-        setGuestName(parsed.name || "");
-        setGuestEmail(parsed.email || "");
-        setGuestImage(parsed.image || "");
-      } else {
-        setGuestName("");
-        setGuestEmail("");
-        setGuestImage("");
-      }
-    } catch (_) {
-      // ignore parse errors
+    if (status === "authenticated" && session && (!session.user?.name || !session.user?.email) && !isLoggingOut) {
+      // Session exists but missing user data, try to refresh
+      setTimeout(() => {
+        refreshSessionWithRetry();
+      }, 200);
     }
-  }, [status]);
+  }, [status, session, refreshSessionWithRetry, isLoggingOut]);
 
-  const userName = isLoading ? "Loading..." : (session?.user?.name || guestName || "Guest");
-  const userEmail = isLoading ? "" : (session?.user?.email || guestEmail || "");
-  const userImage = isLoading ? "" : (session?.user?.image || guestImage || "");
+  const nameFromEmail = (email?: string | null) => {
+    if (!email) return "";
+    const local = email.split("@")[0] || "";
+    if (!local) return "";
+    return local
+      .replace(/[._-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
 
+  const userName = useMemo(() => {
+    if (isLoading) return "Loading...";
+    const sessionName = session?.user?.name?.trim();
+    if (sessionName) return sessionName;
+    const sessionEmail = session?.user?.email?.trim();
+    if (sessionEmail) {
+      const derived = nameFromEmail(sessionEmail.toLowerCase());
+      if (derived) return derived;
+    }
+    return status === "authenticated" ? "" : "Sign in";
+  }, [isLoading, status, session?.user?.name, session?.user?.email]);
+
+  const userEmail = useMemo(() => {
+    if (isLoading) return "";
+    return status === "authenticated" ? (session?.user?.email || "") : "";
+  }, [isLoading, status, session?.user?.email]);
+
+  const userImage = useMemo(() => {
+    if (isLoading) return "";
+    return status === "authenticated" ? ((session?.user?.image as string | undefined) || "") : "";
+  }, [isLoading, status, session?.user?.image]);
+
+  const executeLogout = async () => {
+    if (isLoggingOut) return;
+    setLogoutState(true);
+    try {
+      localStorage.removeItem("user-places");
+    } catch {}
+    
+    try {
+      // Use signOut with redirect: false to prevent NextAuth's confirmation page
+      const result = await signOut({ 
+        redirect: false,
+        callbackUrl: "/"
+      });
+      
+      // Clear any client-side session data
+      sessionStorage.clear();
+      
+      // Force redirect to home page
+      window.location.replace("/");
+    } catch (error) {
+      setLogoutState(false);
+      toast({ title: "Logout failed", description: "Please try again.", variant: "destructive" });
+    }
+  };
+  
   const handleLogout = () => {
-    setIsLoggingOut(true);
-    // Clear any local data if you still use it
-    localStorage.removeItem("user-places");
-    localStorage.removeItem("user");
-    // Sign out via NextAuth and return to home
-    signOut({ callbackUrl: "/" });
+    // Show confirmation dialog
+    setIsLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
+    setIsLogoutConfirmOpen(false);
+    executeLogout();
   };
   
   const handleAddPlace = () => {
@@ -329,6 +375,42 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
               <SlideToCall label="Child" onConfirm={() => sosCallNumber('1098')} />
               <SlideToCall label="Missing (Helpline)" onConfirm={() => sosCallNumber('9163737373')} />
               <SlideToCall label="Missing (Police)" onConfirm={() => sosCallNumber('22141835')} />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={isLogoutConfirmOpen} onOpenChange={setIsLogoutConfirmOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Signout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Are you sure you want to sign out?</p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+                disabled={isLoggingOut}
+                className="rounded-lg"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmLogout}
+                disabled={isLoggingOut}
+                className="rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <Loader size="sm" className="mr-2" />
+                    Signing out...
+                  </>
+                ) : (
+                  "Sign out"
+                )}
+              </Button>
             </div>
           </div>
         </DialogContent>

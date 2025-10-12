@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
+import { LocationPermissionGate } from "@/components/location-permission-gate";
+
 // Jitter filter thresholds (meters)
 const ACCURACY_MAX_M = 80;    // Ignore GPS updates worse than this
 const MIN_MOVE_M = 7;         // Ignore tiny positional noise
@@ -28,7 +30,7 @@ const AnimatedSearch = dynamic(() => import("@/components/dashboard/animated-sea
 const UserProfile = dynamic(() => import("@/components/dashboard/user-profile").then(m => m.UserProfile), { ssr: false, loading: () => null });
 const MobileNav = dynamic(() => import("@/components/dashboard/mobile-nav").then(m => m.MobileNav), { ssr: false, loading: () => null });
 
-export default function DashboardMapPage() {
+function DashboardMapPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [dest, setDest] = useState<{ lat: number; lon: number } | null>(null);
@@ -2714,6 +2716,14 @@ export default function DashboardMapPage() {
         {/* Removed legacy route summary panel */}
       </main>
     </div>
+  );
+}
+
+export default function DashboardMapPageWrapper() {
+  return (
+    <LocationPermissionGate>
+      <DashboardMapPage />
+    </LocationPermissionGate>
   );
 }
 

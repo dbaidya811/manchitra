@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User as UserIcon, Mail } from "lucide-react";
 import { Loader } from "@/components/ui/loader";
 import { signIn } from "next-auth/react";
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 
 interface LoginDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface LoginDialogProps {
 export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { refreshSession } = useSessionRefresh();
   const [step, setStep] = useState(1);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -79,10 +81,25 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
     if (!email || otpToUse.length !== 6) return;
     setIsVerifying(true);
     try {
-      // Use NextAuth Credentials provider for OTP login; will redirect on success
-      await signIn("credentials", { email, otp: otpToUse, callbackUrl: "/dashboard", redirect: true });
+      const result = await signIn("credentials", {
+        email,
+        otp: otpToUse,
+        callbackUrl: "/dashboard",
+        redirect: false,
+      });
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      toast({ title: "Success", description: "Welcome back! Redirecting now." });
+      resetFlow();
+      
+      // Redirect to dashboard
+      window.location.href = "/dashboard";
+      
     } catch (error: any) {
       toast({ title: "Error", description: error?.message || "Login failed", variant: "destructive" });
+    } finally {
       setIsVerifying(false);
     }
   };

@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { FetchSpinner } from "@/components/providers/fetch-spinner";
 import { NavigationSpinner } from "@/components/providers/navigation-spinner";
-import { LocationPermissionGate } from "@/components/location-permission-gate";
+import { ServiceWorkerProvider } from "@/components/providers/service-worker-provider";
+import { UrlCleanerProvider } from "@/components/providers/url-cleaner-provider";
 // import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
@@ -37,21 +38,20 @@ export default function RootLayout({
           crossOrigin=""
         />
         {/* Favicon (external PNG) */}
-        <link
-          rel="icon"
-          href="https://cdn-icons-png.flaticon.com/512/10313/10313212.png"
-          type="image/png"
-          sizes="any"
-        />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/favicon.png" type="image/png" sizes="any" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+        <meta name="theme-color" content="#f59e0b" />
       </head>
       <body className={cn("font-body antialiased")}>
         <AuthSessionProvider>
-          <LocationPermissionGate>
+          <UrlCleanerProvider>
+            <ServiceWorkerProvider />
             {children}
-          </LocationPermissionGate>
-          <Toaster />
-          <FetchSpinner />
-          <NavigationSpinner />
+            <Toaster />
+            <FetchSpinner />
+            <NavigationSpinner />
+          </UrlCleanerProvider>
         </AuthSessionProvider>
       </body>
     </html>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, AlertTriangle, Settings } from "lucide-react";
+import { MapPin, AlertTriangle, Settings, RefreshCw } from "lucide-react";
 
 interface LocationPermissionGateProps {
   children: React.ReactNode;
@@ -98,15 +98,8 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
     setIsLoading(false);
   };
 
-  const handleOpenSettings = () => {
-    // Try to open device settings
-    if ('permissions' in navigator && 'geolocation' in navigator.permissions) {
-      // For some browsers, we can try to trigger the permission prompt again
-      handleEnableLocation();
-    } else {
-      // Fallback: show instructions
-      alert('Please enable location access in your browser settings and refresh the page.');
-    }
+  const handleReload = () => {
+    window.location.reload();
   };
 
   // Show loading screen while checking permissions
@@ -148,39 +141,20 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
               Please enable location permissions to continue using the app.
             </p>
 
-            <div className="space-y-3 mb-6">
-              <Button
-                onClick={handleEnableLocation}
-                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white py-3 rounded-xl font-medium"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Enabling Location...
-                  </div>
-                ) : (
-                  <>
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Enable Location Access
-                  </>
-                )}
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={handleOpenSettings}
-                className="w-full border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-900/20 py-3 rounded-xl font-medium"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Open Settings
-              </Button>
-            </div>
-
             <div className="text-xs text-neutral-500 dark:text-neutral-400 space-y-2">
               <p>• Location data is only used for mapping features</p>
               <p>• Your privacy is protected - data stays on your device</p>
               <p>• You can disable location anytime in browser settings</p>
+            </div>
+
+            <div className="mt-6">
+              <Button
+                onClick={handleReload}
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white py-3 rounded-xl font-medium"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reload Page
+              </Button>
             </div>
           </CardContent>
         </Card>

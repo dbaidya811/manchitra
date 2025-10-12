@@ -20,7 +20,24 @@ import { StarRating } from "@/components/star-rating";
 export default function DashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Track client-side mounting to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
+  // Monitor session status and redirect if unauthenticated
+  useEffect(() => {
+    console.log('Dashboard - Session status:', status);
+    
+    if (status === "unauthenticated") {
+      console.log('Dashboard - User not authenticated, redirecting to home');
+      router.replace("/");
+    }
+  }, [status, router]);
+  
   const [places, setPlaces] = useState<Place[]>([]);
   const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -35,6 +52,23 @@ export default function DashboardPage() {
   const [routeSteps, setRouteSteps] = useState<{ title: string; detail?: string }[]>([]);
   // Removed Key Stops preview
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Debug loading state
+  useEffect(() => {
+    console.log('Dashboard loading state:', isLoading);
+  }, [isLoading]);
+
+  // Force loading to false after 3 seconds to prevent stuck loading
+  useEffect(() => {
+    const forceLoadingFalse = setTimeout(() => {
+      if (isLoading) {
+        console.log('Forcing loading state to false after timeout');
+        setIsLoading(false);
+      }
+    }, 3000);
+
+    return () => clearTimeout(forceLoadingFalse);
+  }, [isLoading]);
   const [mountedAt, setMountedAt] = useState<number>(Date.now());
   useEffect(() => {
     // used to stagger simple entrance animations
@@ -177,6 +211,7 @@ export default function DashboardPage() {
         const data = await res.json();
         if (res.ok && data?.ok && Array.isArray(data.places)) {
           setPlaces(data.places as Place[]);
+          setIsLoading(false);
           return;
         }
       } catch (_) {}
@@ -185,7 +220,23 @@ export default function DashboardPage() {
       if (storedPlaces) setPlaces(JSON.parse(storedPlaces));
       setIsLoading(false);
     };
-    load().finally(() => setIsLoading(false));
+    load().catch(() => {
+      // Ensure loading is set to false even if there's an error
+      setIsLoading(false);
+    });
+
+    // Safety timeout to ensure loading state doesn't get stuck
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000); // 5 seconds timeout
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [toast, status]);
+
+  // Load additional data
+  useEffect(() => {
     try {
       const rawSeen = localStorage.getItem("seen-places");
       setSeenIds(rawSeen ? JSON.parse(rawSeen) : []);
@@ -216,7 +267,7 @@ export default function DashboardPage() {
         { enableHighAccuracy: true, maximumAge: 1000 * 60 }
       );
     }
-  }, [toast, status]);
+  }, [toast]);
 
   // Removed Key Stops preload
 
@@ -489,6 +540,41 @@ export default function DashboardPage() {
     return { recentPlaces, areaGroups: groups };
   }, [places]);
 
+  // Wait for client-side hydration
+  if (!isMounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading while checking authentication
+  if (status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+          <p className="text-sm text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If unauthenticated, the useEffect above will redirect, but show loading meanwhile
+  if (status === "unauthenticated") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>
+          <p className="text-sm text-muted-foreground">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
@@ -533,23 +619,36 @@ export default function DashboardPage() {
           )}
           {groupedPlaces.recentPlaces.length > 0 ? (
             <PoiCarousel title="Recent" places={groupedPlaces.recentPlaces} isLoading={isLoading} />
-          ) : (
-            isLoading && (
-              <div className="mb-6">
-                <div className="h-6 w-40 bg-foreground/10 rounded mb-3 animate-pulse" />
-                <div className="flex gap-3 overflow-hidden">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="min-w-[70%] sm:min-w-[260px]">
-                      <div className="space-y-2">
-                        <div className="h-40 w-full bg-foreground/10 rounded-2xl animate-pulse" />
-                        <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse" />
-                        <div className="h-3 w-1/2 bg-foreground/10 rounded animate-pulse" />
-                      </div>
+          ) : isLoading ? (
+            <div className="mb-6">
+              <div className="h-6 w-40 bg-foreground/10 rounded mb-3 animate-pulse" />
+              <div className="flex gap-3 overflow-hidden">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="min-w-[70%] sm:min-w-[260px]">
+                    <div className="space-y-2">
+                      <div className="h-40 w-full bg-foreground/10 rounded-2xl animate-pulse" />
+                      <div className="h-4 w-3/4 bg-foreground/10 rounded animate-pulse" />
+                      <div className="h-3 w-1/2 bg-foreground/10 rounded animate-pulse" />
                     </div>
-                  ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold tracking-tight mb-4">Welcome to Manchitra!</h2>
+              <div className="text-center py-12">
+                <div className="mb-4">
+                  <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">No places yet</h3>
+                  <p className="text-muted-foreground mb-6">Start exploring by adding your first place!</p>
+                  <Button onClick={() => setPlaceToEdit({} as Place)} className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
+                    <MapPin className="mr-2 h-4 w-4" />
+                    Add Your First Place
+                  </Button>
                 </div>
               </div>
-            )
+            </div>
           )}
           {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
             areaPlaces.length > 0 && (
