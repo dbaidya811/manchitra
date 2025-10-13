@@ -14,7 +14,11 @@ import { UrlCleanerProvider } from "@/components/providers/url-cleaner-provider"
 export const metadata: Metadata = {
   title: "Manchitra - your hoping patner",
   description: "Visually build and customize your website with AI-powered content suggestions.",
-  icons: { icon: "/favicon.ico" },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/icon-192x192.png",
+    shortcut: "/favicon.png"
+  },
 };
 
 export default function RootLayout({
@@ -40,7 +44,7 @@ export default function RootLayout({
         {/* Favicon (external PNG) */}
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/favicon.png" type="image/png" sizes="any" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <meta name="theme-color" content="#f59e0b" />
       </head>
       <body className={cn("font-body antialiased")}>
