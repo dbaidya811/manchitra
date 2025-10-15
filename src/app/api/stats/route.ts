@@ -57,6 +57,12 @@ export async function GET() {
         totalUsers,
         recentUsers: uniqueUsers || []
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
   } catch (e: any) {
     console.error("❌ GET /api/stats error:", e);
@@ -78,6 +84,13 @@ export async function GET() {
         totalUsers: 0,
         recentUsers: []
       }
-    }, { status: 500 });
+    }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   }
 }

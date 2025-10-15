@@ -1,0 +1,71 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# Build outputs (Next.js handles this)
+.next
+out
+
+# Temporary folders
+tmp
+temp
+
+# Cache directories
+.npm
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+
+# Local development database
+*.sqlite
+*.sqlite3
+
+# Documentation (keep in repo but don't deploy)
+README.md
+*.md

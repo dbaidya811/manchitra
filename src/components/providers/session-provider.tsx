@@ -52,9 +52,9 @@ function LoginBeep() {
 export function AuthSessionProvider({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider
-      refetchInterval={0} // disable automatic refetch to avoid conflicts
-      refetchOnWindowFocus={false} // disable to avoid redirect loops
-      refetchWhenOffline={false} // don't refetch when offline
+      refetchInterval={60} // Re-enable automatic refetch every 60 seconds for session updates
+      refetchOnWindowFocus={true} // Re-enable to update session when window regains focus
+      refetchWhenOffline={false} // Don't refetch when offline
     >
       <LoginBeep />
       {children}

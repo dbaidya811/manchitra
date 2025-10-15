@@ -43,7 +43,13 @@ export async function GET(req: Request) {
 
     console.log('🏛️ Places API - found places:', places.length);
 
-    return NextResponse.json({ ok: true, places });
+    return NextResponse.json({ ok: true, places }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   } catch (e: any) {
     console.error("🏛️ Places API error:", e);
 
@@ -60,7 +66,14 @@ export async function GET(req: Request) {
       ok: false,
       error: e?.message || "Server error",
       places: []
-    }, { status: 500 });
+    }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   }
 }
 

@@ -6,7 +6,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
 import { LoginDialog } from "@/components/login-dialog";
-import { ArrowRight, Compass, MapPin, Users, ShieldCheck, Sparkles, Smartphone, Apple } from "lucide-react";
+import { ArrowRight, Compass, MapPin, Users, ShieldCheck, Sparkles, Smartphone, Apple, RefreshCw } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -38,9 +38,9 @@ export default function Home() {
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [showAndroidSteps, setShowAndroidSteps] = useState(false);
   const [showIosSteps, setShowIosSteps] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
   const [isReloadingAfterOAuth, setIsReloadingAfterOAuth] = useState(false);
-  const [showReloadPrompt, setShowReloadPrompt] = useState(false);
   const [stats, setStats] = useState<{ totalPlaces: number; totalUsers: number; recentUsers: Array<{ name?: string; email?: string; image?: string }>; places: Array<{ name: string; image?: string }> }>({ totalPlaces: 0, totalUsers: 0, recentUsers: [], places: [] });
   const [animatedPlaces, setAnimatedPlaces] = useState(0);
   const [animatedUsers, setAnimatedUsers] = useState(0);
@@ -135,7 +135,14 @@ export default function Home() {
         });
       }
     };
+
+    // Fetch stats immediately
     fetchStats();
+
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+
+    return () => clearInterval(interval);
   }, [session]); // Add session as dependency to refetch when user logs in
 
   // Animate counting for places
@@ -198,7 +205,6 @@ export default function Home() {
     if (hasAuthCallback && !sessionStorage.getItem('oauth_reload_done')) {
       console.log('🔄 Home - OAuth callback detected, hard reloading...');
       sessionStorage.setItem('oauth_reload_done', '1');
-      setIsReloadingAfterOAuth(true);
       
       // Clean URL and do hard reload after showing spinner
       setTimeout(() => {
@@ -224,24 +230,6 @@ export default function Home() {
       window.location.href = "/dashboard";
     }
   }, [status, session, hasRedirected]);
-
-  // Fallback: If user is stuck on login page after OAuth, show reload prompt
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasAuthCallback = urlParams.has('auth_callback');
-    
-    // If we have auth_callback but reload didn't happen, show prompt after 3 seconds
-    if (hasAuthCallback && !sessionStorage.getItem('oauth_reload_done')) {
-      const timer = setTimeout(() => {
-        console.log('⚠️ Reload timeout - showing manual reload prompt');
-        setShowReloadPrompt(true);
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, []);
 
 
   useEffect(() => {
@@ -337,10 +325,67 @@ export default function Home() {
   const handleGoogleLogin = async () => {
     console.log('Starting Google login...');
     // Use redirect: true to let NextAuth handle the full redirect flow
-    await signIn("google", { 
+    await signIn("google", {
       callbackUrl: "/dashboard",
-      redirect: true 
+      redirect: true
     });
+  };
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    console.log("🔄 Manual refresh triggered");
+
+    try {
+      const [statsRes, placesRes] = await Promise.all([
+        fetch('/api/stats?_t=' + Date.now()), // Cache-busting timestamp
+        fetch('/api/places?_t=' + Date.now())
+      ]);
+
+      const statsData = await statsRes.json();
+      const placesData = await placesRes.json();
+
+      if (statsRes.ok && statsData?.ok && statsData?.stats) {
+        const fallbackImages = [
+          'https://i.pinimg.com/736x/9d/05/1d/9d051d40efb06a161168be727dbdc63c.jpg',
+          'https://i.pinimg.com/1200x/2d/94/89/2d9489c144c648a9555423350f4af452.jpg',
+          'https://i.pinimg.com/736x/c5/33/53/c533530164b5fcd8cbb9e1c0ea8b90d9.jpg'
+        ];
+        let fallbackIndex = 0;
+
+        const places = placesData?.ok && placesData?.places ?
+          placesData.places
+            .filter((p: any) => p.tags?.name)
+            .map((p: any) => {
+              let image;
+              if (Array.isArray(p.photos) && p.photos.length > 0) {
+                image = p.photos[0];
+              } else {
+                image = fallbackImages[fallbackIndex % fallbackImages.length];
+                fallbackIndex++;
+              }
+              return {
+                name: p.tags.name,
+                image
+              };
+            })
+            .filter((place: any, index: number, self: any[]) =>
+              index === self.findIndex((p: any) => p.name === place.name)
+            ) : [];
+
+        setStats({
+          ...statsData.stats,
+          places
+        });
+
+        console.log("✅ Manual refresh successful");
+      }
+    } catch (error) {
+      console.error("❌ Manual refresh failed:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -650,7 +695,17 @@ export default function Home() {
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20"></div>
             <div className="relative z-10 p-6 sm:p-12">
               <div className="text-center mb-4 sm:mb-6">
-                <h3 className="text-lg sm:text-2xl font-bold text-white uppercase tracking-wider drop-shadow-lg">Our Community</h3>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <h3 className="text-lg sm:text-2xl font-bold text-white uppercase tracking-wider drop-shadow-lg">Our Community</h3>
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing}
+                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-all"
+                    title="Refresh stats"
+                  >
+                    <RefreshCw className={`h-4 w-4 text-white ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
                 <p className="text-white/90 text-xs sm:text-sm mt-1 sm:mt-2">Growing every day</p>
               </div>
               <div className="flex flex-row items-center justify-center gap-6 sm:gap-16">
@@ -906,39 +961,6 @@ export default function Home() {
           </div>
         </footer>
       </main>
-
-      {/* Manual Reload Prompt Dialog */}
-      {showReloadPrompt && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="mx-4 max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-orange-100 p-3">
-                <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Login Successful!</h3>
-            </div>
-            <p className="mb-6 text-sm text-gray-600">
-              Your Google login was successful. Please reload the page to continue to dashboard.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowReloadPrompt(false)}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="flex-1 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-2 text-sm font-medium text-white hover:from-yellow-500 hover:to-orange-600"
-              >
-                Reload Page
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
