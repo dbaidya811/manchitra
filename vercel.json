@@ -19,14 +19,6 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "functions": {
-    "src/**/*.ts": {
-      "runtime": "nodejs20.x"
-    },
-    "src/**/*.tsx": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
