@@ -910,9 +910,13 @@ function DashboardMapPage() {
     const tick = async () => {
       if (stopped) return;
       try {
+        console.log('Fetching places from API...');
         const res = await fetch('/api/places', { cache: 'no-store' });
+        console.log('API response status:', res.status);
         const data = await res.json();
+        console.log('API response data:', data);
         const list = Array.isArray(data?.places) ? data.places : [];
+        console.log('Places list length:', list.length);
         const out: Array<{ id: string | number; lat: number; lon: number; title?: string; userEmail?: string | null }> = [];
         for (const p of list) {
           let lat: number | null = null;
@@ -933,6 +937,7 @@ function DashboardMapPage() {
             out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, lat, lon, title: p.tags?.name || p.name || 'Place', userEmail: p.userEmail ?? null });
           }
         }
+        console.log('Processed markers:', out.length);
         // Only update state if data actually changed to avoid re-renders
         const hash = out.map(o => `${o.id}:${o.lat.toFixed(6)},${o.lon.toFixed(6)}`).join('|');
         if (hash !== prevHashRef.v) {
@@ -940,7 +945,8 @@ function DashboardMapPage() {
           setPoiMarkers(out);
         }
         backoffRef.v = 1; // reset backoff on success
-      } catch {
+      } catch (error) {
+        console.error('Error fetching places:', error);
         backoffRef.v = Math.min(backoffRef.v * 2, 8);
       } finally {
         scheduleNext();
@@ -1313,7 +1319,6 @@ function DashboardMapPage() {
   // Update heading and on-route check on live updates
   const [onRoute, setOnRoute] = useState<boolean>(true);
   const [offRouteMeters, setOffRouteMeters] = useState<number>(0);
-  const [offRoutePopup, setOffRoutePopup] = useState<boolean>(false); // lightweight chip (kept), drives screen notice via showOffRouteScreen
   const prevUserRef = useRef<{ lat: number; lon: number } | null>(null);
   useEffect(() => {
     if (!userPos) return;
@@ -1484,20 +1489,20 @@ function DashboardMapPage() {
     }
   };
 
-  // Off-route popup controller
-  useEffect(() => {
-    let timer: any;
-    if (!onRoute && offRouteMeters > 35) {
-      timer = setTimeout(() => {
-        setOffRoutePopup(true);
-        setShowOffRouteScreen(true);
-      }, 3000);
-    } else {
-      setOffRoutePopup(false);
-      setShowOffRouteScreen(false);
-    }
-    return () => timer && clearTimeout(timer);
-  }, [onRoute, offRouteMeters]);
+  // Off-route popup controller - DISABLED
+  // useEffect(() => {
+  //   let timer: any;
+  //   if (!onRoute && offRouteMeters > 35) {
+  //     timer = setTimeout(() => {
+  //       setOffRoutePopup(true);
+  //       setShowOffRouteScreen(true);
+  //     }, 3000);
+  //   } else {
+  //     setOffRoutePopup(false);
+  //     setShowOffRouteScreen(false);
+  //   }
+  //   return () => timer && clearTimeout(timer);
+  // }, [onRoute, offRouteMeters]);
 
   // If device provides heading in geolocation updates, incorporate it
   // We already start a watch in startNavigation; patch into that watcher by reading heading when present
@@ -2319,12 +2324,13 @@ function DashboardMapPage() {
             {/* All saved places markers (hide in nearest mode) */}
             {searchParams.get('mode') !== 'nearest' && poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
               const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
-              if (mine && myPlaceIcon) {
+              const iconToUse = mine ? myPlaceIcon : otherPlaceIcon;
+              if (iconToUse) {
                 return (
                   <RL.Marker
                     key={`poi-${poi.id}`}
                     position={[poi.lat, poi.lon]}
-                    icon={myPlaceIcon}
+                    icon={iconToUse}
                     eventHandlers={{
                       click: () => {
                         setDest({ lat: poi.lat, lon: poi.lon });
@@ -2363,7 +2369,6 @@ function DashboardMapPage() {
                   </RL.Marker>
                 );
               }
-              // Others: do not render green location pins as requested
               return null;
             })}
           </RL.MapContainer>
@@ -2663,25 +2668,60 @@ function DashboardMapPage() {
           </div>
         </div>
         )}
-        {/* On-route status chip */
-        }
-        {(routeCoords.length > 0 && userPos) && (
-          <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1500]">
-            <div className={`rounded-full border shadow-lg px-3 py-1.5 text-xs font-semibold backdrop-blur ${onRoute ? 'bg-emerald-500/90 border-emerald-600 text-white' : 'bg-red-500/90 border-red-600 text-white'}`}>
-              {onRoute ? 'On route' : `Wrong route ~${Math.round(offRouteMeters)} m`}
+        {/* Location off popup when routing */}
+        {routeCoords.length > 0 && !userPos && (
+          <div className="fixed inset-0 z-[1600] bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 shadow-2xl text-center border border-black/10 dark:border-white/10 max-w-sm">
+              <div className="mb-4">
+                <svg className="mx-auto h-12 w-12 text-orange-500 mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2v20M2 12h20" strokeLinecap="round" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">Location Required</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">Please turn on your location to use directions and navigation features.</p>
+              <button
+                onClick={async () => {
+                  try {
+                    if ('permissions' in navigator) {
+                      const permission = await navigator.permissions.query({ name: 'geolocation' });
+                      if (permission.state === 'denied') {
+                        alert('Location permission is blocked. Please enable it in your browser settings and refresh the page.');
+                        return;
+                      }
+                    }
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          // Permission granted, location will be updated via existing watchers
+                          console.log('Location enabled');
+                        },
+                        (error) => {
+                          if (error.code === error.PERMISSION_DENIED) {
+                            alert('Location permission denied. Please allow location access to use directions.');
+                          } else {
+                            alert('Unable to access location. Please check your device settings.');
+                          }
+                        },
+                        { enableHighAccuracy: true, timeout: 10000 }
+                      );
+                    } else {
+                      alert('Geolocation is not supported by this browser.');
+                    }
+                  } catch (err) {
+                    console.error('Error requesting location:', err);
+                    alert('Error accessing location. Please try again.');
+                  }
+                }}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Enable Location
+              </button>
             </div>
           </div>
         )}
 
-        {/* Prominent wrong-route banner */}
-        {showWrongRoute && (
-          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[2000]">
-            <div className="rounded-xl bg-red-600 text-white border border-red-700 shadow-xl px-4 py-2 text-sm font-semibold">
-              Wrong route detected â€¢ ~{Math.round(offRouteMeters)} m from route
-            </div>
-          </div>
-        )}
-
+        {/* Removed Wrong-route banner popup */}
         {/* Journey Completed overlay (hidden in nearest mode) */}
         {journeyCompleted && searchParams.get('mode') !== 'nearest' && (
           <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50 fade-in">
@@ -2695,24 +2735,7 @@ function DashboardMapPage() {
           </div>
         )}
 
-      {/* Off-route full-screen notice with re-route option */}
-      {showOffRouteScreen && (
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50 fade-in">
-          <div className="rounded-2xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-2xl p-6 w-[min(92vw,360px)] text-center border border-red-500/30 dark:border-red-400/30 bounce-in">
-            <div className="text-lg font-semibold text-red-600 mb-2">⚠️ You are off the route</div>
-            <div className="text-sm opacity-80 mb-4">About {Math.round(offRouteMeters)} m away from the planned path.</div>
-            <div className="flex gap-2 justify-center">
-              <button onClick={() => setShowOffRouteScreen(false)} className="px-4 py-2 rounded-lg bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-all duration-300">Dismiss</button>
-              <button
-                onClick={() => { if (userPos && dest) { fetchRoute({ lat: userPos.lat, lon: userPos.lon }, dest); setShowOffRouteScreen(false); } }}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600 transition-all duration-300 shadow-lg"
-              >
-                Re-route
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* Removed Off-route full-screen notice popup */}
         {/* Removed legacy route summary panel */}
       </main>
     </div>

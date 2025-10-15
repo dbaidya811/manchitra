@@ -98,7 +98,7 @@ export default function Home() {
       }
     };
     fetchStats();
-  }, []);
+  }, [session]); // Add session as dependency to refetch when user logs in
 
   // Animate counting for places
   useEffect(() => {
@@ -656,7 +656,11 @@ export default function Home() {
                           ) : (
                             <div className="relative rounded-full border-2 border-white shadow-xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 w-full h-full flex items-center justify-center group-hover:scale-110 transition-transform">
                               <span className="text-white text-base sm:text-xl font-black drop-shadow-lg" style={{ fontFamily: 'Lobster, cursive' }}>
-                                {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                                {(() => {
+                                  const name = user.name || user.email || 'U';
+                                  const firstChar = name.charAt(0).toUpperCase();
+                                  return /[A-Z]/.test(firstChar) ? firstChar : 'U';
+                                })()}
                               </span>
                             </div>
                           )}

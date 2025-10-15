@@ -146,25 +146,33 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const executeLogout = async () => {
     if (isLoggingOut) return;
     setLogoutState(true);
+
     try {
+      // Clear local storage first
       localStorage.removeItem("user-places");
-    } catch {}
-    
-    try {
-      // Use signOut with redirect: false to prevent NextAuth's confirmation page
-      const result = await signOut({ 
-        redirect: false,
+      sessionStorage.clear();
+
+      // Use NextAuth's signOut with redirect: true for proper cleanup
+      await signOut({
+        redirect: true,
         callbackUrl: "/"
       });
-      
-      // Clear any client-side session data
-      sessionStorage.clear();
-      
-      // Force redirect to home page
-      window.location.replace("/");
     } catch (error) {
+      console.error('Logout error:', error);
       setLogoutState(false);
-      toast({ title: "Logout failed", description: "Please try again.", variant: "destructive" });
+
+      // Fallback manual logout if NextAuth fails
+      try {
+        sessionStorage.clear();
+        localStorage.clear();
+        window.location.href = "/";
+      } catch (fallbackError) {
+        toast({
+          title: "Logout failed",
+          description: "Please refresh the page and try again.",
+          variant: "destructive"
+        });
+      }
     }
   };
   

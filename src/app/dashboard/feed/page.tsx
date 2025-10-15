@@ -859,7 +859,7 @@ export default function FeedPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar className="h-8 w-8">
                         <AvatarImage
-                          src={p.avatarUrl || authorAvatar || ''}
+                          src={p.avatarUrl || ''}
                           alt={displayNameForPost(p)}
                           referrerPolicy="no-referrer"
                           onError={(e) => {

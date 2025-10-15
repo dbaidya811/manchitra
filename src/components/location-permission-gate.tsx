@@ -25,7 +25,10 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
     try {
       // Check if geolocation is supported
       if (!navigator.geolocation) {
-        setShowPermissionScreen(true);
+        // Don't show popup when geolocation is not supported
+        // Just render children - map page will handle gracefully
+        setLocationEnabled(false);
+        setShowPermissionScreen(false);
         setIsLoading(false);
         return;
       }
@@ -37,7 +40,10 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
           setPermissionStatus(permission.state);
 
           if (permission.state === 'denied') {
-            setShowPermissionScreen(true);
+            // Don't show popup when permission is explicitly denied
+            // Just render children - map page will handle gracefully
+            setLocationEnabled(false);
+            setShowPermissionScreen(false);
           } else if (permission.state === 'granted') {
             setLocationEnabled(true);
             setShowPermissionScreen(false);
@@ -55,7 +61,9 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
       }
     } catch (error) {
       console.error('Error checking location permission:', error);
-      setShowPermissionScreen(true);
+      // Don't show popup when there's an error - just render children
+      setLocationEnabled(false);
+      setShowPermissionScreen(false);
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +82,8 @@ export function LocationPermissionGate({ children }: LocationPermissionGateProps
         (error) => {
           // Error - location denied or unavailable
           setLocationEnabled(false);
-          setShowPermissionScreen(true);
+          // Don't show popup when permission is denied
+          setShowPermissionScreen(false);
 
           if (error.code === error.PERMISSION_DENIED) {
             setPermissionStatus('denied');

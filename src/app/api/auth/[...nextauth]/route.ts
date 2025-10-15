@@ -145,25 +145,30 @@ if (hasEmailServer) {
 
 export const authOptions: AuthOptions = {
   providers,
-  session: { 
+  session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || "fallback-secret-key-change-in-production",
   debug: process.env.NODE_ENV !== 'production',
-  pages: { 
+  pages: {
     signIn: "/",
-    signOut: "/" 
+    signOut: "/"
   },
   callbacks: {
     async redirect({ url, baseUrl }: any) {
       console.log('NextAuth redirect callback - url:', url, 'baseUrl:', baseUrl);
-      
-      // Redirect to home page with a flag to trigger reload
-      // This ensures proper session initialization
+
+      // Handle logout redirect
+      if (url?.includes('signout') || url?.includes('logout')) {
+        console.log('NextAuth - Logout redirect detected');
+        return `${baseUrl}/`;
+      }
+
+      // For login flows, redirect to home page with a flag to trigger reload
       const homeUrl = `${baseUrl}/?auth_callback=1`;
       console.log('NextAuth - Redirecting to home for session check:', homeUrl);
-      
+
       return homeUrl;
     },
     async jwt({ token, account, profile, user }: any) {
@@ -175,7 +180,7 @@ export const authOptions: AuthOptions = {
             const db = await getDb();
             const users = db.collection("users");
             const dbUser = await users.findOne({ email: user.email });
-            
+
             // Use database user data if exists, otherwise use Google data
             if (dbUser) {
               token.name = dbUser.name || user?.name || token.name || (profile as any)?.name;
@@ -214,7 +219,7 @@ export const authOptions: AuthOptions = {
   events: {
     async signIn({ user, account, isNewUser }: any) {
       console.log('🎯 NextAuth signIn event - Provider:', account?.provider, 'User:', user?.email);
-      
+
       try {
         const db = await getDb();
         const users = db.collection("users");
@@ -226,10 +231,10 @@ export const authOptions: AuthOptions = {
               // Update only the timestamp and image if they exist, preserve name
               await users.updateOne(
                 { email: user.email },
-                { 
-                  $set: { 
-                    image: (user as any).image || existingUser.image || "", 
-                    updatedAt: new Date() 
+                {
+                  $set: {
+                    image: (user as any).image || existingUser.image || "",
+                    updatedAt: new Date()
                   }
                 }
               );
@@ -250,13 +255,18 @@ export const authOptions: AuthOptions = {
             );
           }
         }
-        
+
         console.log('✅ SignIn event complete');
-        
+
       } catch (e) {
         // Log and continue; do not block sign-in
         console.error("users upsert failed", e);
       }
+    },
+    async signOut({ session, token }: any) {
+      console.log('🚪 NextAuth signOut event - User:', session?.user?.email || token?.email);
+      // Clean up any server-side session data if needed
+      // This event fires when signOut is called
     },
   },
 };

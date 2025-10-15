@@ -11,11 +11,16 @@ export async function GET(req: Request) {
     const mine = url.searchParams.get("mine");
     const session = await getServerSession(authOptions);
 
+    console.log('Places API called:', { mine: !!mine, userEmail: session?.user?.email });
+
     const db = await getDb();
     const query: Record<string, any> = {};
     if (mine && session?.user?.email) {
       query.userEmail = session.user.email;
     }
+
+    console.log('Database query:', query);
+
     const places = await db
       .collection("places")
       .find(query)
@@ -23,6 +28,8 @@ export async function GET(req: Request) {
       .limit(500)
       .project({ _id: 0 })
       .toArray();
+
+    console.log('Found places:', places.length);
 
     return NextResponse.json({ ok: true, places });
   } catch (e: any) {
