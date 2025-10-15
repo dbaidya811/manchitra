@@ -7,19 +7,31 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   try {
+    console.log('🏛️ Places API called:', {
+      url: req.url,
+      mine: new URL(req.url).searchParams.get("mine")
+    });
+
     const url = new URL(req.url);
     const mine = url.searchParams.get("mine");
     const session = await getServerSession(authOptions);
 
-    console.log('Places API called:', { mine: !!mine, userEmail: session?.user?.email });
+    console.log('🏛️ Places API - auth check:', {
+      hasSession: !!session,
+      userEmail: session?.user?.email,
+      mine: !!mine
+    });
 
     const db = await getDb();
+
+    console.log('🏛️ Places API - MongoDB connection successful');
+
     const query: Record<string, any> = {};
     if (mine && session?.user?.email) {
       query.userEmail = session.user.email;
     }
 
-    console.log('Database query:', query);
+    console.log('🏛️ Places API - database query:', query);
 
     const places = await db
       .collection("places")
@@ -29,12 +41,26 @@ export async function GET(req: Request) {
       .project({ _id: 0 })
       .toArray();
 
-    console.log('Found places:', places.length);
+    console.log('🏛️ Places API - found places:', places.length);
 
     return NextResponse.json({ ok: true, places });
   } catch (e: any) {
-    console.error("GET /api/places error", e);
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    console.error("🏛️ Places API error:", e);
+
+    // Log additional debugging information
+    console.error("🏛️ Debug info:", {
+      errorMessage: e?.message,
+      errorStack: e?.stack,
+      mongoUri: process.env.MONGODB_URI ? "Set (hidden)" : "Not set",
+      mongoDb: process.env.MONGODB_DB || "Not set",
+      nodeEnv: process.env.NODE_ENV || "Not set"
+    });
+
+    return NextResponse.json({
+      ok: false,
+      error: e?.message || "Server error",
+      places: []
+    }, { status: 500 });
   }
 }
 

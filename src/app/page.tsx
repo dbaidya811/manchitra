@@ -54,22 +54,37 @@ export default function Home() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        console.log("🏠 Home page - fetching stats...");
+
         const [statsRes, placesRes] = await Promise.all([
           fetch('/api/stats'),
           fetch('/api/places')
         ]);
+
+        console.log("🏠 Home page - API responses received:", {
+          statsStatus: statsRes.status,
+          placesStatus: placesRes.status
+        });
+
         const statsData = await statsRes.json();
         const placesData = await placesRes.json();
-        
-        if (statsRes.ok && statsData?.stats) {
+
+        console.log("🏠 Home page - parsed data:", {
+          statsOk: statsData?.ok,
+          placesOk: placesData?.ok,
+          statsError: statsData?.error,
+          placesError: placesData?.error
+        });
+
+        if (statsRes.ok && statsData?.ok && statsData?.stats) {
           const fallbackImages = [
             'https://i.pinimg.com/736x/9d/05/1d/9d051d40efb06a161168be727dbdc63c.jpg',
             'https://i.pinimg.com/1200x/2d/94/89/2d9489c144c648a9555423350f4af452.jpg',
             'https://i.pinimg.com/736x/c5/33/53/c533530164b5fcd8cbb9e1c0ea8b90d9.jpg'
           ];
           let fallbackIndex = 0;
-          
-          const places = placesData?.places ? 
+
+          const places = placesData?.ok && placesData?.places ?
             placesData.places
               .filter((p: any) => p.tags?.name)
               .map((p: any) => {
@@ -85,16 +100,39 @@ export default function Home() {
                   image
                 };
               })
-              .filter((place: any, index: number, self: any[]) => 
+              .filter((place: any, index: number, self: any[]) =>
                 index === self.findIndex((p: any) => p.name === place.name)
               ) : [];
+
+          console.log("🏠 Home page - setting stats:", {
+            totalPlaces: statsData.stats.totalPlaces,
+            totalUsers: statsData.stats.totalUsers,
+            placesCount: places.length
+          });
+
           setStats({
             ...statsData.stats,
             places
           });
+        } else {
+          console.warn("🏠 Home page - stats API failed:", statsData?.error || "Unknown error");
+          // Set fallback values when API fails
+          setStats({
+            totalPlaces: 0,
+            totalUsers: 0,
+            recentUsers: [],
+            places: []
+          });
         }
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
+        console.error('🏠 Home page - failed to fetch stats:', error);
+        // Set fallback values when API fails
+        setStats({
+          totalPlaces: 0,
+          totalUsers: 0,
+          recentUsers: [],
+          places: []
+        });
       }
     };
     fetchStats();
@@ -102,7 +140,10 @@ export default function Home() {
 
   // Animate counting for places
   useEffect(() => {
-    if (stats.totalPlaces === 0) return;
+    if (stats.totalPlaces === 0) {
+      setAnimatedPlaces(0);
+      return;
+    }
     const duration = 2000; // 2 seconds
     const steps = 60;
     const increment = stats.totalPlaces / steps;
@@ -121,7 +162,10 @@ export default function Home() {
 
   // Animate counting for users
   useEffect(() => {
-    if (stats.totalUsers === 0) return;
+    if (stats.totalUsers === 0) {
+      setAnimatedUsers(0);
+      return;
+    }
     const duration = 2000; // 2 seconds
     const steps = 60;
     const increment = stats.totalUsers / steps;
