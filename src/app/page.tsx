@@ -6,7 +6,7 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { ImageCollage } from "@/components/image-collage";
 import { LoginDialog } from "@/components/login-dialog";
-import { ArrowRight, Compass, MapPin, Users, ShieldCheck, Sparkles, Smartphone, Apple, RefreshCw } from "lucide-react";
+import { ArrowRight, Compass, MapPin, Users, ShieldCheck, Sparkles, Smartphone, Apple } from "lucide-react";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -28,166 +28,17 @@ export default function Home() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  const [contactName, setContactName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactMessage, setContactMessage] = useState("");
-  const [contactSubmitting, setContactSubmitting] = useState(false);
-  const [contactFeedback, setContactFeedback] = useState<string | null>(null);
-  const [contactError, setContactError] = useState<string | null>(null);
   const [pwaPromptEvent, setPwaPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [showAndroidSteps, setShowAndroidSteps] = useState(false);
   const [showIosSteps, setShowIosSteps] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
   const [isReloadingAfterOAuth, setIsReloadingAfterOAuth] = useState(false);
-  const [stats, setStats] = useState<{ totalPlaces: number; totalUsers: number; recentUsers: Array<{ name?: string; email?: string; image?: string }>; places: Array<{ name: string; image?: string }> }>({ totalPlaces: 0, totalUsers: 0, recentUsers: [], places: [] });
-  const [animatedPlaces, setAnimatedPlaces] = useState(0);
-  const [animatedUsers, setAnimatedUsers] = useState(0);
 
   // Track client-side mounting to prevent hydration mismatch
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // Fetch stats (total places and users)
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        console.log("🏠 Home page - fetching stats...");
-
-        const [statsRes, placesRes] = await Promise.all([
-          fetch('/api/stats'),
-          fetch('/api/places')
-        ]);
-
-        console.log("🏠 Home page - API responses received:", {
-          statsStatus: statsRes.status,
-          placesStatus: placesRes.status
-        });
-
-        const statsData = await statsRes.json();
-        const placesData = await placesRes.json();
-
-        console.log("🏠 Home page - parsed data:", {
-          statsOk: statsData?.ok,
-          placesOk: placesData?.ok,
-          statsError: statsData?.error,
-          placesError: placesData?.error
-        });
-
-        if (statsRes.ok && statsData?.ok && statsData?.stats) {
-          const fallbackImages = [
-            'https://i.pinimg.com/736x/9d/05/1d/9d051d40efb06a161168be727dbdc63c.jpg',
-            'https://i.pinimg.com/1200x/2d/94/89/2d9489c144c648a9555423350f4af452.jpg',
-            'https://i.pinimg.com/736x/c5/33/53/c533530164b5fcd8cbb9e1c0ea8b90d9.jpg'
-          ];
-          let fallbackIndex = 0;
-
-          const places = placesData?.ok && placesData?.places ?
-            placesData.places
-              .filter((p: any) => p.tags?.name)
-              .map((p: any) => {
-                let image;
-                if (Array.isArray(p.photos) && p.photos.length > 0) {
-                  image = p.photos[0];
-                } else {
-                  image = fallbackImages[fallbackIndex % fallbackImages.length];
-                  fallbackIndex++;
-                }
-                return {
-                  name: p.tags.name,
-                  image
-                };
-              })
-              .filter((place: any, index: number, self: any[]) =>
-                index === self.findIndex((p: any) => p.name === place.name)
-              ) : [];
-
-          console.log("🏠 Home page - setting stats:", {
-            totalPlaces: statsData.stats.totalPlaces,
-            totalUsers: statsData.stats.totalUsers,
-            placesCount: places.length
-          });
-
-          setStats({
-            ...statsData.stats,
-            places
-          });
-        } else {
-          console.warn("🏠 Home page - stats API failed:", statsData?.error || "Unknown error");
-          // Set fallback values when API fails
-          setStats({
-            totalPlaces: 0,
-            totalUsers: 0,
-            recentUsers: [],
-            places: []
-          });
-        }
-      } catch (error) {
-        console.error('🏠 Home page - failed to fetch stats:', error);
-        // Set fallback values when API fails
-        setStats({
-          totalPlaces: 0,
-          totalUsers: 0,
-          recentUsers: [],
-          places: []
-        });
-      }
-    };
-
-    // Fetch stats immediately
-    fetchStats();
-
-    // Set up periodic refresh every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
-
-    return () => clearInterval(interval);
-  }, [session]); // Add session as dependency to refetch when user logs in
-
-  // Animate counting for places
-  useEffect(() => {
-    if (stats.totalPlaces === 0) {
-      setAnimatedPlaces(0);
-      return;
-    }
-    const duration = 2000; // 2 seconds
-    const steps = 60;
-    const increment = stats.totalPlaces / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= stats.totalPlaces) {
-        setAnimatedPlaces(stats.totalPlaces);
-        clearInterval(timer);
-      } else {
-        setAnimatedPlaces(Math.floor(current));
-      }
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, [stats.totalPlaces]);
-
-  // Animate counting for users
-  useEffect(() => {
-    if (stats.totalUsers === 0) {
-      setAnimatedUsers(0);
-      return;
-    }
-    const duration = 2000; // 2 seconds
-    const steps = 60;
-    const increment = stats.totalUsers / steps;
-    let current = 0;
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= stats.totalUsers) {
-        setAnimatedUsers(stats.totalUsers);
-        clearInterval(timer);
-      } else {
-        setAnimatedUsers(Math.floor(current));
-      }
-    }, duration / steps);
-    return () => clearInterval(timer);
-  }, [stats.totalUsers]);
 
   // Check if we just came back from OAuth callback and reload if needed
   useEffect(() => {
@@ -329,91 +180,6 @@ export default function Home() {
       callbackUrl: "/dashboard",
       redirect: true
     });
-  };
-
-  const handleManualRefresh = async () => {
-    if (isRefreshing) return;
-
-    setIsRefreshing(true);
-    console.log("🔄 Manual refresh triggered");
-
-    try {
-      const [statsRes, placesRes] = await Promise.all([
-        fetch('/api/stats?_t=' + Date.now()), // Cache-busting timestamp
-        fetch('/api/places?_t=' + Date.now())
-      ]);
-
-      const statsData = await statsRes.json();
-      const placesData = await placesRes.json();
-
-      if (statsRes.ok && statsData?.ok && statsData?.stats) {
-        const fallbackImages = [
-          'https://i.pinimg.com/736x/9d/05/1d/9d051d40efb06a161168be727dbdc63c.jpg',
-          'https://i.pinimg.com/1200x/2d/94/89/2d9489c144c648a9555423350f4af452.jpg',
-          'https://i.pinimg.com/736x/c5/33/53/c533530164b5fcd8cbb9e1c0ea8b90d9.jpg'
-        ];
-        let fallbackIndex = 0;
-
-        const places = placesData?.ok && placesData?.places ?
-          placesData.places
-            .filter((p: any) => p.tags?.name)
-            .map((p: any) => {
-              let image;
-              if (Array.isArray(p.photos) && p.photos.length > 0) {
-                image = p.photos[0];
-              } else {
-                image = fallbackImages[fallbackIndex % fallbackImages.length];
-                fallbackIndex++;
-              }
-              return {
-                name: p.tags.name,
-                image
-              };
-            })
-            .filter((place: any, index: number, self: any[]) =>
-              index === self.findIndex((p: any) => p.name === place.name)
-            ) : [];
-
-        setStats({
-          ...statsData.stats,
-          places
-        });
-
-        console.log("✅ Manual refresh successful");
-      }
-    } catch (error) {
-      console.error("❌ Manual refresh failed:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (contactSubmitting) return;
-    setContactSubmitting(true);
-    setContactFeedback(null);
-    setContactError(null);
-    try {
-      const res = await fetch("/api/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: contactName.trim(), email: contactEmail.trim(), message: contactMessage.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.ok === false) {
-        const msg = typeof data?.error === "string" ? data.error : "Unable to send message right now.";
-        throw new Error(msg);
-      }
-      setContactFeedback("Thanks for reaching out! We received your message and emailed a copy to you.");
-      setContactName("");
-      setContactEmail("");
-      setContactMessage("");
-    } catch (err: any) {
-      setContactError(err?.message || "Something went wrong. Please try again later.");
-    } finally {
-      setContactSubmitting(false);
-    }
   };
 
   const collageImages = [
@@ -577,7 +343,7 @@ export default function Home() {
                   <Users className="h-4 w-4" /> How it works
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900">From idea to shared journey</h2>
-                <p className="text-sm text-neutral-600">A lightweight flow to take you from “where should we go?” to “we made it!”.</p>
+                <p className="text-sm text-neutral-600">A lightweight flow to take you from "where should we go?" to "we made it!".</p>
               </div>
               <ol className="space-y-4">
                 {steps.map((step, index) => (
@@ -605,7 +371,7 @@ export default function Home() {
             <div className="grid gap-6 lg:grid-cols-3">
               {testimonials.map((item) => (
                 <blockquote key={item.name} className="rounded-3xl border border-white/30 bg-white/30 backdrop-blur p-6 text-left shadow-md text-white animate-slide-up" style={{ animationDelay: `${0.45 + testimonials.indexOf(item) * 0.1}s`, animationFillMode: 'backwards' }}>
-                  <p className="text-sm sm:text-base leading-relaxed">“{item.quote}”</p>
+                  <p className="text-sm sm:text-base leading-relaxed">"{item.quote}"</p>
                   <div className="mt-4 text-sm font-semibold">{item.name}</div>
                   <div className="text-xs uppercase tracking-widest text-white/70">{item.role}</div>
                   {item.socialUrl && item.socialLabel && (
@@ -655,7 +421,7 @@ export default function Home() {
                   {showAndroidSteps && (
                     <ul className="mt-4 space-y-2 rounded-xl bg-neutral-100/80 p-4 text-xs text-neutral-600">
                       <li>• Tap the browser menu ⋮.</li>
-                      <li>• In the menu, tap “Add to Home screen” (“Install app” on some browsers).</li>
+                      <li>• In the menu, tap "Add to Home screen" ("Install app" on some browsers).</li>
                       <li>• Confirm the prompt to add Manchitra.</li>
                     </ul>
                   )}
@@ -668,7 +434,7 @@ export default function Home() {
                       <p className="text-xs text-neutral-500">Safari</p>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm text-neutral-600">Install Manchitra using the Share menu and “Add to Home Screen”.</p>
+                  <p className="mt-4 text-sm text-neutral-600">Install Manchitra using the Share menu and "Add to Home Screen".</p>
                   <Button
                     type="button"
                     className="mt-4 w-full rounded-full bg-black text-white hover:bg-black focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -680,7 +446,7 @@ export default function Home() {
                     <ul className="mt-4 space-y-2 rounded-xl bg-neutral-100/80 p-4 text-xs text-neutral-600">
                       <li>• Open Manchitra in Safari.</li>
                       <li>• Tap the Share icon.</li>
-                      <li>• Select “Add to Home Screen”.</li>
+                      <li>• Select "Add to Home Screen".</li>
                       <li>• Tap Add to finish.</li>
                     </ul>
                   )}
@@ -688,123 +454,6 @@ export default function Home() {
               </div>
             </div>
           </section>
-
-          {/* Stats Box */}
-          <section className="relative rounded-3xl overflow-hidden shadow-2xl border-2 border-white/40 animate-fade-in max-w-sm sm:max-w-full mx-auto" style={{ animationDelay: '0.4s', animationFillMode: 'backwards' }}>
-            <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-400 to-red-500 opacity-95"></div>
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20"></div>
-            <div className="relative z-10 p-6 sm:p-12">
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <h3 className="text-lg sm:text-2xl font-bold text-white uppercase tracking-wider drop-shadow-lg">Our Community</h3>
-                  <button
-                    onClick={handleManualRefresh}
-                    disabled={isRefreshing}
-                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-all"
-                    title="Refresh stats"
-                  >
-                    <RefreshCw className={`h-4 w-4 text-white ${isRefreshing ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-                <p className="text-white/90 text-xs sm:text-sm mt-1 sm:mt-2">Growing every day</p>
-              </div>
-              <div className="flex flex-row items-center justify-center gap-6 sm:gap-16">
-                <div className="flex flex-col items-center gap-2 sm:gap-3 group">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-white/20 rounded-2xl blur-lg sm:blur-xl group-hover:blur-xl sm:group-hover:blur-2xl transition-all"></div>
-                    <div className="relative bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 sm:px-6 sm:py-4 border-2 border-white/30 group-hover:border-white/50 transition-all">
-                      <span className="text-3xl sm:text-6xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)]">
-                        {animatedPlaces.toLocaleString()}
-                        <span className="text-2xl sm:text-5xl">+</span>
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-sm sm:text-lg uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white font-bold drop-shadow-md">Places</span>
-                </div>
-                <div className="block h-16 sm:h-24 w-[2px] sm:w-[3px] bg-white/40 rounded-full"></div>
-                <div className="flex flex-col items-center gap-2 sm:gap-3 group">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-white/20 rounded-2xl blur-lg sm:blur-xl group-hover:blur-xl sm:group-hover:blur-2xl transition-all"></div>
-                    <div className="relative bg-white/10 backdrop-blur-sm rounded-2xl px-4 py-3 sm:px-6 sm:py-4 border-2 border-white/30 group-hover:border-white/50 transition-all">
-                      <span className="text-3xl sm:text-6xl font-black text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)]">
-                        {animatedUsers.toLocaleString()}
-                        <span className="text-2xl sm:text-5xl">+</span>
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-sm sm:text-lg uppercase tracking-[0.15em] sm:tracking-[0.2em] text-white font-bold drop-shadow-md">Users</span>
-                </div>
-              </div>
-              {stats.recentUsers.length > 0 && (
-                <div className="mt-4 sm:mt-6 overflow-hidden">
-                  <div className={`flex items-center gap-2 sm:gap-3 ${stats.recentUsers.length > 15 ? 'animate-scroll-x' : 'justify-center'}`}>
-                    {(stats.recentUsers.length > 15 ? [...stats.recentUsers, ...stats.recentUsers] : stats.recentUsers).map((user, index) => (
-                      <div
-                        key={`${user.email || 'user'}-${index}`}
-                        className="flex-shrink-0 group"
-                      >
-                        <div className="relative w-10 h-10 sm:w-14 sm:h-14">
-                          <div className="absolute inset-0 bg-white/20 rounded-full blur-lg group-hover:blur-xl transition-all"></div>
-                          {user.image ? (
-                            <img
-                              src={user.image}
-                              alt={user.name || 'User'}
-                              className="relative rounded-full border-2 border-white shadow-xl object-cover w-full h-full group-hover:scale-110 transition-transform"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="relative rounded-full border-2 border-white shadow-xl bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 w-full h-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                              <span className="text-white text-base sm:text-xl font-black drop-shadow-lg" style={{ fontFamily: 'Lobster, cursive' }}>
-                                {(() => {
-                                  const name = user.name || user.email || 'U';
-                                  const firstChar = name.charAt(0).toUpperCase();
-                                  return /[A-Z]/.test(firstChar) ? firstChar : 'U';
-                                })()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Places Carousel */}
-          {stats.places.length > 0 && (
-            <section className="overflow-x-auto overflow-y-hidden py-6 animate-fade-in scrollbar-hide" style={{ animationDelay: '0.42s', animationFillMode: 'backwards' }}>
-              <div className={`flex items-center gap-6 ${stats.places.length >= 10 ? 'sm:animate-scroll-x' : 'sm:justify-center sm:flex-wrap'}`}>
-                {stats.places.map((place, index) => (
-                  <div
-                    key={`${place.name}-${index}`}
-                    className="flex-shrink-0 flex flex-col items-center gap-3 group cursor-pointer"
-                  >
-                    <div className="relative p-2 bg-gradient-to-br from-yellow-400 via-orange-400 to-red-400 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-300 group-hover:scale-105">
-                      <div className="relative w-48 h-56 rounded-2xl overflow-hidden border-4 border-white/90 shadow-inner">
-                        <img
-                          src={place.image}
-                          alt={place.name}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent group-hover:from-black/40 transition-all"></div>
-                      </div>
-                      {/* Decorative corner elements */}
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-white/60 rounded-tl-2xl"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-white/60 rounded-tr-2xl"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-white/60 rounded-bl-2xl"></div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-white/60 rounded-br-2xl"></div>
-                    </div>
-                    <span className="text-sm italic font-bold drop-shadow-lg group-hover:animate-color-shift transition-all w-48 text-center truncate text-white" style={{ fontFamily: 'Playwrite AU TAS, cursive' }}>
-                      {place.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
           <style jsx>{`
             @import url('https://fonts.googleapis.com/css2?family=Lobster&display=swap');
@@ -882,72 +531,6 @@ export default function Home() {
             }
           `}</style>
 
-          <section className="rounded-3xl border border-white/40 bg-white/70 backdrop-blur-lg p-6 sm:p-8 md:p-10 text-center shadow-xl shadow-orange-500/15 animate-fade-in" style={{ animationDelay: '0.45s', animationFillMode: 'backwards' }}>
-            <div className="flex flex-col items-center gap-4 animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-              <h2 className="text-2xl sm:text-3xl font-bold text-neutral-900">Ready to chart your next adventure?</h2>
-              <p className="max-w-2xl text-sm sm:text-base text-neutral-600">
-                Join the Manchitra beta and start exploring with friends today. Sign in with your preferred method, or take a quick peek at the dashboard as a guest.
-              </p>
-              <div className="grid gap-4 w-full max-w-xl text-left animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
-                <form onSubmit={handleContactSubmit} className="grid gap-3">
-                  <div className="grid gap-2">
-                    <label htmlFor="contact-name" className="text-sm font-medium text-neutral-700 text-left">Name</label>
-                    <input
-                      id="contact-name"
-                      type="text"
-                      value={contactName}
-                      onChange={(e) => setContactName(e.target.value)}
-                      className="h-11 rounded-xl border border-black/10 bg-white px-4 text-sm text-neutral-800 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                      placeholder="Your name"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label htmlFor="contact-email" className="text-sm font-medium text-neutral-700 text-left">Email</label>
-                    <input
-                      id="contact-email"
-                      type="email"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      className="h-11 rounded-xl border border-black/10 bg-white px-4 text-sm text-neutral-800 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                      placeholder="you@example.com"
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <label htmlFor="contact-message" className="text-sm font-medium text-neutral-700 text-left">Message</label>
-                    <textarea
-                      id="contact-message"
-                      rows={4}
-                      value={contactMessage}
-                      onChange={(e) => setContactMessage(e.target.value)}
-                      className="rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-800 focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200"
-                      placeholder="Share how we can help you"
-                      required
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={contactSubmitting}
-                    className="inline-flex items-center justify-center rounded-full bg-orange-500 text-white shadow-lg hover:bg-orange-600 disabled:opacity-70"
-                  >
-                    {contactSubmitting ? "Sending..." : "Send message"}
-                    {!contactSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
-                  </Button>
-                </form>
-                {contactFeedback && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {contactFeedback}
-                  </div>
-                )}
-                {contactError && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {contactError}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
         </div>
 
         <footer className="relative z-10 border-t border-white/30 bg-black/20 backdrop-blur text-white/80">

@@ -642,10 +642,6 @@ export default function DashboardPage() {
                   <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-xl font-semibold mb-2">No places yet</h3>
                   <p className="text-muted-foreground mb-6">Start exploring by adding your first place!</p>
-                  <Button onClick={() => setPlaceToEdit({} as Place)} className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600">
-                    <MapPin className="mr-2 h-4 w-4" />
-                    Add Your First Place
-                  </Button>
                 </div>
               </div>
             </div>
