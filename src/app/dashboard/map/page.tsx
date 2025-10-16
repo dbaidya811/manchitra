@@ -19,7 +19,6 @@ const RL = {
   CircleMarker: dynamic(() => import('react-leaflet').then(m => m.CircleMarker), { ssr: false }),
   Polyline: dynamic(() => import('react-leaflet').then(m => m.Polyline), { ssr: false }),
   Marker: dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false }),
-  Tooltip: dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false }),
   Circle: dynamic(() => import('react-leaflet').then(m => m.Circle), { ssr: false }),
 } as const;
 
@@ -223,11 +222,7 @@ function DashboardMapPage() {
                   }
                 },
               }}
-            >
-              <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
-                {poi.title || 'Place'}
-              </RL.Tooltip>
-            </RL.Marker>
+            />
           );
         }
         if (otherPlaceIcon) {
@@ -267,11 +262,7 @@ function DashboardMapPage() {
                   }
                 },
               }}
-            >
-              <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
-                {poi.title || 'Place'}
-              </RL.Tooltip>
-            </RL.Marker>
+            />
           );
         }
         return null;
@@ -934,7 +925,9 @@ function DashboardMapPage() {
             lat = p.lat; lon = p.lon;
           }
           if (lat != null && lon != null && !Number.isNaN(lat) && !Number.isNaN(lon)) {
-            out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, lat, lon, title: p.tags?.name || p.name || 'Place', userEmail: p.userEmail ?? null });
+            // Extract name from p.name (if exists), p.tags.name, or fallback to 'Place'
+            const name = (p as any).name || p.tags?.name || 'Place';
+            out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, lat, lon, title: name, userEmail: p.userEmail ?? null });
           }
         }
         console.log('Processed markers:', out.length);
@@ -2312,11 +2305,7 @@ function DashboardMapPage() {
                   const isCurrent = idx === planIdx && !isVisited;
                   const iconToUse = isCurrent ? planIconBlue : planIconRed;
                   return (
-                    <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed}>
-                      <RL.Tooltip permanent direction="top" offset={[0, -12]} opacity={1} className="poi-label">
-                        {`${idx + 1}. ${s.name}`}
-                      </RL.Tooltip>
-                    </RL.Marker>
+                    <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed} />
                   );
                 })}
               </>
@@ -2362,11 +2351,7 @@ function DashboardMapPage() {
                         }
                       },
                     }}
-                  >
-                    <RL.Tooltip permanent direction="top" offset={[0, -20]} opacity={1} className="poi-label">
-                      {poi.title || 'Place'}
-                    </RL.Tooltip>
-                  </RL.Marker>
+                  />
                 );
               }
               return null;
@@ -2570,19 +2555,12 @@ function DashboardMapPage() {
             aria-label="Re-center"
             disabled={recenterPending}
           >
-            {/* target/locate icon or spinner */}
-            {recenterPending ? (
-              <svg className="animate-spin h-5 w-5 text-neutral-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.8">
-                <circle cx="12" cy="12" r="3.2" />
-                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
-                <circle cx="12" cy="12" r="8.5" strokeDasharray="2 3" opacity="0.7" />
-              </svg>
-            )}
+            {/* target/locate icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
+              <circle cx="12" cy="12" r="8.5" strokeDasharray="2 3" opacity="0.7" />
+            </svg>
           </button>
           {(routeCoords.length > 0 || geoWatchRef.current != null) && (
             <button
