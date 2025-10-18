@@ -7,31 +7,16 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   try {
-    console.log('🏛️ Places API called:', {
-      url: req.url,
-      mine: new URL(req.url).searchParams.get("mine")
-    });
-
     const url = new URL(req.url);
     const mine = url.searchParams.get("mine");
     const session = await getServerSession(authOptions);
 
-    console.log('🏛️ Places API - auth check:', {
-      hasSession: !!session,
-      userEmail: session?.user?.email,
-      mine: !!mine
-    });
-
     const db = await getDb();
-
-    console.log('🏛️ Places API - MongoDB connection successful');
 
     const query: Record<string, any> = {};
     if (mine && session?.user?.email) {
       query.userEmail = session.user.email;
     }
-
-    console.log('🏛️ Places API - database query:', query);
 
     const places = await db
       .collection("places")
@@ -40,8 +25,6 @@ export async function GET(req: Request) {
       .limit(500)
       .project({ _id: 0 })
       .toArray();
-
-    console.log('🏛️ Places API - found places:', places.length);
 
     return NextResponse.json({ ok: true, places }, {
       headers: {

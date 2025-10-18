@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 import { LocationPermissionGate } from "@/components/location-permission-gate";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Jitter filter thresholds (meters)
 const ACCURACY_MAX_M = 80;    // Ignore GPS updates worse than this
@@ -2167,7 +2168,9 @@ function DashboardMapPage() {
       <main className="relative h-full w-full z-0 pt-20 md:pt-24 px-3 md:px-4">
         {(!mounted || !mapKey) ? (
           // Render a blank container without any spinner or loading text
-          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden" />
+          <div className="h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden relative">
+            <Skeleton className="absolute inset-0 h-full w-full" />
+          </div>
         ) : (
           <div className="relative h-[calc(100vh-7.5rem)] md:h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden shadow-2xl border border-black/10 dark:border-white/10 fade-in">
           {/* Ambient and grid overlays */}

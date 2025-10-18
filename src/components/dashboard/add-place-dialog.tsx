@@ -80,9 +80,10 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
 
   useEffect(() => {
     if (isEditing && placeToEdit) {
+      const tags = placeToEdit.tags ?? { name: "", description: "" } as any;
       form.reset({
-        name: placeToEdit.tags.name,
-        description: placeToEdit.tags.description,
+        name: tags.name ?? "",
+        description: tags.description ?? "",
         area: placeToEdit.area || "",
         location: `${placeToEdit.lat},${placeToEdit.lon}`,
         photos: placeToEdit.photos || []
@@ -238,27 +239,29 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
 
   // No auto-pick from Name
 
+  const readAndStoreFile = (file: File, index: number) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const newPreviews = [...previews];
+      newPreviews[index] = reader.result as string;
+      setPreviews(newPreviews);
+
+      const currentPhotos = form.getValues("photos") || [];
+      const photosArray = Array.isArray(currentPhotos) ? [...currentPhotos] : [];
+      while (photosArray.length < 5) photosArray.push(undefined);
+
+      photosArray[index] = {
+        preview: reader.result as string,
+      };
+      form.setValue("photos", photosArray.filter(Boolean));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newPreviews = [...previews];
-        newPreviews[index] = reader.result as string;
-        setPreviews(newPreviews);
-
-        const currentPhotos = form.getValues("photos") || [];
-        // Ensure the array is the correct length
-        const photosArray = Array.isArray(currentPhotos) ? currentPhotos : [];
-        while(photosArray.length < 5) photosArray.push(undefined);
-
-        photosArray[index] = {
-            // We can't store the file object in local storage, so we'll just keep the preview
-            preview: reader.result as string,
-        };
-        form.setValue("photos", photosArray.filter(p => p));
-      };
-      reader.readAsDataURL(file);
+      readAndStoreFile(file, index);
     }
   };
 
@@ -287,13 +290,14 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
     // Simulate API call
     setTimeout(() => {
       if (isEditing && placeToEdit && onPlaceUpdate) {
-         const updatedPlace: Place = {
+         const baseTags = placeToEdit.tags ?? {};
+        const updatedPlace: Place = {
           ...placeToEdit,
           lat: parseFloat(values.location.split(',')[0]),
           lon: parseFloat(values.location.split(',')[1]),
           area: values.area,
           tags: {
-            ...placeToEdit.tags,
+            ...baseTags,
             name: values.name,
             description: values.description,
           },
@@ -549,23 +553,41 @@ export function AddPlaceDialog({ open, onOpenChange, onPlaceSubmit, onPlaceUpdat
                           onChange={(e) => handleFileChange(e, 0)}
                           className="hidden"
                         />
-                        {previews[0] ? (
-                          <Image
-                            src={previews[0] as string}
-                            alt="Preview"
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            className="absolute inset-0 flex items-center justify-center flex-col gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
-                            onClick={() => fileInputRefs.current[0]?.click()}
-                          >
-                            <Upload className="h-4 w-4 text-orange-500" />
-                            <span className="text-[11px] text-neutral-600 dark:text-white/70">Upload photo</span>
-                          </button>
-                        )}
+                        <div
+                          className="absolute inset-0"
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                          }}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) {
+                              readAndStoreFile(file, 0);
+                            }
+                          }}
+                          role="presentation"
+                        >
+                          {previews[0] ? (
+                            <Image
+                              src={previews[0] as string}
+                              alt="Preview"
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="absolute inset-0 flex items-center justify-center flex-col gap-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
+                              onClick={() => fileInputRefs.current[0]?.click()}
+                            >
+                              <Upload className="h-4 w-4 text-orange-500" />
+                              <span className="text-[11px] text-neutral-600 dark:text-white/70">Upload or drop photo</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {previews[0] && (
                         <div className="flex justify-between items-center">

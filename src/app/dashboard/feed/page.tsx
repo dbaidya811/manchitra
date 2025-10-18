@@ -138,14 +138,14 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const LS_KEY = "social_feed_posts_v2"; // legacy, no longer used for persistence
 
-  type OnlineUser = {
+  type FeedUser = {
     email?: string | null;
     name?: string | null;
     image?: string | null;
     updatedAt?: string | number | Date | null;
     createdAt?: string | number | Date | null;
   };
-  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [feedUsers, setFeedUsers] = useState<FeedUser[]>([]);
 
   // Composer: emoji picker and poll
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -237,10 +237,10 @@ export default function FeedPage() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch('/api/users/online', { cache: 'no-store' });
+        const res = await fetch('/api/users', { cache: 'no-store' });
         const data = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && Array.isArray(data?.users)) {
-          setOnlineUsers(data.users as OnlineUser[]);
+          setFeedUsers(data.users as FeedUser[]);
         }
       } catch {}
     };
@@ -779,7 +779,7 @@ export default function FeedPage() {
     return items.slice(0, 8);
   }, [posts]);
 
-  const displayNameForOnlineUser = (user: OnlineUser): string => {
+  const displayNameForFeedUser = (user: FeedUser): string => {
     const raw = user.name?.trim();
     if (raw) return raw;
     return nameFromEmail(user.email) || 'User';
@@ -800,28 +800,35 @@ export default function FeedPage() {
 
       <main className="relative flex-1 px-3 md:px-6 pt-20 md:pt-24 pb-10">
         <div className="mx-auto w-full max-w-2xl space-y-5">
-          {onlineUsers.length > 0 && (
+          {feedUsers.length > 0 && (
             <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm px-4 py-4 online-users-animate" style={{ animationDelay: '40ms' }}>
-              <div className="flex items-center gap-4 overflow-x-auto">
-                {onlineUsers.slice(0, 18).map((user, index) => {
-                  const label = displayNameForOnlineUser(user);
+              <div className="flex items-center gap-5 overflow-x-auto pb-1">
+                {feedUsers.map((user, index) => {
+                  const label = displayNameForFeedUser(user);
                   const key = user.email || `${label}-${index}`;
                   return (
                     <div
                       key={key}
-                      className="flex w-20 flex-shrink-0 flex-col items-center gap-2 presence-animate"
-                      style={{ animationDelay: `${Math.min(index, 10) * 35}ms` }}
+                      className="flex flex-col items-center gap-2 shrink-0"
+                      style={{ animationDelay: `${index * 18}ms` }}
                     >
                       <div className="relative">
-                        <div className="rounded-full bg-gradient-to-tr from-pink-500 via-amber-400 to-purple-500 p-[2px]">
-                          <Avatar className="h-14 w-14 border-2 border-white dark:border-neutral-900">
+                        <div className="p-[2px] rounded-full bg-gradient-to-tr from-orange-500 via-amber-400 to-rose-500 shadow-sm">
+                          <Avatar className="h-14 w-14 bg-white dark:bg-neutral-900">
                             <AvatarImage src={(user.image as string | undefined) || ''} alt={label} referrerPolicy="no-referrer" />
-                            <AvatarFallback>{label.slice(0, 2).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback className="bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white font-semibold">
+                              {label ? label.charAt(0) : 'U'}
+                            </AvatarFallback>
                           </Avatar>
                         </div>
-                        <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full border-2 border-white dark:border-neutral-900 bg-emerald-400"></span>
+                        <span className="absolute -bottom-0.5 right-0 flex items-center justify-center h-4 w-4 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-neutral-900">
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+                          <span className="relative h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        </span>
                       </div>
-                      <span className="w-full truncate text-center text-xs text-neutral-600 dark:text-neutral-300">{label}</span>
+                      <span className="max-w-[92px] truncate text-center text-[13px] font-semibold text-neutral-700 dark:text-neutral-100">
+                        {label}
+                      </span>
                     </div>
                   );
                 })}
