@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ export default function PlanSavePage() {
   const [sharingPlanId, setSharingPlanId] = useState<string | null>(null);
   const [pendingPlanId, setPendingPlanId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const isAuthenticated = status === "authenticated" && !!session?.user?.email;
   const sortPlans = useCallback((items: SavedPlan[]) => {
@@ -127,6 +128,19 @@ export default function PlanSavePage() {
   useEffect(() => {
     loadPlans();
   }, [loadPlans]);
+
+  const normalizedQuery = searchTerm.trim().toLowerCase();
+  const filteredPlans = useMemo(() => {
+    if (!normalizedQuery) return plans;
+    return plans.filter((plan) => {
+      const nameMatch = plan.name.toLowerCase().includes(normalizedQuery);
+      const descMatch = (plan.description ?? "").toLowerCase().includes(normalizedQuery);
+      const destinationsMatch = plan.destinations.some((destination) =>
+        String(destination).toLowerCase().includes(normalizedQuery)
+      );
+      return nameMatch || descMatch || destinationsMatch;
+    });
+  }, [plans, normalizedQuery]);
 
   const upsertPlan = useCallback(
     async (plan: SavedPlan, mode: "create" | "update"): Promise<SavedPlan | null> => {
@@ -991,6 +1005,17 @@ export default function PlanSavePage() {
                 </Button>
               </div>
 
+              {plans.length > 0 && (
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search plans by name, description, or destination..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="rounded-xl"
+                  />
+                </div>
+              )}
+
               {plans.length === 0 ? (
                 <Card className="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 shadow-lg">
                   <CardContent className="py-16 text-center">
@@ -1008,9 +1033,18 @@ export default function PlanSavePage() {
                     </Button>
                   </CardContent>
                 </Card>
+              ) : filteredPlans.length === 0 ? (
+                <Card className="bg-white dark:bg-neutral-900 border border-dashed border-black/10 dark:border-white/10 shadow-lg">
+                  <CardContent className="py-14 text-center">
+                    <h3 className="text-lg font-semibold mb-2">No plans match “{searchTerm}”.</h3>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Try adjusting your search to find a specific plan or destination.
+                    </p>
+                  </CardContent>
+                </Card>
               ) : (
                 <div className="grid gap-4">
-                  {plans.map((plan) => (
+                  {filteredPlans.map((plan) => (
                     <Card
                       key={plan.id}
                       className="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 shadow-lg hover:shadow-xl transition-shadow relative overflow-hidden"

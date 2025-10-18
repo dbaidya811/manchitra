@@ -10,16 +10,28 @@ import { Place } from "@/lib/types";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 export default function WhatHaveISeenPage() {
     const router = useRouter();
     const { toast } = useToast();
     const [places, setPlaces] = useState<Place[]>([]);
     const [seenIds, setSeenIds] = useState<number[]>([]);
+    const [searchTerm, setSearchTerm] = useState("");
     const lovedPlaces = useMemo(
         () => places.filter(p => seenIds.includes(p.id)),
         [places, seenIds]
     );
+    const normalizedQuery = searchTerm.trim().toLowerCase();
+    const filteredLovedPlaces = useMemo(() => {
+        if (!normalizedQuery) return lovedPlaces;
+        return lovedPlaces.filter((place) => {
+            const nameMatch = (place.tags?.name ?? "").toLowerCase().includes(normalizedQuery);
+            const descMatch = (place.tags?.description ?? "").toLowerCase().includes(normalizedQuery);
+            const areaMatch = (place.area ?? "").toLowerCase().includes(normalizedQuery);
+            return nameMatch || descMatch || areaMatch;
+        });
+    }, [lovedPlaces, normalizedQuery]);
 
     useEffect(() => {
         const load = async () => {
@@ -114,6 +126,19 @@ export default function WhatHaveISeenPage() {
                 </div>
             </header>
             <main className="flex-1 p-4 md:p-6 space-y-6 pb-[calc(4.5rem+20px)]">
+                <section className="rounded-2xl border border-orange-200/60 dark:border-orange-500/30 bg-orange-50/70 dark:bg-orange-500/10 backdrop-blur-sm p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <h2 className="text-base font-semibold text-orange-600 dark:text-orange-300">Search watchlist</h2>
+                        <div className="w-full max-w-sm">
+                            <Input
+                                placeholder="Search loved places..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full border-orange-300/60 focus-visible:ring-orange-400/50"
+                            />
+                        </div>
+                    </div>
+                </section>
                 {lovedPlaces.length === 0 ? (
                     <div className="h-full flex items-center justify-center">
                         <div className="text-center">
@@ -124,14 +149,17 @@ export default function WhatHaveISeenPage() {
                 ) : (
                     <section>
                         <h2 className="text-2xl font-bold tracking-tight mb-4">Loved Places</h2>
+                        {filteredLovedPlaces.length === 0 ? (
+                            <div className="text-sm text-muted-foreground border border-dashed rounded-2xl p-6 text-center">No places match “{searchTerm}”.</div>
+                        ) : (
                         <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                            {lovedPlaces.map(place => (
+                            {filteredLovedPlaces.map(place => (
                                 <Card key={place.id} className="group flex flex-col overflow-hidden">
                                     <CardContent className="p-0">
                                         <div className="aspect-[4/3] overflow-hidden">
                                             <Image
                                               src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                                              alt={place.tags.name}
+                                              alt={place.tags?.name || 'Loved place'}
                                               width={600}
                                               height={450}
                                               className="h-full w-full object-cover"
@@ -139,8 +167,8 @@ export default function WhatHaveISeenPage() {
                                         </div>
                                     </CardContent>
                                     <CardHeader className="p-2">
-                                        <CardTitle className="text-sm font-semibold truncate">{place.tags.name}</CardTitle>
-                                        {place.tags.description && (
+                                        <CardTitle className="text-sm font-semibold truncate">{place.tags?.name || 'Untitled place'}</CardTitle>
+                                        {place.tags?.description && (
                                             <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
                                         )}
                                     </CardHeader>
@@ -156,6 +184,7 @@ export default function WhatHaveISeenPage() {
                                 </Card>
                             ))}
                         </div>
+                        )}
                     </section>
                 )}
             </main>

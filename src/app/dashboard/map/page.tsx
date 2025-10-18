@@ -34,6 +34,7 @@ function DashboardMapPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [dest, setDest] = useState<{ lat: number; lon: number } | null>(null);
+  const [searchFocusId, setSearchFocusId] = useState<string | number | null>(null);
   const [center, setCenter] = useState<[number, number]>([22.5726, 88.3639]);
   const [zoom, setZoom] = useState<number>(12);
   const [mounted, setMounted] = useState(false);
@@ -169,9 +170,7 @@ function DashboardMapPage() {
         if (!document.hidden) router.refresh();
       } catch {}
     };
-    // Refresh every 30 seconds (tune as needed)
     timer = setInterval(tick, 30_000);
-    // Also refresh when tab becomes visible again
     const onVis = () => { if (!document.hidden) tick(); };
     document.addEventListener('visibilitychange', onVis);
     return () => { try { clearInterval(timer); document.removeEventListener('visibilitychange', onVis); } catch {} };
@@ -181,9 +180,14 @@ function DashboardMapPage() {
   // Memoize POI marker elements to avoid re-creating JSX on each render
   const poiMarkerElements = useMemo(() => {
     try {
-      const hideAll = searchParams.get('mode') === 'nearest' || (dest && routeCoords.length > 0);
+      const hideAll = searchParams.get('mode') === 'nearest' || (dest && routeCoords.length > 0 && !searchFocusId);
       if (hideAll) return [] as React.ReactNode[];
-      const filtered = poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id)));
+      const filtered = poiMarkers.filter((poi) => {
+        if (searchFocusId != null) {
+          return poi.id === searchFocusId;
+        }
+        return !selectedPlanIdSet.has(Number(poi.id));
+      });
       return filtered.map((poi) => {
         const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
         if (mine && myPlaceIcon) {
@@ -197,6 +201,7 @@ function DashboardMapPage() {
                   setDest({ lat: poi.lat, lon: poi.lon });
                   setCenter([poi.lat, poi.lon]);
                   setZoom(15);
+                  setSearchFocusId(poi.id ?? null);
                   if (userPos) {
                     fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
                   } else if (navigator.geolocation) {
@@ -882,7 +887,6 @@ function DashboardMapPage() {
       setStopConnectors([]);
     }
   };
-
   // Load all places and extract lon/lat for markers (lightweight polling with backoff and change-detection)
   useEffect(() => {
     const BASE_REFRESH_MS = 10000; // Increased from 4s to 10s for better performance
@@ -1706,13 +1710,40 @@ function DashboardMapPage() {
   // Removed auto-start routing to behave like a normal map unless user taps Start
 
 
-  const handleLocationSelect = (location: { boundingbox: [string, string, string, string] }) => {
-    const [minLat, maxLat, minLon, maxLon] = location.boundingbox;
-    const lat = (parseFloat(minLat) + parseFloat(maxLat)) / 2;
-    const lon = (parseFloat(minLon) + parseFloat(maxLon)) / 2;
-    setCenter([lat, lon]);
-    setZoom(12);
+  const handleLocationSelect = (location: { id: string | number; name: string; lat: number; lon: number; area?: string }) => {
+    const { lat, lon } = location;
+    setDest({ lat, lon });
+    setSearchFocusId(location.id ?? `${lat},${lon}`);
     setBrowsePos({ lat, lon });
+    setCenter([lat, lon]);
+    setZoom(16);
+    setRouteCoords([]);
+    setRouteSteps([]);
+    setRouteDistance(null);
+    setRouteDuration(null);
+    setNearestItems([]);
+    setSelectedNearestId(null);
+    setNearestLocked(false);
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('mode');
+      params.delete('lat');
+      params.delete('lon');
+      params.delete('plan');
+      params.delete('address');
+      params.delete('destLat');
+      params.delete('destLon');
+      params.set('focus', String(location.id));
+      router.replace(`?${params.toString()}`);
+    } catch {}
+    try {
+      const raw = localStorage.getItem('search-history');
+      const arr: Array<{ id: string | number; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+      const now = Date.now();
+      arr.unshift({ id: location.id, name: location.name, lat, lon, time: now });
+      localStorage.setItem('search-history', JSON.stringify(arr.slice(0, 200)));
+    } catch {}
+    startNavigationTo({ lat, lon });
   };
 
   // Request a route from userPos -> dest via OSRM with multi-endpoint fallback
@@ -1837,6 +1868,56 @@ function DashboardMapPage() {
       // Note: timeout cleared when abort fires; nothing extra needed here
     }
   };
+
+  const startNavigationTo = useCallback((target: { lat: number; lon: number }) => {
+    try {
+      const fromLat = searchParams.get('fromLat');
+      const fromLon = searchParams.get('fromLon');
+      if (fromLat && fromLon) {
+        const fLat = parseFloat(fromLat);
+        const fLon = parseFloat(fromLon);
+        if (!Number.isNaN(fLat) && !Number.isNaN(fLon)) {
+          const from = { lat: fLat, lon: fLon };
+          setUserPos(from);
+          setStartPos(from);
+          fetchRoute(from, target);
+          return;
+        }
+      }
+    } catch {}
+    if (!navigator.geolocation) {
+      const [lat, lon] = center;
+      let from = { lat, lon };
+      const sameAsDest = Math.hypot((from.lat - target.lat), (from.lon - target.lon)) < 0.0005;
+      if (sameAsDest) {
+        from = { lat: target.lat + 0.005, lon: target.lon + 0.005 };
+      }
+      setStartPos(from);
+      fetchRoute(from, target);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        setStartPos(me);
+        setUserPos(me);
+        fetchRoute(me, target);
+        setCenter([me.lat, me.lon]);
+        setZoom(14);
+      },
+      () => {
+        const [lat, lon] = center;
+        let from = { lat, lon };
+        const sameAsDest = Math.hypot((from.lat - target.lat), (from.lon - target.lon)) < 0.0005;
+        if (sameAsDest) {
+          from = { lat: target.lat + 0.005, lon: target.lon + 0.005 };
+        }
+        setStartPos(from);
+        fetchRoute(from, target);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [center, fetchRoute, searchParams]);
 
   // Duplicate speak function removed - using the one defined earlier with voice preferences
 

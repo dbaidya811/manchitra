@@ -25,41 +25,73 @@ const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) =
   };
 };
 
-interface Suggestion {
-  place_id: number;
-  display_name: string;
-  boundingbox: [string, string, string, string];
+interface PlaceSuggestion {
+  id: string | number;
+  name: string;
+  lat: number;
+  lon: number;
+  description?: string;
+  area?: string;
 }
 
 interface AnimatedSearchProps {
-  onLocationSelect: (location: Suggestion) => void;
+  onLocationSelect: (location: PlaceSuggestion) => void;
 }
 
 export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const fetchSuggestions = async (searchQuery: string) => {
-    if (searchQuery.length < 3) {
+    if (searchQuery.length < 2) {
       setSuggestions([]);
       return;
     }
     setIsLoading(true);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-          searchQuery
-        )}&format=json&limit=5`
-      );
-      const data: Suggestion[] = await response.json();
-      setSuggestions(data);
+      const response = await fetch(`/api/places?mine=1`, { cache: "no-store" });
+      const data = await response.json();
+      const list: any[] = Array.isArray(data?.places) ? data.places : [];
+      const lowered = searchQuery.toLowerCase();
+      const filtered = list
+        .map((p) => {
+          const name = p?.tags?.name || p?.name || "Unnamed";
+          const lat = typeof p?.lat === "number" ? p.lat : null;
+          const lon = typeof p?.lon === "number" ? p.lon : null;
+          if (lat == null || lon == null) return null;
+          return {
+            id: p.id ?? p._id ?? `${lat},${lon}`,
+            name,
+            description: p?.tags?.description || "",
+            area: p?.area || "",
+            lat,
+            lon,
+          } as PlaceSuggestion;
+        })
+        .filter(Boolean) as PlaceSuggestion[];
+
+      const matches = filtered
+        .filter((place) => {
+          const nameMatch = place.name.toLowerCase().includes(lowered);
+          const descMatch = place.description?.toLowerCase().includes(lowered);
+          const areaMatch = place.area?.toLowerCase().includes(lowered);
+          return nameMatch || descMatch || areaMatch;
+        })
+        .slice(0, 8);
+
+      setSuggestions(matches);
     } catch (error) {
-      console.error("Failed to fetch suggestions:", error);
+      console.error("Failed to load place suggestions:", error);
       setSuggestions([]);
+      toast({
+        variant: "destructive",
+        title: "Could not load saved places",
+        description: "Please try again in a moment.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -94,51 +126,19 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
   }, []);
 
 
-  const handleSelectSuggestion = (suggestion: Suggestion) => {
-    setQuery(suggestion.display_name);
+  const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+    setQuery(suggestion.name);
     setSuggestions([]);
-    // Save to localStorage: compute approximate center from bounding box
     try {
-      const [minLatStr, maxLatStr, minLonStr, maxLonStr] = suggestion.boundingbox || [] as any;
-      const minLat = parseFloat(minLatStr || '0');
-      const maxLat = parseFloat(maxLatStr || '0');
-      const minLon = parseFloat(minLonStr || '0');
-      const maxLon = parseFloat(maxLonStr || '0');
-      const lat = (minLat + maxLat) / 2;
-      const lon = (minLon + maxLon) / 2;
       const raw = localStorage.getItem('search-history');
-      const arr: Array<{ name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
+      const arr: Array<{ id: string | number; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
       const now = Date.now();
-      arr.unshift({ name: suggestion.display_name, lat, lon, time: now });
-      const trimmed = arr.slice(0, 200);
-      localStorage.setItem('search-history', JSON.stringify(trimmed));
-      // Best-effort server persist with user position to derive visited/not-visited
-      try {
-        const post = (coords?: { lat: number; lon: number }) => {
-          fetch('/api/history', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'search',
-              data: { name: suggestion.display_name, lat, lon, time: now, ...(coords ? { userLat: coords.lat, userLon: coords.lon } : {}) },
-            }),
-            cache: 'no-store',
-          }).catch(() => {});
-        };
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => post({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-            () => post(),
-            { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
-          );
-        } else {
-          post();
-        }
-      } catch {}
+      arr.unshift({ id: suggestion.id, name: suggestion.name, lat: suggestion.lat, lon: suggestion.lon, time: now });
+      localStorage.setItem('search-history', JSON.stringify(arr.slice(0, 200)));
     } catch {}
     onLocationSelect(suggestion);
   };
-  
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && suggestions.length > 0) {
       handleSelectSuggestion(suggestions[0]);
@@ -159,19 +159,11 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        // Create a small bounding box around the user's location
-        const offset = 0.01;
-        const boundingbox: [string, string, string, string] = [
-          (latitude - offset).toString(),
-          (latitude + offset).toString(),
-          (longitude - offset).toString(),
-          (longitude + offset).toString(),
-        ];
-        
-        const currentLocationSuggestion: Suggestion = {
-            place_id: Date.now(),
-            display_name: "Your Current Location",
-            boundingbox: boundingbox
+        const currentLocationSuggestion: PlaceSuggestion = {
+          id: Date.now(),
+          name: "Your Current Location",
+          lat: latitude,
+          lon: longitude,
         };
         handleSelectSuggestion(currentLocationSuggestion);
         setQuery("Your Current Location");
@@ -204,7 +196,7 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search map..."
+              placeholder="Search saved places..."
               className="h-10 w-full rounded-full bg-background/80 pl-10 pr-12 text-foreground placeholder:text-muted-foreground"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -229,14 +221,21 @@ export function AnimatedSearch({ onLocationSelect }: AnimatedSearchProps) {
                 <ScrollArea className="h-full max-h-60">
                    <ul>
                     {suggestions.map((suggestion) => (
-                      <li key={suggestion.place_id}>
+                      <li key={suggestion.id}>
                         <Button
                           variant="ghost"
                           className="w-full justify-start h-auto py-2 px-3 text-left"
                           onClick={() => handleSelectSuggestion(suggestion)}
                         >
                           <MapPin className="mr-2 h-4 w-4 flex-shrink-0" />
-                          <span className="text-sm">{suggestion.display_name}</span>
+                          <div className="flex flex-col items-start">
+                            <span className="text-sm font-medium">{suggestion.name}</span>
+                            {(suggestion.area || suggestion.description) && (
+                              <span className="text-xs text-muted-foreground line-clamp-1">
+                                {suggestion.area || suggestion.description}
+                              </span>
+                            )}
+                          </div>
                         </Button>
                       </li>
                     ))}

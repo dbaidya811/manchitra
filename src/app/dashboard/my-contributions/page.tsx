@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Place } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MapPin, Pencil, Trash2, Heart } from "lucide-react";
 import Image from "next/image";
@@ -28,7 +29,8 @@ export default function MyContributionsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -65,7 +67,27 @@ export default function MyContributionsPage() {
     };
     load();
   }, [status]);
-  
+
+  const normalizedQuery = searchTerm.trim().toLowerCase();
+  const filteredPosts = useMemo(() => {
+    if (!normalizedQuery) return posts;
+    return posts.filter((p) => {
+      const nameMatch = p.cardName.toLowerCase().includes(normalizedQuery);
+      const textMatch = (p.text || "").toLowerCase().includes(normalizedQuery);
+      return nameMatch || textMatch;
+    });
+  }, [posts, normalizedQuery]);
+
+  const filteredPlaces = useMemo(() => {
+    if (!normalizedQuery) return places;
+    return places.filter((place) => {
+      const nameMatch = (place.tags?.name ?? "").toLowerCase().includes(normalizedQuery);
+      const descMatch = (place.tags?.description ?? "").toLowerCase().includes(normalizedQuery);
+      const areaMatch = (place.area ?? "").toLowerCase().includes(normalizedQuery);
+      return nameMatch || descMatch || areaMatch;
+    });
+  }, [places, normalizedQuery]);
+
   const handleShowOnMap = (place: Place) => {
     // Prefer explicit location string if available
     if (place.location && place.location.includes(',')) {
@@ -116,7 +138,8 @@ export default function MyContributionsPage() {
   };
 
   const handleDelete = async (place: Place) => {
-    const ok = typeof window !== "undefined" ? window.confirm(`Delete "${place.tags.name}"? This cannot be undone.`) : true;
+    const label = place.tags?.name || "this place";
+    const ok = typeof window !== "undefined" ? window.confirm(`Delete "${label}"? This cannot be undone.`) : true;
     if (!ok) return;
     try {
       const res = await fetch("/api/places", {
@@ -136,7 +159,6 @@ export default function MyContributionsPage() {
     }
   };
 
-
   return (
     <>
     <div className="flex min-h-screen flex-col bg-background">
@@ -147,6 +169,19 @@ export default function MyContributionsPage() {
         <h1 className="text-xl font-semibold">My Contributions</h1>
       </header>
       <main className="flex-1 space-y-8 p-4 md:p-6 pb-[calc(4.5rem+20px)]">
+        <section className="rounded-2xl border border-orange-200/60 dark:border-orange-500/30 bg-orange-50/70 dark:bg-orange-500/10 backdrop-blur-sm p-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <h2 className="text-base font-semibold text-orange-600 dark:text-orange-300">Search contributions</h2>
+            <div className="w-full max-w-sm">
+              <Input
+                placeholder="Search posts or places..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full border-orange-300/60 focus-visible:ring-orange-400/50"
+              />
+            </div>
+          </div>
+        </section>
         {/* My Posts */}
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -154,9 +189,11 @@ export default function MyContributionsPage() {
           </div>
           {posts.length === 0 ? (
             <div className="text-sm text-muted-foreground border border-dashed rounded-2xl p-6 text-center">No posts yet.</div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="text-sm text-muted-foreground border border-dashed rounded-2xl p-6 text-center">No posts match “{searchTerm}”.</div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {posts.map((p) => (
+              {filteredPosts.map((p) => (
                 <Card key={p.id} className="group flex flex-col overflow-hidden transition-all hover:shadow-lg">
                   <CardContent className="p-0">
                     <div className="aspect-[4/3] overflow-hidden bg-black/5">
@@ -205,15 +242,17 @@ export default function MyContributionsPage() {
                 <p className="text-lg text-muted-foreground">No places have been added yet.</p>
                 <Button onClick={() => router.push('/dashboard')} className="mt-4">Add a Place</Button>
             </div>
+        ) : filteredPlaces.length === 0 ? (
+            <div className="text-sm text-muted-foreground border border-dashed rounded-2xl p-6 text-center">No places match “{searchTerm}”.</div>
         ) : (
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {places.map(place => (
+            {filteredPlaces.map(place => (
               <Card key={place.id} className="group flex flex-col overflow-hidden transition-all hover:shadow-lg">
                  <CardContent className="p-0">
                     <div className="aspect-[4/3] overflow-hidden">
                         <Image
                         src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                        alt={place.tags.name}
+                        alt={place.tags?.name || 'Place photo'}
                         width={600}
                         height={450}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
@@ -222,8 +261,8 @@ export default function MyContributionsPage() {
                     </div>
                 </CardContent>
                 <CardHeader className="p-3 pb-2">
-                  <CardTitle className="text-base font-semibold">{place.tags.name}</CardTitle>
-                  <CardDescription className="text-xs truncate">{place.tags.description}</CardDescription>
+                  <CardTitle className="text-base font-semibold">{place.tags?.name || 'Untitled place'}</CardTitle>
+                  <CardDescription className="text-xs truncate">{place.tags?.description || 'No description provided.'}</CardDescription>
                 </CardHeader>
                 <CardFooter className="mt-auto flex flex-col gap-2 p-3 pt-0">
                    <div className="flex gap-2">
