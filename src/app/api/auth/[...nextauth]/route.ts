@@ -6,6 +6,7 @@ import { getDb } from "@/lib/mongodb";
 import { otpStore } from "@/lib/otp-store";
 import { sendMail } from "@/lib/mailer";
 import { otpEmailHtml } from "@/lib/email-templates";
+import crypto from "crypto";
 
 // Build providers safely. Only include Email provider if SMTP envs are configured.
 const providers: any[] = [
@@ -45,30 +46,52 @@ const providers: any[] = [
             return null;
           }
           
-          const record = otpStore[emailRaw];
-          console.log('📝 OTP Store record:', record ? 'Found' : 'Not found');
-          
+          let record = otpStore[emailRaw];
+          console.log('📝 OTP Store record:', record ? 'Found in-memory' : 'Not in-memory');
+
           if (!record) {
-            console.log('❌ No OTP record found for email');
-            return null;
-          }
-          
-          if (Date.now() > record.expires) {
-            console.log('❌ OTP expired');
+            try {
+              const db = await getDb();
+              const otps = db.collection('emailOtps');
+              const hashed = crypto.createHash('sha256').update(otp).digest('hex');
+              const dbRecord = await otps.findOne({ email: emailRaw, otpHash: hashed });
+              if (!dbRecord) {
+                console.log('❌ No OTP record found in DB');
+                return null;
+              }
+              if (dbRecord.expiresAt && new Date(dbRecord.expiresAt).getTime() < Date.now()) {
+                console.log('❌ OTP expired (DB)');
+                await otps.deleteOne({ _id: dbRecord._id });
+                return null;
+              }
+              record = {
+                otp,
+                expires: dbRecord.expiresAt ? new Date(dbRecord.expiresAt).getTime() : Date.now(),
+                name: dbRecord.name,
+              };
+              console.log('✅ OTP verified via DB');
+              await otps.deleteOne({ _id: dbRecord._id });
+            } catch (dbErr) {
+              console.error('⚠️ Failed to verify OTP from DB:', dbErr);
+              return null;
+            }
+          } else {
+            if (Date.now() > record.expires) {
+              console.log('❌ OTP expired');
+              delete otpStore[emailRaw];
+              return null;
+            }
+
+            if (record.otp !== otp) {
+              console.log('❌ OTP mismatch. Expected:', record.otp, 'Got:', otp);
+              return null;
+            }
+
+            console.log('✅ OTP verified successfully (memory)');
             delete otpStore[emailRaw];
-            return null;
           }
-          
-          if (record.otp !== otp) {
-            console.log('❌ OTP mismatch. Expected:', record.otp, 'Got:', otp);
-            return null;
-          }
-          
-          console.log('✅ OTP verified successfully');
-          
-          // Save the name before deleting the record
-          const savedName = record.name;
-          delete otpStore[emailRaw];
+
+          const savedName = record?.name;
 
           // Fetch user from DB or create if doesn't exist
           try {

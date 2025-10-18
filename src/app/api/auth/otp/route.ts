@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { otpStore } from '@/lib/otp-store';
 import { sendMail } from '@/lib/mailer';
 import { otpEmailHtml } from '@/lib/email-templates';
+import { getDb } from '@/lib/mongodb';
+import crypto from 'crypto';
 
 export async function POST(request: Request) {
   try {
@@ -16,8 +18,38 @@ export async function POST(request: Request) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 5 * 60 * 1000; // OTP expires in 5 minutes
 
-    // Store the OTP with the user's name (use normalized email key)
-    otpStore[email] = { otp, expires, name: name || email.split("@")[0] };
+    // Persist OTP for verification across server instances (also keep in-memory fallback)
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const displayName = name || email.split("@")[0];
+
+    otpStore[email] = { otp, expires, name: displayName };
+
+    try {
+      const db = await getDb();
+      const otps = db.collection('emailOtps');
+      // Ensure expiry cleanup
+      try {
+        await otps.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+      } catch (_) {
+        // ignore index creation race conditions
+      }
+
+      await otps.updateOne(
+        { email },
+        {
+          $set: {
+            email,
+            otpHash,
+            name: displayName,
+            expiresAt: new Date(expires),
+            updatedAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+    } catch (dbError) {
+      console.error('Failed to persist OTP to database, falling back to in-memory store only:', dbError);
+    }
 
     // Send the OTP via email (do not expose it in the API response)
     try {
