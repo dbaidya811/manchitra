@@ -21,6 +21,7 @@ const RL = {
   Polyline: dynamic(() => import('react-leaflet').then(m => m.Polyline), { ssr: false }),
   Marker: dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false }),
   Circle: dynamic(() => import('react-leaflet').then(m => m.Circle), { ssr: false }),
+  Tooltip: dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false }),
 } as const;
 
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
@@ -163,6 +164,7 @@ function DashboardMapPage() {
 
   // Silent background refresh (no spinner) at a fixed interval when tab is visible
   useEffect(() => {
+    if (true) return;
     let timer: any;
     const tick = () => {
       try {
@@ -179,99 +181,7 @@ function DashboardMapPage() {
   // Memoize POI marker elements to avoid re-creating JSX on each render
   const poiMarkerElements = useMemo(() => {
     try {
-      const hideAll = searchParams.get('mode') === 'nearest' || (dest && routeCoords.length > 0 && !searchFocusId);
-      if (hideAll) return [] as React.ReactNode[];
-      const filtered = poiMarkers.filter((poi) => {
-        if (searchFocusId != null) {
-          return poi.id === searchFocusId;
-        }
-        return !selectedPlanIdSet.has(Number(poi.id));
-      });
-      return filtered.map((poi) => {
-        const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
-        if (mine && myPlaceIcon) {
-          return (
-            <RL.Marker
-              key={`poi-${poi.id}`}
-              position={[poi.lat, poi.lon]}
-              icon={myPlaceIcon}
-              eventHandlers={{
-                click: () => {
-                  setDest({ lat: poi.lat, lon: poi.lon });
-                  setCenter([poi.lat, poi.lon]);
-                  setZoom(15);
-                  setSearchFocusId(poi.id ?? null);
-                  if (userPos) {
-                    fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
-                  } else if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                      (pos) => {
-                        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                        setUserPos(me);
-                        setStartPos(me);
-                        fetchRoute(me, { lat: poi.lat, lon: poi.lon });
-                      },
-                      () => {
-                        const [lat, lon] = center;
-                        const from = { lat, lon };
-                        setStartPos(from);
-                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                      },
-                      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-                    );
-                  } else {
-                    const [lat, lon] = center;
-                    const from = { lat, lon };
-                    setStartPos(from);
-                    fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                  }
-                },
-              }}
-            />
-          );
-        }
-        if (otherPlaceIcon) {
-          return (
-            <RL.Marker
-              key={`poi-${poi.id}`}
-              position={[poi.lat, poi.lon]}
-              icon={otherPlaceIcon}
-              eventHandlers={{
-                click: () => {
-                  setDest({ lat: poi.lat, lon: poi.lon });
-                  setCenter([poi.lat, poi.lon]);
-                  setZoom(15);
-                  if (userPos) {
-                    fetchRoute({ lat: userPos.lat, lon: userPos.lon }, { lat: poi.lat, lon: poi.lon });
-                  } else if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                      (pos) => {
-                        const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                        setUserPos(me);
-                        setStartPos(me);
-                        fetchRoute(me, { lat: poi.lat, lon: poi.lon });
-                      },
-                      () => {
-                        const [lat, lon] = center;
-                        const from = { lat, lon };
-                        setStartPos(from);
-                        fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                      },
-                      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-                    );
-                  } else {
-                    const [lat, lon] = center;
-                    const from = { lat, lon };
-                    setStartPos(from);
-                    fetchRoute(from, { lat: poi.lat, lon: poi.lon });
-                  }
-                },
-              }}
-            />
-          );
-        }
-        return null;
-      }).filter(Boolean) as React.ReactNode[];
+      return [] as React.ReactNode[];
     } catch {
       return [] as React.ReactNode[];
     }
@@ -365,14 +275,14 @@ function DashboardMapPage() {
         <RL.Polyline key="ahead-case" positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
       items.push(
-        <RL.Polyline key="ahead" positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim route-glow' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        <RL.Polyline key="ahead" positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
     } else if (routeCoords.length > 0) {
       items.push(
         <RL.Polyline key="single-case" positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
       items.push(
-        <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim route-glow' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+        <RL.Polyline key="single" positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
       );
     }
     // Disabled blue dotted lines to nearby pandals
@@ -886,91 +796,9 @@ function DashboardMapPage() {
       setStopConnectors([]);
     }
   };
-  // Load all places and extract lon/lat for markers (lightweight polling with backoff and change-detection)
+  // Load all places and extract lon/lat for markers
   useEffect(() => {
-    const BASE_REFRESH_MS = 10000; // Increased from 4s to 10s for better performance
-    let stopped = false;
-    let timer: any;
-    const backoffRef = { v: 1 }; // 1x, 2x, 4x ... up to 8x
-    const prevHashRef = { v: '' } as { v: string };
-
-    const nextDelay = () => Math.min(BASE_REFRESH_MS * backoffRef.v, 32000);
-
-    const scheduleNext = () => {
-      if (stopped) return;
-      const delay = (typeof document !== 'undefined' && document.hidden) ? BASE_REFRESH_MS * 2 : nextDelay();
-      timer = setTimeout(tick, delay);
-    };
-
-    const tick = async () => {
-      if (stopped) return;
-      try {
-        console.log('Fetching places from API...');
-        const res = await fetch('/api/places', { cache: 'no-store' });
-        console.log('API response status:', res.status);
-        const data = await res.json();
-        console.log('API response data:', data);
-        const list = Array.isArray(data?.places) ? data.places : [];
-        console.log('Places list length:', list.length);
-        const out: Array<{ id: string | number; lat: number; lon: number; title?: string; userEmail?: string | null }> = [];
-        for (const p of list) {
-          let lat: number | null = null;
-          let lon: number | null = null;
-          if (typeof p.location === 'string' && p.location.includes(',')) {
-            const parts = p.location.split(',').map((s: string) => s.trim());
-            const a = parseFloat(parts[0] || '');
-            const b = parseFloat(parts[1] || '');
-            if (!Number.isNaN(a) && !Number.isNaN(b)) {
-              if (Math.abs(a) <= 90 && Math.abs(b) <= 180) { lat = a; lon = b; }
-              else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) { lat = b; lon = a; }
-            }
-          }
-          if ((lat == null || lon == null) && typeof p.lat === 'number' && typeof p.lon === 'number') {
-            lat = p.lat; lon = p.lon;
-          }
-          if (lat != null && lon != null && !Number.isNaN(lat) && !Number.isNaN(lon)) {
-            // Extract name from p.name (if exists), p.tags.name, or fallback to 'Place'
-            const name = (p as any).name || p.tags?.name || 'Place';
-            out.push({ id: p.id ?? p._id ?? `${lat},${lon}`, lat, lon, title: name, userEmail: p.userEmail ?? null });
-          }
-        }
-        console.log('Processed markers:', out.length);
-        // Only update state if data actually changed to avoid re-renders
-        const hash = out.map(o => `${o.id}:${o.lat.toFixed(6)},${o.lon.toFixed(6)}`).join('|');
-        if (hash !== prevHashRef.v) {
-          prevHashRef.v = hash;
-          setPoiMarkers(out);
-        }
-        backoffRef.v = 1; // reset backoff on success
-      } catch (error) {
-        console.error('Error fetching places:', error);
-        backoffRef.v = Math.min(backoffRef.v * 2, 8);
-      } finally {
-        scheduleNext();
-      }
-    };
-
-    const onVisibility = () => {
-      if (stopped) return;
-      if (!document.hidden) {
-        // Fire immediately when returning to foreground
-        clearTimeout(timer);
-        tick();
-      }
-    };
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibility);
-    }
-    tick();
-
-    return () => {
-      stopped = true;
-      if (timer) clearTimeout(timer);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisibility);
-      }
-    };
+    return;
   }, []);
 
   // Auto-fit bounds whenever the route updates
@@ -2243,6 +2071,8 @@ function DashboardMapPage() {
             <RL.TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              keepBuffer={1}
+              detectRetina={false}
             />
             {dest && destIcon && (
               <RL.Marker position={[dest.lat, dest.lon]} icon={destIcon} />
@@ -2273,17 +2103,17 @@ function DashboardMapPage() {
                   <RL.Polyline positions={routePastCoords} pathOptions={{ color: '#9ca3af', weight: 5, opacity: 0.65 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
                 )}
                 {/* Ahead segment casing */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ffffff', weight: 9, opacity: 0.95 }} smoothFactor={1.2} interactive={false} bubblingMouseEvents={false} />
                 {/* Ahead segment (remaining) */}
-                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                <RL.Polyline positions={routeAheadCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.2} interactive={false} bubblingMouseEvents={false} />
               </>
             ) : (
               routeCoords.length > 0 && (
                 <>
                   {/* Single route casing */}
-                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.95 }} smoothFactor={1.2} interactive={false} bubblingMouseEvents={false} />
                   {/* Single route */}
-                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98, className: 'route-anim' }} smoothFactor={1.5} interactive={false} bubblingMouseEvents={false} />
+                  <RL.Polyline positions={routeCoords} pathOptions={{ color: '#ef4444', weight: 6, opacity: 0.98 }} smoothFactor={1.2} interactive={false} bubblingMouseEvents={false} />
                 </>
               )
             )}
@@ -2327,7 +2157,7 @@ function DashboardMapPage() {
               </>
             )}
             {/* Point-to-point connectors: first is red (user → 1st), rest are green */}
-            {ptpConnectors.length > 0 && (
+            {false && ptpConnectors.length > 0 && (
               <>
                 {/* Casing for ptp connectors */}
                 {ptpConnectors.map((seg, i) => (
@@ -2351,13 +2181,17 @@ function DashboardMapPage() {
                   const isCurrent = idx === planIdx && !isVisited;
                   const iconToUse = isCurrent ? planIconBlue : planIconRed;
                   return (
-                    <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed} />
+                    <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed}>
+                      <RL.Tooltip permanent direction="top" offset={[0, -24]} opacity={1} className="!bg-white !text-black !border !border-black/20 !rounded-full !px-2 !py-0.5 !text-[11px] !font-semibold shadow">
+                        {idx + 1}
+                      </RL.Tooltip>
+                    </RL.Marker>
                   );
                 })}
               </>
             )}
-            {/* All saved places markers (hide in nearest mode) */}
-            {searchParams.get('mode') !== 'nearest' && poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
+            {/* All saved places markers (disabled per requirement) */}
+            {false && searchParams.get('mode') !== 'nearest' && poiMarkers.filter((poi) => !selectedPlanIdSet.has(Number(poi.id))).map((poi) => {
               const mine = poi.userEmail && session?.user?.email && poi.userEmail === session.user.email;
               const iconToUse = mine ? myPlaceIcon : otherPlaceIcon;
               if (iconToUse) {

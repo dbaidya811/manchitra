@@ -14,6 +14,7 @@ import Image from "next/image";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 import { RouteStepsDialog } from "@/components/dashboard/route-steps-dialog";
 import { useSession } from "next-auth/react";
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { StarRating } from "@/components/star-rating";
 
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
   const { status, data: session } = useSession();
+  const { refreshSessionWithRetry } = useSessionRefresh();
   const [isMounted, setIsMounted] = useState(false);
   
   // Track client-side mounting to prevent hydration mismatch
@@ -28,15 +30,30 @@ export default function DashboardPage() {
     setIsMounted(true);
   }, []);
   
-  // Monitor session status and redirect if unauthenticated
+  // Monitor session status and redirect if unauthenticated, with grace period right after login
   useEffect(() => {
     console.log('Dashboard - Session status:', status);
-    
     if (status === "unauthenticated") {
-      console.log('Dashboard - User not authenticated, redirecting to home');
+      let justLogged = false;
+      try { justLogged = localStorage.getItem('just-logged-in') === '1'; } catch {}
+      if (justLogged) {
+        (async () => {
+          try {
+            await refreshSessionWithRetry(3);
+          } catch {}
+          try { localStorage.removeItem('just-logged-in'); } catch {}
+          const timer = setTimeout(() => {
+            if (document.visibilityState !== 'hidden') {
+              router.replace("/");
+            }
+          }, 800);
+          return () => clearTimeout(timer);
+        })();
+        return;
+      }
       router.replace("/");
     }
-  }, [status, router]);
+  }, [status, router, refreshSessionWithRetry]);
   
   const [places, setPlaces] = useState<Place[]>([]);
   const [placeToEdit, setPlaceToEdit] = useState<Place | null>(null);

@@ -95,6 +95,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       resetFlow();
       
       // Redirect to dashboard
+      try { localStorage.setItem('just-logged-in', '1'); } catch {}
       window.location.href = "/dashboard";
       
     } catch (error: any) {
