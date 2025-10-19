@@ -17,28 +17,33 @@ export default function AIContinuePage() {
   }, [plan, router]);
 
   return (
-    <div className="min-h-[calc(100vh-112px)] w-full">
+    <div
+      className="min-h-screen w-full bg-white"
+      style={{
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)'
+      }}
+    >
       <div className="mx-auto max-w-full sm:max-w-3xl px-3 sm:px-4 py-6 sm:py-10">
         <div className="mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">Continue Planning</h1>
           <p className="text-sm sm:text-base text-neutral-600">Choose how you want to continue.</p>
         </div>
 
-        <div className="grid gap-4 sm:gap-5">
+        <div className="grid gap-3 sm:gap-5">
           {/* Option 0: Nearest Pandal */}
           <button
-            className="group flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all"
+            className="group w-full flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all touch-manipulation active:scale-[.997]"
             onClick={() => {
               router.push(`/ai/nearest`);
             }}
           >
             <div className="flex items-center gap-3 sm:gap-4 text-left">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-100 text-violet-700">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-100 text-violet-700">
                 <LocateFixed className="h-5 w-5" />
               </div>
-              <div>
-                <div className="text-base sm:text-lg font-semibold text-neutral-900">Nearest pandal</div>
-                <div className="text-xs sm:text-sm text-neutral-600">Find pandals near your current location</div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-semibold text-neutral-900 truncate">Nearest pandal</div>
+                <div className="text-xs sm:text-sm text-neutral-600 truncate">Find pandals near your current location</div>
               </div>
             </div>
             <ArrowRight className="h-5 w-5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
@@ -46,19 +51,19 @@ export default function AIContinuePage() {
 
           {/* Option 1: Selected Pandals */}
           <button
-            className="group flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all"
+            className="group w-full flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all touch-manipulation active:scale-[.997]"
             onClick={() => {
               const url = plan ? `/dashboard/map?plan=${encodeURIComponent(plan)}` : `/ai`;
               router.push(url);
             }}
           >
             <div className="flex items-center gap-3 sm:gap-4 text-left">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
                 <MapPin className="h-5 w-5" />
               </div>
-              <div>
-                <div className="text-base sm:text-lg font-semibold text-neutral-900">Selected pandal</div>
-                <div className="text-xs sm:text-sm text-neutral-600">Use the places you selected just now</div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-semibold text-neutral-900 truncate">Selected pandal</div>
+                <div className="text-xs sm:text-sm text-neutral-600 truncate">Use the places you selected just now</div>
               </div>
             </div>
             <ArrowRight className="h-5 w-5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />
@@ -66,18 +71,18 @@ export default function AIContinuePage() {
 
           {/* Option 2: Point to point */}
           <button
-            className="group flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all"
+            className="group w-full flex items-center justify-between rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm hover:shadow-md transition-all touch-manipulation active:scale-[.997]"
             onClick={() => {
               router.push(`/ai/point-to-point/start`);
             }}
           >
             <div className="flex items-center gap-3 sm:gap-4 text-left">
-              <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700">
                 <ArrowRightLeft className="h-5 w-5" />
               </div>
-              <div>
-                <div className="text-base sm:text-lg font-semibold text-neutral-900">Point to point</div>
-                <div className="text-xs sm:text-sm text-neutral-600">Create a simple route between two places</div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-semibold text-neutral-900 truncate">Point to point</div>
+                <div className="text-xs sm:text-sm text-neutral-600 truncate">Create a simple route between two places</div>
               </div>
             </div>
             <ArrowRight className="h-5 w-5 text-neutral-400 group-hover:text-neutral-700 transition-colors" />

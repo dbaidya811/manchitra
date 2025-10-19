@@ -80,21 +80,33 @@ export default function AISelectionPage() {
         ) : (
           <div className="grid gap-3">
             {places.map((p) => {
-              const name = p.tags?.name || p.name || `Place #${p.id}`;
+              const name = p.tags?.name || (p as any)?.name || `Place #${p.id}`;
               const img = p.photos?.[0]?.preview;
               const isSel = !!selected[p.id];
               return (
                 <label
                   key={p.id}
-                  className={`flex w-full items-center gap-3 sm:gap-4 rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer touch-manipulation min-h-[64px] border ${
-                    isSel ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-200' : 'bg-white border-neutral-200'
+                  className={`flex w-full items-center gap-3 sm:gap-4 rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer touch-manipulation min-h-[64px] border ring-2 ${
+                    isSel ? 'bg-emerald-50 border-emerald-300 ring-emerald-200' : 'bg-white border-neutral-200 ring-transparent'
                   }`}
+                  onClick={() => toggle(p.id)}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={isSel}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(p.id); } }}
                 >
                   {/* Left: image or initials */}
                   {img ? (
                     <div className="relative h-10 w-10 sm:h-12 sm:w-12 overflow-hidden rounded-xl bg-neutral-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={name} className="h-full w-full object-cover" />
+                      <Image
+                        src={img}
+                        alt={name}
+                        fill
+                        unoptimized
+                        sizes="48px"
+                        className="object-cover"
+                        priority={false}
+                      />
                     </div>
                   ) : (
                     <InitialsAvatar name={name} />
@@ -107,15 +119,6 @@ export default function AISelectionPage() {
                       <div className="text-xs sm:text-sm text-neutral-600 truncate">{p.area}</div>
                     ) : null}
                   </div>
-
-                  {/* Right: checkbox */}
-                  <input
-                    type="checkbox"
-                    className="h-6 w-6 sm:h-5 sm:w-5 accent-emerald-600 rounded ml-auto"
-                    checked={!!selected[p.id]}
-                    onChange={() => toggle(p.id)}
-                    aria-label={`Select ${name}`}
-                  />
                 </label>
               );
             })}

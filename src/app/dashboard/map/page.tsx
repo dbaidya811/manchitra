@@ -26,7 +26,6 @@ const RL = {
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
 
 // Lazy-load header components to reduce first contentful paint
-const AnimatedSearch = dynamic(() => import("@/components/dashboard/animated-search").then(m => m.AnimatedSearch), { ssr: false, loading: () => null });
 const UserProfile = dynamic(() => import("@/components/dashboard/user-profile").then(m => m.UserProfile), { ssr: false, loading: () => null });
 const MobileNav = dynamic(() => import("@/components/dashboard/mobile-nav").then(m => m.MobileNav), { ssr: false, loading: () => null });
 
@@ -1710,41 +1709,7 @@ function DashboardMapPage() {
   // Removed auto-start routing to behave like a normal map unless user taps Start
 
 
-  const handleLocationSelect = (location: { id: string | number; name: string; lat: number; lon: number; area?: string }) => {
-    const { lat, lon } = location;
-    setDest({ lat, lon });
-    setSearchFocusId(location.id ?? `${lat},${lon}`);
-    setBrowsePos({ lat, lon });
-    setCenter([lat, lon]);
-    setZoom(16);
-    setRouteCoords([]);
-    setRouteSteps([]);
-    setRouteDistance(null);
-    setRouteDuration(null);
-    setNearestItems([]);
-    setSelectedNearestId(null);
-    setNearestLocked(false);
-    try {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete('mode');
-      params.delete('lat');
-      params.delete('lon');
-      params.delete('plan');
-      params.delete('address');
-      params.delete('destLat');
-      params.delete('destLon');
-      params.set('focus', String(location.id));
-      router.replace(`?${params.toString()}`);
-    } catch {}
-    try {
-      const raw = localStorage.getItem('search-history');
-      const arr: Array<{ id: string | number; name: string; lat: number; lon: number; time: number }> = raw ? JSON.parse(raw) : [];
-      const now = Date.now();
-      arr.unshift({ id: location.id, name: location.name, lat, lon, time: now });
-      localStorage.setItem('search-history', JSON.stringify(arr.slice(0, 200)));
-    } catch {}
-    startNavigationTo({ lat, lon });
-  };
+  
 
   // Request a route from userPos -> dest via OSRM with multi-endpoint fallback
   const fetchRoute = async (from: { lat: number; lon: number }, to: { lat: number; lon: number }) => {
@@ -2097,9 +2062,6 @@ function DashboardMapPage() {
           <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
             Manchitra
           </h1>
-        </div>
-        <div className="flex-1 flex justify-center">
-            <AnimatedSearch onLocationSelect={handleLocationSelect} />
         </div>
         <div className="flex items-center gap-2 justify-end">
           <UserProfile />
