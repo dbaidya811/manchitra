@@ -8,6 +8,7 @@ import { FetchSpinner } from "@/components/providers/fetch-spinner";
 import { NavigationSpinner } from "@/components/providers/navigation-spinner";
 import { ServiceWorkerProvider } from "@/components/providers/service-worker-provider";
 import { UrlCleanerProvider } from "@/components/providers/url-cleaner-provider";
+import { Suspense } from "react";
 // import { FloatingSOS } from "@/components/dashboard/floating-sos";
 
 
@@ -51,7 +52,9 @@ export default function RootLayout({
         <AuthSessionProvider>
           <UrlCleanerProvider>
             <ServiceWorkerProvider />
-            {children}
+            <Suspense fallback={<div style={{height:2}} /> }>
+              {children}
+            </Suspense>
             <Toaster />
             <FetchSpinner />
             <NavigationSpinner />
