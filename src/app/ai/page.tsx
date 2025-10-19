@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Place } from "@/lib/types";
 import { Ruler } from "lucide-react";
@@ -21,6 +21,14 @@ function InitialsAvatar({ name }: { name: string }) {
 }
 
 export default function AISelectionPage() {
+  return (
+    <Suspense fallback={<div style={{ height: 2 }} /> }>
+      <AISelectionInner />
+    </Suspense>
+  );
+}
+
+function AISelectionInner() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

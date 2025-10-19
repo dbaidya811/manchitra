@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import type { Metadata } from "next";
 import { PT_Sans } from "next/font/google";
 import "./globals.css";
@@ -50,15 +53,15 @@ export default function RootLayout({
       </head>
       <body className={cn("font-body antialiased")}>
         <AuthSessionProvider>
-          <UrlCleanerProvider>
-            <ServiceWorkerProvider />
-            <Suspense fallback={<div style={{height:2}} /> }>
+          <ServiceWorkerProvider />
+          <Suspense fallback={<div style={{height:2}} /> }>
+            <UrlCleanerProvider>
               {children}
-            </Suspense>
-            <Toaster />
-            <FetchSpinner />
-            <NavigationSpinner />
-          </UrlCleanerProvider>
+              <NavigationSpinner />
+            </UrlCleanerProvider>
+          </Suspense>
+          <Toaster />
+          <FetchSpinner />
         </AuthSessionProvider>
       </body>
     </html>

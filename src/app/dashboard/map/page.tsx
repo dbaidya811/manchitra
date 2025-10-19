@@ -2766,11 +2766,15 @@ function DashboardMapPage() {
   );
 }
 
+import { Suspense } from 'react';
+
 export default function DashboardMapPageWrapper() {
   return (
-    <LocationPermissionGate>
-      <DashboardMapPage />
-    </LocationPermissionGate>
+    <Suspense fallback={<div style={{ height: 2 }} /> }>
+      <LocationPermissionGate>
+        <DashboardMapPage />
+      </LocationPermissionGate>
+    </Suspense>
   );
 }
 

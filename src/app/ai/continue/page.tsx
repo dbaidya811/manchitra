@@ -1,10 +1,18 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { MapPin, ArrowRight, LocateFixed, ArrowRightLeft } from "lucide-react";
 
 export default function AIContinuePage() {
+  return (
+    <Suspense fallback={<div style={{ height: 2 }} /> }>
+      <ContinueInner />
+    </Suspense>
+  );
+}
+
+function ContinueInner() {
   const search = useSearchParams();
   const router = useRouter();
   const plan = search.get("plan") || "";
