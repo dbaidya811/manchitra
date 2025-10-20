@@ -40,6 +40,20 @@ export default function Home() {
     setIsMounted(true);
   }, []);
 
+  // Prompt for location permission on website open (home page mount)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          () => {},
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+      }
+    } catch {}
+  }, []);
+
   // Check if we just came back from OAuth callback and reload if needed
   useEffect(() => {
     if (typeof window === "undefined") return;

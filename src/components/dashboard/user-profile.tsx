@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save, Moon, Sun } from "lucide-react";
 import { useState, useRef, useMemo, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -96,8 +96,28 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const [isAddPlaceOpen, setIsAddPlaceOpen] = useState(false);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const isLoading = status === "loading";
+
+  // Load dark mode preference
+  useEffect(() => {
+    const darkMode = localStorage.getItem('darkMode') === 'true' || document.documentElement.classList.contains('dark');
+    setIsDarkMode(darkMode);
+  }, []);
+
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('darkMode', 'true');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
+    }
+  };
 
   // Force session refresh if authenticated but missing user data
   useEffect(() => {
@@ -152,11 +172,25 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
       localStorage.removeItem("user-places");
       sessionStorage.clear();
 
+      // Build a same-origin callback URL to avoid cross-origin issues
+      const target = typeof window !== 'undefined' ? `${window.location.origin}/` : "/";
+
       // Use NextAuth's signOut with redirect: true for proper cleanup
       await signOut({
         redirect: true,
-        callbackUrl: "/"
+        callbackUrl: target,
       });
+
+      // Safety: if navigation didn't happen quickly, force redirect
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          try {
+            if (window.location.pathname.startsWith('/dashboard')) {
+              window.location.href = target;
+            }
+          } catch {}
+        }, 800);
+      }
     } catch (error) {
       console.error('Logout error:', error);
       setLogoutState(false);
@@ -165,7 +199,8 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
       try {
         sessionStorage.clear();
         localStorage.clear();
-        window.location.href = "/";
+        const target = typeof window !== 'undefined' ? `${window.location.origin}/` : "/";
+        window.location.href = target;
       } catch (fallbackError) {
         toast({
           title: "Logout failed",
@@ -291,6 +326,34 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
               )}
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator className="my-1" />
+          
+          {/* Dark Mode Toggle - iOS Style */}
+          <div className="px-3 py-2.5 flex items-center justify-between rounded-lg hover:bg-accent/50">
+            <div className="flex items-center gap-2">
+              {isDarkMode ? (
+                <Moon className="h-4 w-4 text-indigo-600" />
+              ) : (
+                <Sun className="h-4 w-4 text-amber-600" />
+              )}
+              <span className="text-sm">Dark Mode</span>
+            </div>
+            <button
+              onClick={toggleDarkMode}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                isDarkMode ? 'bg-indigo-600' : 'bg-gray-300'
+              }`}
+              role="switch"
+              aria-checked={isDarkMode}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${
+                  isDarkMode ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          
           <DropdownMenuSeparator className="my-1" />
           <DropdownMenuItem onClick={() => setIsSosOpen(true)} className="rounded-lg px-3 py-2.5 text-sm transition-none group hover:bg-gradient-to-r hover:from-emerald-500 hover:to-sky-500 hover:text-white data-[highlighted]:bg-gradient-to-r data-[highlighted]:from-emerald-500 data-[highlighted]:to-sky-500 data-[highlighted]:text-white">
             <AlertTriangle className="mr-2 h-4 w-4 text-red-600 group-hover:text-white group-data-[highlighted]:text-white" />

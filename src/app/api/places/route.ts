@@ -5,6 +5,20 @@ import { getDb } from "@/lib/mongodb";
 
 export const runtime = "nodejs";
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_DASHBOARD_ORIGIN || '*',
+  'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Pragma': 'no-cache',
+  'Expires': '0',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -26,13 +40,7 @@ export async function GET(req: Request) {
       .project({ _id: 0 })
       .toArray();
 
-    return NextResponse.json({ ok: true, places }, {
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      }
-    });
+    return NextResponse.json({ ok: true, places }, { headers: corsHeaders });
   } catch (e: any) {
     console.error("🏛️ Places API error:", e);
 
@@ -45,17 +53,9 @@ export async function GET(req: Request) {
       nodeEnv: process.env.NODE_ENV || "Not set"
     });
 
-    return NextResponse.json({
-      ok: false,
-      error: e?.message || "Server error",
-      places: []
-    }, {
+    return NextResponse.json({ ok: false, error: e?.message || "Server error", places: [] }, {
       status: 500,
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      }
+      headers: corsHeaders,
     });
   }
 }
@@ -98,10 +98,10 @@ export async function POST(req: NextRequest) {
       .collection("places")
       .updateOne({ id }, { $set: doc }, { upsert: true });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch (e: any) {
     console.error("POST /api/places error", e);
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -131,9 +131,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch (e: any) {
     console.error("DELETE /api/places error", e);
-    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500, headers: corsHeaders });
   }
 }

@@ -120,7 +120,7 @@ export default function CreateSharedPlanPage() {
           >
             ←
           </Button>
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl md:text-3xl font-extrabold text-transparent drop-shadow-md tracking-tight">
             Create Shared Plan
           </h1>
         </div>

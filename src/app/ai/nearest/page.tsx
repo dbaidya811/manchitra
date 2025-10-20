@@ -22,6 +22,7 @@ export default function NearestPandalSetupPage() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [noResults, setNoResults] = useState<boolean>(false);
   const [locationLoading, setLocationLoading] = useState<boolean>(false);
+  const [proceedLoading, setProceedLoading] = useState<boolean>(false);
 
   // init map
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function NearestPandalSetupPage() {
 
   const proceed = async () => {
     // First, check for pandals within radius; if none, show message and do not navigate
+    setProceedLoading(true);
     try {
       const res = await fetch('/api/places', { cache: 'no-store' });
       const data = await res.json();
@@ -148,6 +150,7 @@ export default function NearestPandalSetupPage() {
         .filter(({ c }) => distKm(center.lat, center.lon, c.lat as number, c.lon as number) <= radiusKm);
 
       if (within.length === 0) {
+        setProceedLoading(false);
         setNoResults(true);
         return;
       }
@@ -246,8 +249,17 @@ export default function NearestPandalSetupPage() {
 
           <div className="mt-4 sm:mt-5 flex items-center justify-end">
             {radiusKm >= 1 ? (
-              <Button onClick={proceed} className="w-full sm:w-auto rounded-full px-6 py-2.5 bg-violet-600 text-white hover:bg-violet-700 shadow-md focus-visible:ring-2 focus-visible:ring-violet-300">
-                <Navigation className="h-4 w-4 mr-2" /> Show nearest pandals
+              <Button onClick={proceed} disabled={proceedLoading} className="w-full sm:w-auto rounded-full px-6 py-2.5 bg-violet-600 text-white hover:bg-violet-700 shadow-md focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-70 disabled:cursor-not-allowed">
+                {proceedLoading ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="h-4 w-4 mr-2" /> Show nearest pandals
+                  </>
+                )}
               </Button>
             ) : (
               <div className="w-full text-right text-xs sm:text-sm text-neutral-500">

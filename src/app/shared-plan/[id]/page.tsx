@@ -121,10 +121,8 @@ export default function SharedPlanPage() {
         description: `"${plan.name}" has been saved to your account and can be accessed from any device`,
       });
 
-      // Redirect to plan save page after a short delay
-      setTimeout(() => {
-        router.push('/dashboard/plan-save');
-      }, 1500);
+      // Navigate instantly after successful save
+      router.push('/dashboard/plan-save');
     } catch (error) {
       console.error("Failed to save plan:", error);
       toast({

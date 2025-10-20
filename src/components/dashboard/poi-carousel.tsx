@@ -37,6 +37,7 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
   const [geo, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [routeOpenFor, setRouteOpenFor] = useState<{ id: number; name: string } | null>(null);
   const [routeSteps, setRouteSteps] = useState<{ title: string; detail?: string }[]>([]);
+  const [visitHistory, setVisitHistory] = useState<Array<{ lat: number; lon: number; status?: string }>>([]);
   const isRecent = (title || "").toLowerCase() === "recent";
 
   const truncateWords = (text: string, count: number) => {
@@ -161,6 +162,15 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
       const raw = localStorage.getItem("seen-places");
       setSeenIds(raw ? JSON.parse(raw) : []);
     } catch (_) {}
+    
+    // Load visit history
+    try {
+      const rawHistory = localStorage.getItem("visit-history");
+      if (rawHistory) {
+        setVisitHistory(JSON.parse(rawHistory));
+      }
+    } catch (_) {}
+    
     setCanPortal(typeof window !== 'undefined');
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -170,6 +180,53 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
       );
     }
   }, []);
+
+  // Helper to get visit status for a place
+  const getVisitStatus = (place: Place): 'pending' | 'visited' | null => {
+    if (!visitHistory || visitHistory.length === 0) return null;
+    
+    let placeLat: number | null = null;
+    let placeLon: number | null = null;
+    
+    if (typeof place.lat === 'number' && typeof place.lon === 'number') {
+      placeLat = place.lat;
+      placeLon = place.lon;
+    } else if (place.location && place.location.includes(',')) {
+      const parts = place.location.split(',').map(s => s.trim());
+      const a = parseFloat(parts[0] || '');
+      const b = parseFloat(parts[1] || '');
+      if (!Number.isNaN(a) && !Number.isNaN(b)) {
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) {
+          placeLat = a; placeLon = b;
+        } else if (Math.abs(a) <= 180 && Math.abs(b) <= 90) {
+          placeLat = b; placeLon = a;
+        }
+      }
+    }
+    
+    if (placeLat === null || placeLon === null) return null;
+    
+    const MATCH_THRESHOLD_M = 50;
+    const haversineM = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => {
+      const R = 6371000;
+      const toRad = (v: number) => (v * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLon = toRad(b.lon - a.lon);
+      const la1 = toRad(a.lat);
+      const la2 = toRad(b.lat);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+    
+    for (const entry of visitHistory) {
+      const dist = haversineM({ lat: placeLat, lon: placeLon }, { lat: entry.lat, lon: entry.lon });
+      if (dist <= MATCH_THRESHOLD_M) {
+        return entry.status === 'visited' ? 'visited' : 'pending';
+      }
+    }
+    
+    return null;
+  };
 
   const handleShowOnMap = (place: Place) => {
     // Derive destination coordinates or address
@@ -248,10 +305,10 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
         toast({ title: "Saved", description: `Added to What I've Seen` });
         setSeenIds(next);
         setShowLoveAnim(true);
-        setTimeout(() => {
-          setShowLoveAnim(false);
-          router.push("/dashboard/what-have-i-seen");
-        }, 1000);
+        // Navigate instantly without waiting for animation
+        router.push("/dashboard/what-have-i-seen");
+        // Clean up animation state after navigation starts
+        setTimeout(() => setShowLoveAnim(false), 1000);
       } else {
         toast({ title: "Already added", description: `This place is already in What I've Seen` });
         router.push("/dashboard/what-have-i-seen");
@@ -310,29 +367,47 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                           <div className="relative aspect-square overflow-hidden rounded-2xl">
                             <Image
                               src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                              alt={place.tags.name}
+                              alt={place.tags?.name || 'Place'}
                               fill
                               className="object-cover"
                               data-ai-hint="building"
                             />
                           </div>
+                          {/* Status badge (top-left) */}
+                          {(() => {
+                            const status = getVisitStatus(place);
+                            if (status === 'pending') {
+                              return (
+                                <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-blue-500/90 backdrop-blur text-white text-[10px] font-bold shadow-md animate-pulse">
+                                  Pending
+                                </div>
+                              );
+                            } else if (status === 'visited') {
+                              return (
+                                <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-emerald-500/90 backdrop-blur text-white text-[10px] font-bold shadow-md">
+                                  ✓ Completed
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                           {/* Like button overlay (top-right) */}
                           <button
                             onClick={() => handleMarkSeen(place)}
                             title="Love"
-                            className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
+                            className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 transition-all active:scale-90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
                           >
                             <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
                           </button>
                           <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent rounded-b-2xl">
-                            <div className="text-white font-semibold text-base truncate">{place.tags.name}</div>
+                            <div className="text-white font-semibold text-base truncate">{place.tags?.name || 'Place'}</div>
                             <div className="text-white/80 text-xs truncate">{place.area ? `Starts near: ${place.area}` : ''}</div>
                           </div>
                         </div>
-                        <div className="p-3 pt-2">
-                          {place.tags.description && (
-                            <CardDescription className="text-[11px] text-muted-foreground">
-                              {truncateWords(place.tags.description, 4)}
+                        <div className="px-3 pt-2 pb-2 min-h-[32px]">
+                          {place.tags?.description && (
+                            <CardDescription className="text-[11px] text-muted-foreground truncate w-full">
+                              {place.tags?.description}
                             </CardDescription>
                           )}
                           {!isRecent && (
@@ -360,11 +435,11 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                           )}
                         </div>
                         <CardFooter className="mt-auto flex items-center justify-between gap-2 p-3 pt-0">
-                          <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full">
+                          <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full transition-all active:scale-95">
                             <ListOrdered className="mr-2 h-4 w-4" />
                             Step
                           </Button>
-                          <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full">
+                          <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full transition-all active:scale-95">
                             <MapPin className="mr-2 h-4 w-4" />
                             Directions
                           </Button>
@@ -376,26 +451,44 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                           <div className="relative aspect-square overflow-hidden">
                             <Image
                               src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
-                              alt={place.tags.name}
+                              alt={place.tags?.name || 'Place'}
                               fill
                               className="object-cover transition-transform group-hover:scale-105"
                               data-ai-hint="building"
                             />
+                            {/* Status badge (top-left) */}
+                            {(() => {
+                              const status = getVisitStatus(place);
+                              if (status === 'pending') {
+                                return (
+                                  <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-blue-500/90 backdrop-blur text-white text-[10px] font-bold shadow-md animate-pulse">
+                                    Pending
+                                  </div>
+                                );
+                              } else if (status === 'visited') {
+                                return (
+                                  <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-emerald-500/90 backdrop-blur text-white text-[10px] font-bold shadow-md">
+                                    ✓ Completed
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                             {/* Like button overlay (top-right) */}
                             <button
                               onClick={() => handleMarkSeen(place)}
                               title="Love"
-                              className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
+                              className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 transition-all active:scale-90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
                             >
                               <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
                             </button>
                           </div>
                         </CardContent>
                         <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
-                          <CardTitle className="text-sm sm:text-base font-semibold truncate">{place.tags.name}</CardTitle>
-                          {place.tags.description && (
+                          <CardTitle className="text-sm sm:text-base font-semibold truncate">{place.tags?.name || 'Place'}</CardTitle>
+                          {place.tags?.description && (
                             <CardDescription className="text-xs truncate">
-                              {place.tags.description}
+                              {place.tags?.description}
                             </CardDescription>
                           )}
                           {!isRecent && (
@@ -423,11 +516,11 @@ export function PoiCarousel({ title, places, isLoading }: PoiCarouselProps) {
                           )}
                         </CardHeader>
                         <CardFooter className="mt-auto flex justify-end gap-2 p-2 sm:p-3 pt-0">
-                          <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full">
+                          <Button onClick={() => openRouteDialog(place)} size="sm" variant="outline" className="shrink-0 rounded-full transition-all active:scale-95">
                             <ListOrdered className="mr-2 h-4 w-4" />
                             Step
                           </Button>
-                          <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full">
+                          <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 rounded-full transition-all active:scale-95">
                             <MapPin className="mr-2 h-4 w-4" />
                             Directions
                           </Button>

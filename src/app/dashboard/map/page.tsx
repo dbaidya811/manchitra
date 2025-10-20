@@ -1883,11 +1883,21 @@ function DashboardMapPage() {
     };
   }, []);
 
+  // Show a small, non-blocking tip when routing but user location is unavailable
+  const [showLocTip, setShowLocTip] = useState(false);
+  useEffect(() => {
+    if ((routeCoords.length > 0 || geoWatchRef.current != null) && !userPos && !showLocTip) {
+      setShowLocTip(true);
+      const t = setTimeout(() => setShowLocTip(false), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [routeCoords.length, userPos, showLocTip]);
+
   return (
     <div className="relative h-screen bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
-       <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg slide-in-right">
+       <header className="absolute top-3 left-3 right-3 z-[2000] flex h-14 shrink-0 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border-2 border-orange-400/30 dark:border-orange-500/30 bg-white/80 dark:bg-black/50 backdrop-blur-md shadow-xl slide-in-right">
         <div className="flex items-center gap-2 md:flex-1">
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl md:text-3xl font-extrabold text-transparent drop-shadow-md tracking-tight">
             Manchitra
           </h1>
         </div>
@@ -2526,58 +2536,15 @@ function DashboardMapPage() {
           </div>
         </div>
         )}
-        {/* Location off popup when routing */}
-        {routeCoords.length > 0 && !userPos && (
-          <div className="fixed inset-0 z-[1600] bg-black/50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl p-6 shadow-2xl text-center border border-black/10 dark:border-white/10 max-w-sm">
-              <div className="mb-4">
-                <svg className="mx-auto h-12 w-12 text-orange-500 mb-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2v20M2 12h20" strokeLinecap="round" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold mb-2 text-neutral-900 dark:text-neutral-100">Location Required</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">Please turn on your location to use directions and navigation features.</p>
-              <button
-                onClick={async () => {
-                  try {
-                    if ('permissions' in navigator) {
-                      const permission = await navigator.permissions.query({ name: 'geolocation' });
-                      if (permission.state === 'denied') {
-                        alert('Location permission is blocked. Please enable it in your browser settings and refresh the page.');
-                        return;
-                      }
-                    }
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          // Permission granted, location will be updated via existing watchers
-                          console.log('Location enabled');
-                        },
-                        (error) => {
-                          if (error.code === error.PERMISSION_DENIED) {
-                            alert('Location permission denied. Please allow location access to use directions.');
-                          } else {
-                            alert('Unable to access location. Please check your device settings.');
-                          }
-                        },
-                        { enableHighAccuracy: true, timeout: 10000 }
-                      );
-                    } else {
-                      alert('Geolocation is not supported by this browser.');
-                    }
-                  } catch (err) {
-                    console.error('Error requesting location:', err);
-                    alert('Error accessing location. Please try again.');
-                  }
-                }}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                Enable Location
-              </button>
+        {/* Location tip when routing but no live location */}
+        {showLocTip && (
+          <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="rounded-xl bg-white/95 dark:bg-neutral-900/95 border-2 border-orange-500/40 dark:border-orange-400/40 px-6 py-4 shadow-2xl text-center">
+              <div className="text-base font-extrabold text-neutral-900 dark:text-neutral-100 tracking-tight">Please turn on your location</div>
             </div>
           </div>
         )}
+        {/* Removed Location Required overlay */}
 
         {/* Removed Wrong-route banner popup */}
         {/* Journey Completed overlay (hidden in nearest mode) */}
@@ -2605,9 +2572,7 @@ import { Suspense } from 'react';
 export default function DashboardMapPageWrapper() {
   return (
     <Suspense fallback={<div style={{ height: 2 }} /> }>
-      <LocationPermissionGate>
-        <DashboardMapPage />
-      </LocationPermissionGate>
+      <DashboardMapPage />
     </Suspense>
   );
 }

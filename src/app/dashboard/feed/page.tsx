@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/hooks/use-toast";
 import { UserProfile } from "@/components/dashboard/user-profile";
+import { StoryCarousel } from "@/components/dashboard/story-carousel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -787,9 +788,9 @@ export default function FeedPage() {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-neutral-100 dark:bg-neutral-950">
-      <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border border-black/5 dark:border-white/10 bg-white/70 dark:bg-black/40 backdrop-blur-md shadow-lg">
+      <header className="absolute top-3 left-3 right-3 z-[9999] flex h-14 items-center justify-between gap-3 px-3 md:px-4 rounded-2xl border-2 border-orange-400/30 dark:border-orange-500/30 bg-white/80 dark:bg-black/50 backdrop-blur-md shadow-xl">
         <div className="flex items-center gap-2">
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl md:text-2xl font-bold text-transparent drop-shadow-sm">
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl md:text-3xl font-extrabold text-transparent drop-shadow-md tracking-tight">
             Feed
           </h1>
         </div>
@@ -800,41 +801,10 @@ export default function FeedPage() {
 
       <main className="relative flex-1 px-3 md:px-6 pt-20 md:pt-24 pb-10">
         <div className="mx-auto w-full max-w-2xl space-y-5">
-          {feedUsers.length > 0 && (
-            <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm px-4 py-4 online-users-animate" style={{ animationDelay: '40ms' }}>
-              <div className="flex items-center gap-5 overflow-x-auto pb-1">
-                {feedUsers.map((user, index) => {
-                  const label = displayNameForFeedUser(user);
-                  const key = user.email || `${label}-${index}`;
-                  return (
-                    <div
-                      key={key}
-                      className="flex flex-col items-center gap-2 shrink-0"
-                      style={{ animationDelay: `${index * 18}ms` }}
-                    >
-                      <div className="relative">
-                        <div className="p-[2px] rounded-full bg-gradient-to-tr from-orange-500 via-amber-400 to-rose-500 shadow-sm">
-                          <Avatar className="h-14 w-14 bg-white dark:bg-neutral-900">
-                            <AvatarImage src={(user.image as string | undefined) || ''} alt={label} referrerPolicy="no-referrer" />
-                            <AvatarFallback className="bg-gradient-to-br from-orange-500 via-amber-500 to-rose-500 text-white font-semibold">
-                              {label ? label.charAt(0) : 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <span className="absolute -bottom-0.5 right-0 flex items-center justify-center h-4 w-4 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-neutral-900">
-                          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
-                          <span className="relative h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                        </span>
-                      </div>
-                      <span className="max-w-[92px] truncate text-center text-[13px] font-semibold text-neutral-700 dark:text-neutral-100">
-                        {label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* Story Carousel with Online Users */}
+          <div className="rounded-2xl border border-black/5 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-sm py-4">
+            <StoryCarousel feedUsers={feedUsers} />
+          </div>
 
           <Card className="bg-white dark:bg-neutral-900 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm feed-card-animate" style={{ animationDelay: '80ms' }}>
             <CardContent className="p-4 space-y-4">

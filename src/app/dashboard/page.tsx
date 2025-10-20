@@ -8,8 +8,9 @@ import { PoiCarousel } from "@/components/dashboard/poi-carousel";
 import { Place } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { MapPin, Heart, Sparkles, CheckCircle, ListOrdered, Star } from "lucide-react";
+import { MapPin, Heart, Sparkles, CheckCircle, ListOrdered, Star, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Image from "next/image";
 import { AddPlaceDialog } from "@/components/dashboard/add-place-dialog";
 import { RouteStepsDialog } from "@/components/dashboard/route-steps-dialog";
@@ -67,6 +68,8 @@ export default function DashboardPage() {
   const [geo, setGeo] = useState<{ lat: number; lon: number } | null>(null);
   const [routeOpenFor, setRouteOpenFor] = useState<{ id: number; name: string } | null>(null);
   const [routeSteps, setRouteSteps] = useState<{ title: string; detail?: string }[]>([]);
+  const [placeViewCounts, setPlaceViewCounts] = useState<Record<number, number>>({});
+  const [descriptionDialog, setDescriptionDialog] = useState<{ name: string; description: string } | null>(null);
   // Removed Key Stops preview
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
@@ -267,6 +270,14 @@ export default function DashboardPage() {
       }
     } catch (_) {}
     
+    // Load place view counts
+    try {
+      const rawViewCounts = localStorage.getItem("place-view-counts");
+      if (rawViewCounts) {
+        setPlaceViewCounts(JSON.parse(rawViewCounts));
+      }
+    } catch (_) {}
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -376,7 +387,20 @@ export default function DashboardPage() {
     setIsEditDialogOpen(false);
   };
 
+  // Track place view
+  const trackPlaceView = (placeId: number) => {
+    try {
+      const raw = localStorage.getItem("place-view-counts");
+      const counts: Record<number, number> = raw ? JSON.parse(raw) : {};
+      counts[placeId] = (counts[placeId] || 0) + 1;
+      localStorage.setItem("place-view-counts", JSON.stringify(counts));
+      setPlaceViewCounts(counts);
+    } catch (_) {}
+  };
+
   const handleShowOnMap = (place: Place) => {
+    // Track view
+    trackPlaceView(place.id);
     // Prefer explicit location if provided ("lat,lon" string)
     if (place.location && place.location.includes(',')) {
       const parts = place.location.split(',').map((s: string) => s.trim());
@@ -557,6 +581,22 @@ export default function DashboardPage() {
     return { recentPlaces, areaGroups: groups };
   }, [places]);
 
+  // Get Top 10 and Top 25 most viewed places
+  const topPlaces = useMemo(() => {
+    const placesWithViews = places.map(place => ({
+      place,
+      views: placeViewCounts[place.id] || 0
+    }));
+    
+    // Sort by view count descending
+    placesWithViews.sort((a, b) => b.views - a.views);
+    
+    const top10 = placesWithViews.slice(0, 10).filter(p => p.views > 0);
+    const top25 = placesWithViews.slice(0, 25).filter(p => p.views > 0);
+    
+    return { top10, top25 };
+  }, [places, placeViewCounts]);
+
   // Wait for client-side hydration
   if (!isMounted) {
     return (
@@ -663,6 +703,67 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+          
+          {/* Top 10 Most Viewed Puja */}
+          {topPlaces.top10.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  🏆 Top 10 Puja
+                </h2>
+              </div>
+              <div className="sm:p-4 sm:rounded-lg sm:bg-gradient-to-br sm:from-purple-50 sm:to-pink-50 dark:sm:from-purple-950/30 dark:sm:to-pink-950/30 sm:border-2 sm:border-purple-200 dark:sm:border-purple-800">
+                <div className="flex gap-3 overflow-x-auto touch-auto overscroll-x-contain pb-2 snap-x snap-mandatory sm:overflow-visible sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {topPlaces.top10.map(({ place, views }, idx) => (
+                    <div key={`top10-${place.id}`} className="relative shrink-0 w-[240px] sm:min-w-0 snap-start">
+                      <Card className="group h-full flex flex-col overflow-hidden transition-all hover:shadow-2xl rounded-2xl border-2 border-purple-300 dark:border-purple-700">
+                        <CardContent className="p-0">
+                          <div className="relative aspect-square overflow-hidden">
+                            <Image
+                              src={place.photos?.[0]?.preview || `https://i.pinimg.com/1200x/1d/88/fe/1d88fe41748769af8df4ee6c1b2d83bd.jpg`}
+                              alt={place.tags?.name || 'Place'}
+                              fill
+                              className="object-cover transition-transform group-hover:scale-105"
+                            />
+                            {/* Ranking number - large overlay at bottom-left */}
+                            <div className="absolute bottom-2 left-2 z-10 text-white font-black text-7xl leading-none" style={{ textShadow: '4px 4px 8px rgba(0,0,0,0.8), -2px -2px 4px rgba(0,0,0,0.5)' }}>
+                              {idx + 1}
+                            </div>
+                            <button
+                              onClick={() => handleMarkSeen(place)}
+                              title="Love"
+                              className={`absolute top-2 right-2 h-9 w-9 flex items-center justify-center rounded-full shadow-md backdrop-blur bg-white/90 ${seenIds.includes(place.id) ? 'border border-red-500 text-red-600' : 'border border-white/70 text-neutral-700'}`}
+                            >
+                              <Heart className={`h-4.5 w-4.5 ${seenIds.includes(place.id) ? 'text-red-600' : ''}`} />
+                            </button>
+                          </div>
+                        </CardContent>
+                        <CardHeader className="p-2 sm:p-3 pb-1 sm:pb-2">
+                          <CardTitle className="text-sm sm:text-base font-semibold truncate">{place.tags?.name || 'Place'}</CardTitle>
+                          {place.tags?.description && (
+                            <CardDescription className="text-xs truncate">
+                              {place.tags.description}
+                            </CardDescription>
+                          )}
+                          <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1">
+                            <Eye className="h-3 w-3" />
+                            {views} views
+                          </div>
+                        </CardHeader>
+                        <CardFooter className="mt-auto flex justify-end gap-2 p-2 sm:p-3 pt-0">
+                          <Button onClick={() => handleShowOnMap(place)} size="sm" className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 rounded-full">
+                            <MapPin className="mr-2 h-4 w-4" />
+                            Directions
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+          
           {Object.entries(groupedPlaces.areaGroups).map(([area, areaPlaces]) => (
             areaPlaces.length > 0 && (
               <section key={area}>
@@ -673,7 +774,7 @@ export default function DashboardPage() {
                   {areaPlaces.map((place, idx) => (
                     <div
                       key={place.id}
-                      className="shrink-0 min-w-[80%] sm:min-w-0 snap-start"
+                      className="shrink-0 w-[280px] sm:min-w-0 snap-start"
                       style={{
                         transition: 'transform 400ms ease-out, opacity 400ms ease-out',
                         transform: `translateY(${isLoading ? 8 : 0}px)`,
@@ -709,10 +810,14 @@ export default function DashboardPage() {
                                 <div className="text-white/80 text-xs truncate">{place.area ? `Starts near: ${place.area}` : ''}</div>
                               </div>
                             </div>
-                            <div className="p-3 pt-2">
+                            <div className="px-3 pt-2 pb-2 min-h-[32px]">
                               {place.tags?.description && (
-                                <CardDescription className="text-[11px] text-muted-foreground">
-                                  {truncateWords(place.tags.description, 4)}
+                                <CardDescription 
+                                  className="text-[11px] text-muted-foreground truncate w-full cursor-pointer hover:text-primary transition-colors active:text-primary"
+                                  onClick={() => setDescriptionDialog({ name: place.tags?.name || 'Place', description: place.tags?.description || '' })}
+                                  title="Tap to view full description"
+                                >
+                                  {place.tags.description}
                                 </CardDescription>
                               )}
                             </div>
@@ -793,6 +898,20 @@ export default function DashboardPage() {
           placeName={routeOpenFor.name}
           steps={routeSteps}
         />
+      )}
+      {descriptionDialog && (
+        <Dialog open={!!descriptionDialog} onOpenChange={(open: boolean) => !open && setDescriptionDialog(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{descriptionDialog.name}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {descriptionDialog.description}
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

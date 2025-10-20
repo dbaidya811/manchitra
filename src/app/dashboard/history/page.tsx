@@ -340,7 +340,7 @@ export default function HistoryPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-xl font-bold text-transparent drop-shadow-sm">
+          <h1 className="bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-2xl md:text-3xl font-extrabold text-transparent drop-shadow-md tracking-tight">
             Manchitra
           </h1>
           <span className="hidden sm:inline text-sm font-semibold text-neutral-800 dark:text-neutral-100">· History</span>
