@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Sparkles, MapPin, ListOrdered } from "lucide-react";
-import { useEffect } from "react";
+import { Sparkles, MapPin, ListOrdered, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function PlanningAIPage() {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -17,8 +18,13 @@ export default function PlanningAIPage() {
     } catch {}
   }, [router]);
 
-  const handleContinueClick = () => {
+  const handleContinueClick = async () => {
+    setIsLoading(true);
     try { localStorage.setItem('skipPlanningIntro', '1'); } catch {}
+    // Simulate loading or perform any async operation
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Example delay
+    router.push('/ai/continue');
+    setIsLoading(false);
   };
 
   return (
@@ -74,16 +80,20 @@ export default function PlanningAIPage() {
           </div>
         </div>
 
-        
-
         <div className="mt-6 text-xs text-neutral-600 dark:text-neutral-400">
           Tip: When you see a place card, use the Steps button to view walking steps between your location and that spot.
         </div>
         {/* Mobile inline Continue button */}
         <div className="mt-4 sm:hidden">
           <Link href="/ai/continue" className="block">
-            <Button onClick={handleContinueClick} className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
-              Continue
+            <Button onClick={handleContinueClick} disabled={isLoading} className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...
+                </>
+              ) : (
+                'Continue'
+              )}
             </Button>
           </Link>
         </div>
@@ -99,8 +109,14 @@ export default function PlanningAIPage() {
       >
         <div className="mx-auto max-w-4xl">
           <Link href="/ai/continue" className="block">
-            <Button onClick={handleContinueClick} size="sm" className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
-              Continue
+            <Button onClick={handleContinueClick} disabled={isLoading} size="sm" className="w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...
+                </>
+              ) : (
+                'Continue'
+              )}
             </Button>
           </Link>
         </div>

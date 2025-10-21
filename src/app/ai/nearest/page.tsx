@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader } from "@/components/ui/loader";
-import { LocateFixed, Navigation, MapPin } from "lucide-react";
+import { LocateFixed, Navigation, MapPin, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function NearestPandalSetupPage() {
@@ -168,124 +168,154 @@ export default function NearestPandalSetupPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-112px)] w-full bg-gradient-to-b from-violet-50 via-white to-sky-50">
-      <div className="mx-auto max-w-full sm:max-w-3xl px-3 sm:px-4 py-4 sm:py-10">
-        <div className="rounded-3xl border border-white/60 bg-white/90 supports-[backdrop-filter]:bg-white/70 backdrop-blur-md shadow-[0_10px_40px_rgba(16,24,40,0.06)] ring-1 ring-black/5 p-3 sm:p-6">
-          <div className="mb-1 flex items-center gap-2">
-            <div className="h-8 w-8 grid place-items-center rounded-full bg-violet-600 text-white text-sm font-semibold">1</div>
-            <div className="text-base sm:text-lg font-semibold text-neutral-900">Nearest pandal</div>
-          </div>
-          <p className="text-xs sm:text-sm text-neutral-600 mb-4">Pick a center and radius. We will show pandals within that range.</p>
-
-          <div
-            ref={wrapRef}
-            tabIndex={-1}
-            onBlur={(e) => {
-              const next = e.relatedTarget as Node | null;
-              if (!wrapRef.current || !next || !wrapRef.current.contains(next)) setSuggestions([]);
-            }}
-            className="relative"
-          >
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="relative flex-1">
-                <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-600" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key==='Escape') setSuggestions([]); }}
-                  placeholder="Type a place or lat,lon"
-                  className="pl-9 rounded-xl bg-white/90 border border-neutral-200 shadow-sm focus-visible:ring-2 focus-visible:ring-violet-400"
-                />
-              </div>
-              <div className="flex w-full sm:w-auto gap-2 sm:gap-3 justify-stretch sm:justify-end flex-col sm:flex-row">
-                <Button
-                  onClick={useMyLocation}
-                  disabled={locationLoading}
-                  className="rounded-full bg-violet-600 hover:bg-violet-700 text-white shadow-md w-full sm:w-auto disabled:opacity-50"
-                >
-                  {locationLoading ? (
-                    <>
-                      <Loader className="h-4 w-4 mr-2" /> Getting location...
-                    </>
-                  ) : (
-                    <>
-                      <LocateFixed className="h-4 w-4 mr-2" /> Use my location
-                    </>
-                  )}
-                </Button>
-                <div className="flex items-center gap-3 rounded-full bg-white/90 border border-neutral-200 px-3 py-2 shadow-sm w-full sm:w-auto">
-                  <span className="text-xs sm:text-sm text-neutral-600">Radius</span>
-                  <input
-                    className="radiusInput iosSlider flex-1"
-                    type="range" min={0} max={10} step={0.5}
-                    value={radiusKm}
-                    onChange={(e)=> setRadiusKm(parseFloat(e.target.value))}
-                    style={{
-                      background: `linear-gradient(to right, #7c3aed ${(Math.max(0, Math.min(10, radiusKm))/10)*100}%, #e5e7eb ${(Math.max(0, Math.min(10, radiusKm))/10)*100}%)`
-                    }}
-                  />
-                  <span className="text-sm font-semibold text-neutral-900 w-16 text-right">{radiusKm} km</span>
-                </div>
-              </div>
+    <>
+      {proceedLoading && (
+        <div className="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
+          <div className="flex flex-col items-center gap-6">
+            {/* Modern animated spinner */}
+            <div className="relative">
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-orange-200 dark:border-orange-800"></div>
+              <div className="absolute inset-0 h-16 w-16 animate-spin rounded-full border-4 border-t-orange-500 border-r-transparent border-b-orange-600 border-l-transparent animate-pulse"></div>
+              <div className="absolute inset-2 h-12 w-12 animate-spin rounded-full border-2 border-pink-300 dark:border-pink-700 animate-reverse"></div>
             </div>
-            {suggestions.length>0 && (
-              <div className="absolute z-[10000] mt-2 w-full overflow-auto max-h-72 rounded-xl bg-white/95 border border-neutral-200 shadow-[0_12px_40px_rgba(16,24,40,0.12)]">
-                {suggestions.map((s)=> (
-                  <button key={s.place_id} className="w-full text-left px-3 py-2 hover:bg-violet-50/80 flex items-center gap-2 transition-colors border-b last:border-b-0 border-neutral-100" onClick={()=>chooseSuggestion(s)}>
-                    <MapPin className="h-4 w-4 text-violet-600" />
-                    <span className="text-sm truncate">{s.display_name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
-          <div className="relative mt-3 sm:mt-4">
-            <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-full bg-neutral-900/80 text-white text-[11px] font-semibold px-2.5 py-1 shadow-sm">
-              Nearest area
+            {/* Loading text with typing animation */}
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-pink-500 bg-clip-text text-transparent">
+                Finding Nearest Pandals...
+              </h2>
+              <p className="text-sm text-muted-foreground animate-pulse">
+                Searching for pandals in your area
+              </p>
             </div>
-            <div ref={mapDivRef} className="h-[44vh] sm:h-[52vh] w-full rounded-2xl overflow-hidden border border-neutral-200 shadow-[0_8px_28px_rgba(16,24,40,0.08)]" />
-          </div>
 
-          <div className="mt-4 sm:mt-5 flex items-center justify-end">
-            {radiusKm >= 1 ? (
-              <Button onClick={proceed} disabled={proceedLoading} className="w-full sm:w-auto rounded-full px-6 py-2.5 bg-violet-600 text-white hover:bg-violet-700 shadow-md focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-70 disabled:cursor-not-allowed">
-                {proceedLoading ? (
-                  <>
-                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Navigation className="h-4 w-4 mr-2" /> Show nearest pandals
-                  </>
-                )}
-              </Button>
-            ) : (
-              <div className="w-full text-right text-xs sm:text-sm text-neutral-500">
-                Select at least 1 km to continue
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      {noResults && (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/50">
-          <div className="rounded-2xl bg-white/95 backdrop-blur p-5 w-[min(92vw,360px)] text-center shadow-2xl border border-black/10">
-            <div className="text-lg font-semibold text-neutral-900 mb-1">No pandals found</div>
-            <div className="text-sm text-neutral-600 mb-4">Try increasing the radius or pick a different center.</div>
-            <Button onClick={()=> setNoResults(false)} className="rounded-full bg-violet-600 hover:bg-violet-700 text-white px-5">OK</Button>
+            {/* Animated dots */}
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+              <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+              <div className="w-2 h-2 bg-orange-600 rounded-full animate-bounce"></div>
+            </div>
           </div>
         </div>
       )}
-      <style jsx>{`
-        .radiusInput { height: 6px; border-radius: 9999px; background-color: rgba(0,0,0,0.08); outline: none; }
-        /* Center thumb vertically on 6px track (thumb 16px => (16-6)/2 = 5px) */
-        .radiusInput::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; height: 16px; width: 16px; border-radius: 9999px; background: #7c3aed; box-shadow: 0 2px 6px rgba(124,58,237,0.35); border: 2px solid white; cursor: pointer; margin-top: -5px; }
-        .radiusInput::-moz-range-thumb { height: 16px; width: 16px; border-radius: 9999px; background: #7c3aed; box-shadow: 0 2px 6px rgba(124,58,237,0.35); border: 2px solid white; cursor: pointer; transform: translateY(-5px); }
-        .radiusInput::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: #e5e7eb; }
-        .radiusInput::-moz-range-track { height: 6px; border-radius: 9999px; background: #e5e7eb; }
-      `}</style>
-    </div>
+      <div className="min-h-[calc(100vh-112px)] w-full bg-gradient-to-b from-violet-50 via-white to-sky-50">
+        <div className="mx-auto max-w-full sm:max-w-3xl px-3 sm:px-4 py-4 sm:py-10">
+          <div className="rounded-3xl border border-white/60 bg-white/90 supports-[backdrop-filter]:bg-white/70 backdrop-blur-md shadow-[0_10px_40px_rgba(16,24,40,0.06)] ring-1 ring-black/5 p-3 sm:p-6">
+            <div className="mb-1 flex items-center gap-2">
+              <div className="h-8 w-8 grid place-items-center rounded-full bg-violet-600 text-white text-sm font-semibold">1</div>
+              <div className="text-base sm:text-lg font-semibold text-neutral-900">Nearest pandal</div>
+            </div>
+            <p className="text-xs sm:text-sm text-neutral-600 mb-4">Pick a center and radius. We will show pandals within that range.</p>
+
+            <div
+              ref={wrapRef}
+              tabIndex={-1}
+              onBlur={(e) => {
+                const next = e.relatedTarget as Node | null;
+                if (!wrapRef.current || !next || !wrapRef.current.contains(next)) setSuggestions([]);
+              }}
+              className="relative"
+            >
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1">
+                  <MapPin className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-violet-600" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key==='Escape') setSuggestions([]); }}
+                    placeholder="Type a place or lat,lon"
+                    className="pl-9 rounded-xl bg-white/90 border border-neutral-200 shadow-sm focus-visible:ring-2 focus-visible:ring-violet-400"
+                  />
+                </div>
+                <div className="flex w-full sm:w-auto gap-2 sm:gap-3 justify-stretch sm:justify-end flex-col sm:flex-row">
+                  <Button
+                    onClick={useMyLocation}
+                    disabled={locationLoading}
+                    className="rounded-full bg-violet-600 hover:bg-violet-700 text-white shadow-md w-full sm:w-auto disabled:opacity-50"
+                  >
+                    {locationLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Getting location...
+                      </>
+                    ) : (
+                      <>
+                        <LocateFixed className="h-4 w-4 mr-2" /> Use my location
+                      </>
+                    )}
+                  </Button>
+                  <div className="flex items-center gap-3 rounded-full bg-white/90 border border-neutral-200 px-3 py-2 shadow-sm w-full sm:w-auto">
+                    <span className="text-xs sm:text-sm text-neutral-600">Radius</span>
+                    <input
+                      className="radiusInput iosSlider flex-1"
+                      type="range" min={0} max={10} step={0.5}
+                      value={radiusKm}
+                      onChange={(e)=> setRadiusKm(parseFloat(e.target.value))}
+                      style={{
+                        background: `linear-gradient(to right, #7c3aed ${(Math.max(0, Math.min(10, radiusKm))/10)*100}%, #e5e7eb ${(Math.max(0, Math.min(10, radiusKm))/10)*100}%)`
+                      }}
+                    />
+                    <span className="text-sm font-semibold text-neutral-900 w-16 text-right">{radiusKm} km</span>
+                  </div>
+                </div>
+              </div>
+              {suggestions.length>0 && (
+                <div className="absolute z-[10000] mt-2 w-full overflow-auto max-h-72 rounded-xl bg-white/95 border border-neutral-200 shadow-[0_12px_40px_rgba(16,24,40,0.12)]">
+                  {suggestions.map((s)=> (
+                    <button key={s.place_id} className="w-full text-left px-3 py-2 hover:bg-violet-50/80 flex items-center gap-2 transition-colors border-b last:border-b-0 border-neutral-100" onClick={()=>chooseSuggestion(s)}>
+                      <MapPin className="h-4 w-4 text-violet-600" />
+                      <span className="text-sm truncate">{s.display_name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative mt-3 sm:mt-4">
+              <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-full bg-neutral-900/80 text-white text-[11px] font-semibold px-2.5 py-1 shadow-sm">
+                Nearest area
+              </div>
+              <div ref={mapDivRef} className="h-[44vh] sm:h-[52vh] w-full rounded-2xl overflow-hidden border border-neutral-200 shadow-[0_8px_28px_rgba(16,24,40,0.08)]" />
+            </div>
+
+            <div className="mt-4 sm:mt-5 flex items-center justify-end">
+              {radiusKm >= 1 ? (
+                <Button onClick={proceed} disabled={proceedLoading} className="w-full sm:w-auto rounded-full px-6 py-2.5 bg-violet-600 text-white hover:bg-violet-700 shadow-md focus-visible:ring-2 focus-visible:ring-violet-300 disabled:opacity-70 disabled:cursor-not-allowed">
+                  {proceedLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="h-4 w-4 mr-2" /> Show nearest pandals
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <div className="w-full text-right text-xs sm:text-sm text-neutral-500">
+                  Select at least 1 km to continue
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        {noResults && (
+          <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/50">
+            <div className="rounded-2xl bg-white/95 backdrop-blur p-5 w-[min(92vw,360px)] text-center shadow-2xl border border-black/10">
+              <div className="text-lg font-semibold text-neutral-900 mb-1">No pandals found</div>
+              <div className="text-sm text-neutral-600 mb-4">Try increasing the radius or pick a different center.</div>
+              <Button onClick={()=> setNoResults(false)} className="rounded-full bg-violet-600 hover:bg-violet-700 text-white px-5">OK</Button>
+            </div>
+          </div>
+        )}
+        <style jsx>{`
+          .radiusInput { height: 6px; border-radius: 9999px; background-color: rgba(0,0,0,0.08); outline: none; }
+          /* Center thumb vertically on 6px track (thumb 16px => (16-6)/2 = 5px) */
+          .radiusInput::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; height: 16px; width: 16px; border-radius: 9999px; background: #7c3aed; box-shadow: 0 2px 6px rgba(124,58,237,0.35); border: 2px solid white; cursor: pointer; margin-top: -5px; }
+          .radiusInput::-moz-range-thumb { height: 16px; width: 16px; border-radius: 9999px; background: #7c3aed; box-shadow: 0 2px 6px rgba(124,58,237,0.35); border: 2px solid white; cursor: pointer; transform: translateY(-5px); }
+          .radiusInput::-webkit-slider-runnable-track { height: 6px; border-radius: 9999px; background: #e5e7eb; }
+          .radiusInput::-moz-range-track { height: 6px; border-radius: 9999px; background: #e5e7eb; }
+        `}</style>
+      </div>
+    </>
   );
 }

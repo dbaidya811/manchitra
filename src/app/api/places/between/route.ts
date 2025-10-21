@@ -22,18 +22,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 });
     }
 
-    // Calculate bounding box
-    const minLat = Math.min(fromLat, toLat);
-    const maxLat = Math.max(fromLat, toLat);
-    const minLon = Math.min(fromLon, toLon);
-    const maxLon = Math.max(fromLon, toLon);
+    // Calculate bounding box with some padding to increase search area
+    const latDiff = Math.abs(toLat - fromLat);
+    const lonDiff = Math.abs(toLon - fromLon);
+    const padding = Math.max(latDiff, lonDiff) * 0.5; // Add 50% padding
+
+    const minLat = Math.min(fromLat, toLat) - padding;
+    const maxLat = Math.max(fromLat, toLat) + padding;
+    const minLon = Math.min(fromLon, toLon) - padding;
+    const maxLon = Math.max(fromLon, toLon) + padding;
+
+    console.log('Searching between coordinates:', { fromLat, fromLon, toLat, toLon });
+    console.log('Bounding box:', { minLat, maxLat, minLon, maxLon });
 
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
     const db = client.db('manchitra');
     const collection = db.collection('places');
 
-    // Query places within the bounding box
+    // Query places within the expanded bounding box
     const places = await collection
       .find({
         $or: [
@@ -44,6 +51,7 @@ export async function GET(req: NextRequest) {
           {
             location: {
               $regex: new RegExp(
+                `^\\s*(${minLat.toFixed(2)}|${maxLat.toFixed(2)})[^,]*,\\s*(${minLon.toFixed(2)}|${maxLon.toFixed(2)})|` +
                 `^\\s*(${minLat.toFixed(2)}|${maxLat.toFixed(2)})[^,]*,\\s*(${minLon.toFixed(2)}|${maxLon.toFixed(2)})`,
                 'i'
               ),
@@ -51,8 +59,10 @@ export async function GET(req: NextRequest) {
           },
         ],
       })
-      .limit(50)
+      .limit(100) // Increase limit for more results
       .toArray();
+
+    console.log(`Found ${places.length} places in database`);
 
     await client.close();
 
@@ -82,7 +92,7 @@ export async function GET(req: NextRequest) {
 
         if (lat === null || lon === null) return null;
 
-        // Check if within bounding box
+        // Check if within expanded bounding box
         if (lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon) {
           return {
             id: p.id ?? p._id?.toString() ?? `${lat},${lon}`,
@@ -94,6 +104,8 @@ export async function GET(req: NextRequest) {
         return null;
       })
       .filter((x: any) => x !== null);
+
+    console.log(`Filtered to ${results.length} valid places`);
 
     return NextResponse.json({ places: results, count: results.length });
   } catch (error: any) {

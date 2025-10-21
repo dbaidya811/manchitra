@@ -254,11 +254,11 @@
   /* Ripple effect for user location */
   @keyframes ripple {
     0% {
-      transform: scale(1);
-      opacity: 0.8;
+      transform: scale(0);
+      opacity: 1;
     }
     100% {
-      transform: scale(2.5);
+      transform: scale(4);
       opacity: 0;
     }
   }
@@ -393,4 +393,155 @@
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
+}
+
+/* ===== MICRO-ANIMATIONS FOR BUTTONS ===== */
+
+@keyframes ripple {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes heartbeat {
+  0%, 50%, 100% { transform: scale(1); }
+  25%, 75% { transform: scale(1.1); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(168, 85, 247, 0); }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0.3) translate3d(0, 0, 0); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1) translate3d(0, 0, 0); opacity: 1; }
+}
+
+@keyframes slide-up {
+  0% { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(249, 115, 22, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(249, 115, 22, 0.8), 0 0 30px rgba(249, 115, 22, 0.4); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* Button animation classes */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-ripple:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-heartbeat {
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+.btn-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+.btn-bounce-in {
+  animation: bounce-in 0.6s ease-out;
+}
+
+.btn-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.btn-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.btn-float {
+  animation: float 2s ease-in-out infinite;
+}
+
+.btn-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.btn-shake:hover {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* Hover effects */
+.btn-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.btn-hover-scale:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+.btn-hover-glow:hover {
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Loading animations */
+.btn-loading {
+  position: relative;
+  color: transparent;
+}
+
+.btn-loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin-left: -8px;
+  margin-top: -8px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: button-loading-spinner 1s ease infinite;
+}
+
+@keyframes button-loading-spinner {
+  from { transform: rotate(0turn); }
+  to { transform: rotate(1turn); }
 }
