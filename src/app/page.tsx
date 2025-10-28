@@ -30,28 +30,22 @@ export default function Home() {
 
   const [pwaPromptEvent, setPwaPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
-  const [showAndroidSteps, setShowAndroidSteps] = useState(false);
   const [showIosSteps, setShowIosSteps] = useState(false);
   const [hasRedirected, setHasRedirected] = useState(false);
   const [isReloadingAfterOAuth, setIsReloadingAfterOAuth] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    if (status === "authenticated" && !hasRedirected) {
+      setHasRedirected(true);
+      router.replace("/dashboard");
+    }
+  }, [hasRedirected, isMounted, router, status]);
 
   // Track client-side mounting to prevent hydration mismatch
   useEffect(() => {
     setIsMounted(true);
-  }, []);
-
-  // Prompt for location permission on website open (home page mount)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          () => {},
-          () => {},
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-        );
-      }
-    } catch {}
   }, []);
 
   // Check if we just came back from OAuth callback and reload if needed
@@ -71,7 +65,6 @@ export default function Home() {
       console.log('🔄 Home - OAuth callback detected, hard reloading...');
       sessionStorage.setItem('oauth_reload_done', '1');
       
-      // Clean URL and do hard reload after showing spinner
       setTimeout(() => {
         console.log('🔄 Executing hard reload now...');
         window.history.replaceState({}, '', '/');
@@ -86,16 +79,29 @@ export default function Home() {
     }
   }, [status]);
 
-  // Auto-redirect to dashboard if already logged in
+  // Check PWA mode and redirect immediately if needed
   useEffect(() => {
-    if (status === "authenticated" && session?.user && !hasRedirected) {
-      console.log('Home - User authenticated, redirecting to dashboard...');
-      setHasRedirected(true);
-      // Use window.location for hard redirect to ensure proper navigation
-      window.location.href = "/dashboard";
-    }
-  }, [status, session, hasRedirected]);
+    if (!isMounted || typeof window === 'undefined') return;
 
+    const isPwa = window.matchMedia('(display-mode: standalone)').matches;
+    if (isPwa && status === 'unauthenticated') {
+      console.log('Home - PWA detected, redirecting to login...');
+      router.push('/auth/login');
+    }
+  }, [isMounted, status, router]);
+
+  // Check for login_required parameter and show login dialog
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const loginRequired = urlParams.get('login_required');
+
+    if (loginRequired && status === 'unauthenticated') {
+      console.log('🔐 Login required, showing login dialog');
+      setDialogOpen(true);
+    }
+  }, [status]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -189,11 +195,14 @@ export default function Home() {
 
   const handleGoogleLogin = async () => {
     console.log('Starting Google login...');
+    setIsGoogleLoading(true);
     // Use redirect: true to let NextAuth handle the full redirect flow
     await signIn("google", {
       callbackUrl: "/dashboard",
       redirect: true
     });
+    // Note: Since redirect: true, the code after this won't execute, but keeping for completeness
+    setIsGoogleLoading(false);
   };
 
   const collageImages = [
@@ -309,14 +318,27 @@ export default function Home() {
                 onClick={handleGoogleLogin}
                 className="w-full rounded-full bg-white text-gray-800 border border-white/80 shadow-lg shadow-black/15 hover:bg-white/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/60 transition-transform duration-200 active:scale-[0.99] animate-slide-up"
                 style={{ animationDelay: '0.35s', animationFillMode: 'backwards' }}
+                disabled={isGoogleLoading}
               >
-                <img
-                  src="https://cdn-icons-png.flaticon.com/512/281/281764.png"
-                  alt="Google icon"
-                  className="mr-2 h-5 w-5 shrink-0"
-                  referrerPolicy="no-referrer"
-                />
-                Login with Google
+                {isGoogleLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <img
+                      src="https://cdn-icons-png.flaticon.com/512/281/281764.png"
+                      alt="Google icon"
+                      className="mr-2 h-5 w-5 shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                    Login with Google
+                  </>
+                )}
               </Button>
             </div>
             <div className="relative z-10 mt-10 flex flex-col items-center gap-2 text-white/80 text-xs uppercase tracking-[0.3em]">
@@ -414,31 +436,20 @@ export default function Home() {
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'backwards' }}>
                   <div className="flex items-center gap-3 text-neutral-900">
-                    <img
-                      src="https://cdn-icons-png.flaticon.com/512/5969/5969042.png"
-                      alt="Android icon"
-                      className="h-10 w-10 rounded-full object-contain"
-                    />
+                    <Smartphone className="h-10 w-10 rounded-full text-green-600" />
                     <div>
                       <div className="text-sm font-semibold uppercase tracking-wide">Android</div>
                       <p className="text-xs text-neutral-500">Chrome, Edge, Brave</p>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm text-neutral-600">Install directly or follow the quick steps.</p>
+                  <p className="mt-4 text-sm text-neutral-600">Install directly from your browser to add to home screen.</p>
                   <Button
                     type="button"
                     className="mt-3 w-full rounded-full bg-emerald-500 text-white hover:bg-emerald-500 focus-visible:ring-0 focus-visible:ring-offset-0"
-                    onClick={() => setShowAndroidSteps((prev) => !prev)}
+                    onClick={triggerAndroidInstall}
                   >
-                    {showAndroidSteps ? "Hide Android steps" : "Show Android steps"}
+                    Install on Android
                   </Button>
-                  {showAndroidSteps && (
-                    <ul className="mt-4 space-y-2 rounded-xl bg-neutral-100/80 p-4 text-xs text-neutral-600">
-                      <li>• Tap the browser menu ⋮.</li>
-                      <li>• In the menu, tap "Add to Home screen" ("Install app" on some browsers).</li>
-                      <li>• Confirm the prompt to add Manchitra.</li>
-                    </ul>
-                  )}
                 </div>
                 <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm animate-slide-up" style={{ animationDelay: '0.55s', animationFillMode: 'backwards' }}>
                   <div className="flex items-center gap-3 text-neutral-900">
@@ -454,7 +465,7 @@ export default function Home() {
                     className="mt-4 w-full rounded-full bg-black text-white hover:bg-black focus-visible:ring-0 focus-visible:ring-offset-0"
                     onClick={() => setShowIosSteps((prev) => !prev)}
                   >
-                    {showIosSteps ? "Hide iOS steps" : "Show iOS steps"}
+                    {showIosSteps ? "Hide iOS steps" : "How to Install on iOS"}
                   </Button>
                   {showIosSteps && (
                     <ul className="mt-4 space-y-2 rounded-xl bg-neutral-100/80 p-4 text-xs text-neutral-600">

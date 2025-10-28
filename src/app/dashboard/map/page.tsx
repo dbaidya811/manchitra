@@ -8,8 +8,6 @@ import dynamic from 'next/dynamic';
 
 import { LocationPermissionGate } from "@/components/location-permission-gate";
 import { Skeleton } from "@/components/ui/skeleton";
-
-// Jitter filter thresholds (meters)
 const ACCURACY_MAX_M = 80;    // Ignore GPS updates worse than this
 const MIN_MOVE_M = 7;         // Ignore tiny positional noise
 const RECENTER_MOVE_M = 18;   // Only recenter map after moving this much
@@ -22,6 +20,7 @@ const RL = {
   Marker: dynamic(() => import('react-leaflet').then(m => m.Marker), { ssr: false }),
   Circle: dynamic(() => import('react-leaflet').then(m => m.Circle), { ssr: false }),
   Tooltip: dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false }),
+  Popup: dynamic(() => import('react-leaflet').then(m => m.Popup), { ssr: false }),
 } as const;
 
 // Leaflet CSS is already provided via a <link> tag in src/app/layout.tsx
@@ -118,7 +117,6 @@ function DashboardMapPage() {
   const [nearestItems, setNearestItems] = useState<Array<{ id: string | number; name: string; lat: number; lon: number; distM: number }>>([]);
   const [nearestLoading, setNearestLoading] = useState<boolean>(false);
   const [nearestError, setNearestError] = useState<string | null>(null);
-  const [recenterPending, setRecenterPending] = useState<boolean>(false);
   // One-time initializer for nearest-mode sequencing
   const nearestInitRef = useRef<boolean>(false);
   // Track which nearest item user clicked (for highlighting)
@@ -562,8 +560,9 @@ function DashboardMapPage() {
       (pos) => {
         const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         setUserPos(me);
-        setCenter([me.lat, me.lon]);
-        setZoom(16);
+        // Removed: automatic centering when page opens
+        // setCenter([me.lat, me.lon]);
+        // setZoom(16);
       },
       () => {},
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -652,8 +651,8 @@ function DashboardMapPage() {
                   return minDist;
                 };
                 
-                // Filter locations within 10km of start OR end OR within 10km of the route
-                const RADIUS_M = 10000; // 10km
+                // Filter locations within 5km of start OR end OR within 5km of the route
+                const RADIUS_M = 5000; // 5km
                 const filteredStops = stops.filter(s => {
                   const distFromStart = haversineM([s.lat, s.lon], [startLat, startLon]);
                   const distFromEnd = haversineM([s.lat, s.lon], [endLat, endLon]);
@@ -704,13 +703,14 @@ function DashboardMapPage() {
                 setPlanStops(orderedStops);
                 setPtpConnectors(connectors);
                 
+                // Removed: automatic centering when in point-to-point mode
                 // Center map to show all points
-                const allLats = [startLat, ...orderedStops.map(s => s.lat), endLat];
-                const allLons = [startLon, ...orderedStops.map(s => s.lon), endLon];
-                const centerLat = (Math.min(...allLats) + Math.max(...allLats)) / 2;
-                const centerLon = (Math.min(...allLons) + Math.max(...allLons)) / 2;
-                setCenter([centerLat, centerLon]);
-                setZoom(12);
+                // const allLats = [startLat, ...orderedStops.map(s => s.lat), endLat];
+                // const allLons = [startLon, ...orderedStops.map(s => s.lon), endLon];
+                // const centerLat = (Math.min(...allLats) + Math.max(...allLats)) / 2;
+                // const centerLon = (Math.min(...allLons) + Math.max(...allLons)) / 2;
+                // setCenter([centerLat, centerLon]);
+                // setZoom(12);
               }
             }
           }
@@ -812,7 +812,8 @@ function DashboardMapPage() {
     const minLon = Math.min(...lons);
     const maxLon = Math.max(...lons);
     try {
-      mapRef.current.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [40, 100] });
+      // Removed: automatic bounds fitting when route updates
+      // mapRef.current.fitBounds([[minLat, minLon], [maxLat, maxLon]], { padding: [40, 100] });
     } catch {}
   }, [routeCoords, startPos, dest]);
 
@@ -824,8 +825,9 @@ function DashboardMapPage() {
       try {
         const to = { lat: e.latlng.lat, lon: e.latlng.lng };
         setDest(to);
-        setCenter([to.lat, to.lon]);
-        setZoom(15);
+        // Removed: automatic centering when clicking on map
+        // setCenter([to.lat, to.lon]);
+        // setZoom(15);
         if (userPos) {
           setStartPos(userPos);
           fetchRoute(userPos, to);
@@ -1001,11 +1003,14 @@ function DashboardMapPage() {
       const dLon = (dMeters * Math.sin(theta)) / (R * Math.cos(latRad));
       const newLat = userPos.lat + (dLat * 180) / Math.PI;
       const newLon = userPos.lon + (dLon * 180) / Math.PI;
-      setCenter([newLat, newLon]);
+      // Removed: auto-follow recentering in heading-up mode
+      // setCenter([newLat, newLon]);
     } else {
-      setCenter([userPos.lat, userPos.lon]);
+      // Removed: auto-follow recentering to user position
+      // setCenter([userPos.lat, userPos.lon]);
     }
-    setZoom((z) => Math.max(z, 16));
+    // Removed: auto-adjust zoom level
+    // setZoom((z) => Math.max(z, 16));
   }, [userPos, autoFollow, headingUp, userHeading]);
 
   // Compute approximate distance (meters) between two lat/lon
@@ -1445,14 +1450,50 @@ function DashboardMapPage() {
     const fromLat = searchParams.get('fromLat');
     const fromLon = searchParams.get('fromLon');
     const mode = searchParams.get('mode');
-    // Helper to auto start a route to a known destination
-    const autoStartTo = (to: { lat: number; lon: number }) => {
+    const destinationsParam = searchParams.get('destinations');
+
+    // Handle plan mode with destinations
+    if (mode === 'plan' && destinationsParam) {
+      try {
+        const destinations = JSON.parse(decodeURIComponent(destinationsParam));
+        if (Array.isArray(destinations) && destinations.length > 0) {
+          const planStops: Array<{ id: number; name: string; lat: number; lon: number }> = destinations
+            .map((dest: any, index: number) => ({
+              id: index,
+              name: dest.displayName || dest.name || `Destination ${index + 1}`,
+              lat: dest.lat,
+              lon: dest.lon,
+            }))
+            .filter((stop: any) => stop.lat && stop.lon);
+
+          if (planStops.length > 0) {
+            setPlanStops(planStops);
+            setPlanIdx(0);
+
+            // Set initial destination to first stop
+            const firstStop = planStops[0];
+            setDest({ lat: firstStop.lat, lon: firstStop.lon });
+            setCenter([firstStop.lat, firstStop.lon]);
+            setZoom(15);
+
+            // Start navigation to first destination
+            startNavigationTo({ lat: firstStop.lat, lon: firstStop.lon });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to parse plan destinations:', error);
+      }
+    } else if (lat && lon) {
+      const latNum = parseFloat(lat);
+      const lonNum = parseFloat(lon);
+
       // If fromLat/fromLon are provided via query, respect them and avoid prompting for geolocation
       if (fromLat && fromLon) {
         const fLat = parseFloat(fromLat);
         const fLon = parseFloat(fromLon);
         if (!Number.isNaN(fLat) && !Number.isNaN(fLon)) {
           const from = { lat: fLat, lon: fLon };
+          const to = { lat: latNum, lon: lonNum };
           setUserPos(from);
           setStartPos(from);
           fetchRoute(from, to);
@@ -1460,49 +1501,13 @@ function DashboardMapPage() {
           return;
         }
       }
-      // Try immediate geolocation; if denied/timeouts, fall back to current map center
-      if (!navigator.geolocation) {
-        const [clat, clon] = center;
-        let from = { lat: clat, lon: clon };
-        const sameAsDest = Math.hypot((from.lat - to.lat), (from.lon - to.lon)) < 0.0005;
-        if (sameAsDest) {
-          from = { lat: to.lat + 0.005, lon: to.lon + 0.005 };
-        }
-        setStartPos(from);
-        fetchRoute(from, to);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-          setUserPos(me);
-          setStartPos(me);
-          fetchRoute(me, to);
-          setCenter([me.lat, me.lon]);
-          setZoom(14);
-        },
-        () => {
-          const [clat, clon] = center;
-          let from = { lat: clat, lon: clon };
-          const sameAsDest = Math.hypot((from.lat - to.lat), (from.lon - to.lon)) < 0.0005;
-          if (sameAsDest) {
-            from = { lat: to.lat + 0.005, lon: to.lon + 0.005 };
-          }
-          setStartPos(from);
-          fetchRoute(from, to);
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      );
-    };
-    if (lat && lon) {
-      const latNum = parseFloat(lat);
-      const lonNum = parseFloat(lon);
+
       setDest({ lat: latNum, lon: lonNum });
       setCenter([latNum, lonNum]);
       setZoom(15);
       // Start route immediately
       if (mode !== 'nearest') {
-        autoStartTo({ lat: latNum, lon: lonNum });
+        startNavigationTo({ lat: latNum, lon: lonNum });
       }
     } else if (address) {
       // Geocode address using Nominatim
@@ -1520,7 +1525,7 @@ function DashboardMapPage() {
               setZoom(15);
               // Start route immediately
               if (mode !== 'nearest') {
-                autoStartTo({ lat: latNum, lon: lonNum });
+                startNavigationTo({ lat: latNum, lon: lonNum });
               }
             }
           }
@@ -1533,11 +1538,6 @@ function DashboardMapPage() {
       geocode();
     }
   }, [searchParams, router]);
-
-  // Removed auto-start routing to behave like a normal map unless user taps Start
-
-
-  
 
   // Request a route from userPos -> dest via OSRM with multi-endpoint fallback
   const fetchRoute = async (from: { lat: number; lon: number }, to: { lat: number; lon: number }) => {
@@ -1791,9 +1791,9 @@ function DashboardMapPage() {
         setStartPos(me);
         setUserPos(me);
         fetchRoute(me, dest);
-        // Initial center once; auto-follow effect will keep view sensible without jitter
-        setCenter([me.lat, me.lon]);
-        setZoom(14);
+        // Removed: initial recentering when navigation starts
+        // setCenter([me.lat, me.lon]);
+        // setZoom(14);
         // Only follow live if enabled
         if (liveUpdate) {
           const watchId = navigator.geolocation.watchPosition(
@@ -1840,8 +1840,9 @@ function DashboardMapPage() {
                 try {
                   const movedFromCenter = haversine([center[0], center[1]], [cur.lat, cur.lon]);
                   if (movedFromCenter >= RECENTER_MOVE_M) {
-                    setCenter([cur.lat, cur.lon]);
-                    setZoom((z) => Math.max(z, 16));
+                    // Removed: automatic recentering functionality
+                    // setCenter([cur.lat, cur.lon]);
+                    // setZoom((z) => Math.max(z, 16));
                   }
                 } catch {}
               }
@@ -2193,7 +2194,7 @@ function DashboardMapPage() {
                   return (
                     <RL.Marker key={`plan-${s.id}`} position={[s.lat, s.lon]} icon={iconToUse || planIconRed}>
                       <RL.Tooltip permanent direction="top" offset={[0, -24]} opacity={1} className="!bg-white !text-black !border !border-black/20 !rounded-full !px-2 !py-0.5 !text-[11px] !font-semibold shadow">
-                        {idx + 1}
+                        {idx + 1}. {s.name}
                       </RL.Tooltip>
                     </RL.Marker>
                   );
@@ -2347,111 +2348,6 @@ function DashboardMapPage() {
         )}
         {/* Re-center and Exit controls (icon buttons), positioned above footer */}
         <div className="absolute bottom-56 right-5 z-[3500] flex flex-col gap-3 items-end">
-          <button
-            onClick={() => {
-              try {
-                setAutoFollow(true);
-                setRecenterPending(true);
-                // If we already know user position, use immediately
-                if (userPos) {
-                  // Smooth fly when map is ready; fallback to state update
-                  try {
-                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
-                      const nextZ = Math.max(zoom, 16);
-                      mapRef.current.flyTo([userPos.lat, userPos.lon], nextZ, { animate: true, duration: 0.6 });
-                      setZoom(nextZ);
-                      setCenter([userPos.lat, userPos.lon]);
-                    } else {
-                      setCenter([userPos.lat, userPos.lon]);
-                      setZoom((z) => Math.max(z, 16));
-                    }
-                  } catch {
-                    setCenter([userPos.lat, userPos.lon]);
-                    setZoom((z) => Math.max(z, 16));
-                  }
-                  setTimeout(() => setRecenterPending(false), 150);
-                  return;
-                }
-                if (typeof navigator !== 'undefined' && navigator.geolocation) {
-                  navigator.geolocation.getCurrentPosition(
-                    (pos) => {
-                      const me = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-                      setUserPos(me);
-                      try {
-                        if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
-                          const nextZ = Math.max(zoom, 16);
-                          mapRef.current.flyTo([me.lat, me.lon], nextZ, { animate: true, duration: 0.6 });
-                          setZoom(nextZ);
-                          setCenter([me.lat, me.lon]);
-                        } else {
-                          setCenter([me.lat, me.lon]);
-                          setZoom((z) => Math.max(z, 16));
-                        }
-                      } catch {
-                        setCenter([me.lat, me.lon]);
-                        setZoom((z) => Math.max(z, 16));
-                      }
-                      setRecenterPending(false);
-                    },
-                    (err) => {
-                      try { console.warn('Geolocation error:', err); } catch {}
-                      // Basic feedback for user
-                      alert('Location permission blocked or unavailable. Please enable location access.');
-                      setRecenterPending(false);
-                    },
-                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-                  );
-                } else if (startPos) {
-                  // Fallback: center to known start position
-                  try {
-                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
-                      const nextZ = Math.max(zoom, 15);
-                      mapRef.current.flyTo([startPos.lat, startPos.lon], nextZ, { animate: true, duration: 0.5 });
-                      setZoom(nextZ);
-                      setCenter([startPos.lat, startPos.lon]);
-                    } else {
-                      setCenter([startPos.lat, startPos.lon]);
-                      setZoom((z) => Math.max(z, 15));
-                    }
-                  } catch {
-                    setCenter([startPos.lat, startPos.lon]);
-                    setZoom((z) => Math.max(z, 15));
-                  }
-                  setRecenterPending(false);
-                } else if (browsePos) {
-                  // Fallback: center to last browsed position
-                  try {
-                    if (mapRef.current && typeof mapRef.current.flyTo === 'function') {
-                      const nextZ = Math.max(zoom, 14);
-                      mapRef.current.flyTo([browsePos.lat, browsePos.lon], nextZ, { animate: true, duration: 0.5 });
-                      setZoom(nextZ);
-                      setCenter([browsePos.lat, browsePos.lon]);
-                    } else {
-                      setCenter([browsePos.lat, browsePos.lon]);
-                      setZoom((z) => Math.max(z, 14));
-                    }
-                  } catch {
-                    setCenter([browsePos.lat, browsePos.lon]);
-                    setZoom((z) => Math.max(z, 14));
-                  }
-                  setRecenterPending(false);
-                } else {
-                  setRecenterPending(false);
-                }
-              } catch {}
-            }}
-            className={`h-11 w-11 inline-flex items-center justify-center rounded-full bg-white/90 dark:bg-black/50 border border-black/10 dark:border-white/10 shadow-xl hover:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-300/30 transition-transform duration-150 ease-out hover:scale-105 active:scale-95 ${recenterPending ? 'opacity-70 cursor-wait' : ''}`}
-            title="Re-center"
-            aria-label="Re-center"
-            disabled={recenterPending}
-          >
-            {/* target/locate icon */}
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="h-6 w-6" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="3.2" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
-              <circle cx="12" cy="12" r="8.5" strokeDasharray="2 3" opacity="0.7" />
-            </svg>
-          </button>
           {(routeCoords.length > 0 || geoWatchRef.current != null) && (
             <button
               onClick={() => {
@@ -2571,9 +2467,11 @@ import { Suspense } from 'react';
 
 export default function DashboardMapPageWrapper() {
   return (
-    <Suspense fallback={<div style={{ height: 2 }} /> }>
-      <DashboardMapPage />
-    </Suspense>
+    <LocationPermissionGate>
+      <Suspense fallback={<div style={{ height: 2 }} /> }>
+        <DashboardMapPage />
+      </Suspense>
+    </LocationPermissionGate>
   );
 }
 

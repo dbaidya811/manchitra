@@ -36,12 +36,18 @@ export interface Template {
   sections: Section[];
 }
 
+export interface PlanDestination {
+  displayName: string;
+  lat: number;
+  lon: number;
+  area?: string;
+}
 
 export interface SharedPlan {
   id: string;
   name: string;
   description?: string;
-  destinations: string[];
+  destinations: PlanDestination[];
   createdAt: number;
   updatedAt: number;
   sharedBy?: string;
@@ -51,8 +57,18 @@ export interface SavedPlan {
   id: string;
   userEmail?: string;
   name: string;
-  description: string;
-  destinations: string[];
+  description?: string;
+  destinations: PlanDestination[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CalendarPlan {
+  id: string;
+  date: string; // YYYY-MM-DD format
+  title: string;
+  description?: string;
+  destinations: PlanDestination[];
   createdAt: number;
   updatedAt: number;
 }

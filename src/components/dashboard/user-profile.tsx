@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
-import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save, Moon, Sun } from "lucide-react";
+import { LogOut, MapPin, ShieldAlert, Heart, Eye, AlertTriangle, Share2, ClipboardCopy, PhoneCall, History as HistoryIcon, Clock, Save } from "lucide-react";
 import { useState, useRef, useMemo, useEffect } from "react";
 import { AddPlaceDialog } from "./add-place-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ import { Place } from "@/lib/types";
 import { useSession, signOut } from "next-auth/react";
 import { Loader } from "@/components/ui/loader";
 import { useSessionRefresh } from "@/hooks/use-session-refresh";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface UserProfileProps {
   onPlaceSubmit?: (place: Omit<Place, 'id' | 'tags' | 'lat' | 'lon'>) => void;
@@ -96,28 +97,8 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   const [isAddPlaceOpen, setIsAddPlaceOpen] = useState(false);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
+  const [isNavigating, setIsNavigating] = useState<string | null>(null);
   const isLoading = status === "loading";
-
-  // Load dark mode preference
-  useEffect(() => {
-    const darkMode = localStorage.getItem('darkMode') === 'true' || document.documentElement.classList.contains('dark');
-    setIsDarkMode(darkMode);
-  }, []);
-
-  // Toggle dark mode
-  const toggleDarkMode = () => {
-    const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('darkMode', 'true');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('darkMode', 'false');
-    }
-  };
 
   // Force session refresh if authenticated but missing user data
   useEffect(() => {
@@ -129,6 +110,21 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
     }
   }, [status, session, refreshSessionWithRetry, isLoggingOut]);
 
+  // Clear navigation state when route changes
+  useEffect(() => {
+    setIsNavigating(null);
+  }, [pathname]);
+
+  // Clear navigation state after a delay to prevent flashing
+  useEffect(() => {
+    if (isNavigating) {
+      const timer = setTimeout(() => {
+        setIsNavigating(null);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isNavigating]);
+
   const nameFromEmail = (email?: string | null) => {
     if (!email) return "";
     const local = email.split("@")[0] || "";
@@ -137,7 +133,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
       .replace(/[._-]+/g, " ")
       .split(" ")
       .filter(Boolean)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(" ");
   };
 
@@ -226,21 +222,27 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
   };
 
   const handleReportIssue = () => {
+    setIsNavigating('report-issue');
     router.push("/dashboard/report-issue");
   };
 
   const handleContributions = () => {
+    setIsNavigating('my-contributions');
     router.push("/dashboard/my-contributions");
   };
-  
+
   const handleWhatIHaveSeen = () => {
+    setIsNavigating('what-have-i-seen');
     router.push("/dashboard/what-have-i-seen");
   };
+
   const handleHistory = () => {
+    setIsNavigating('history');
     router.push("/dashboard/history");
   };
 
   const handlePlanSave = () => {
+    setIsNavigating('plan-save');
     router.push("/dashboard/plan-save");
   };
 
@@ -299,6 +301,7 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           <Button
             variant="ghost"
             className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 shadow-md hover:shadow-lg transition"
+            disabled={isLoading}
           >
             <div className="rounded-full p-0.5 ring-2 ring-primary/90 bg-white/70 dark:bg-black/50 backdrop-blur">
               <Avatar className="h-8 w-8">
@@ -312,7 +315,9 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
                     target.src = '';
                   }}
                 />
-                <AvatarFallback>{userName.charAt(0).toUpperCase()}</AvatarFallback>
+                <AvatarFallback className={isLoading ? "animate-pulse" : ""}>
+                  {isLoading ? <Loader size="sm" /> : userName.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
             </div>
           </Button>
@@ -321,37 +326,21 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-semibold leading-none">{userName}</p>
-              {userEmail && (
-                <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+              {isLoading ? (
+                <div className="h-4 bg-gray-200 animate-pulse rounded"></div>
+              ) : (
+                userEmail && (
+                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                )
               )}
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator className="my-1" />
           
-          {/* Dark Mode Toggle - iOS Style */}
+          {/* Theme Toggle */}
           <div className="px-3 py-2.5 flex items-center justify-between rounded-lg hover:bg-accent/50">
-            <div className="flex items-center gap-2">
-              {isDarkMode ? (
-                <Moon className="h-4 w-4 text-indigo-600" />
-              ) : (
-                <Sun className="h-4 w-4 text-amber-600" />
-              )}
-              <span className="text-sm">Dark Mode</span>
-            </div>
-            <button
-              onClick={toggleDarkMode}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                isDarkMode ? 'bg-indigo-600' : 'bg-gray-300'
-              }`}
-              role="switch"
-              aria-checked={isDarkMode}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${
-                  isDarkMode ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+            <span className="text-sm">Theme</span>
+            <ThemeToggle />
           </div>
           
           <DropdownMenuSeparator className="my-1" />
@@ -374,25 +363,55 @@ export function UserProfile({ onPlaceSubmit }: UserProfileProps) {
             const isPlanSave = pathname === "/dashboard/plan-save";
             return (
               <>
-                <DropdownMenuItem onClick={handleContributions} className={`${baseCls} ${isContrib ? activeCls : ""} group`}>
-                  <Heart className={`mr-2 h-4 w-4 ${isContrib ? "text-white" : "text-rose-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isContrib ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>My Contributions</span>
+                <DropdownMenuItem onClick={handleContributions} className={`${baseCls} ${isContrib ? activeCls : ""} group ${isNavigating === 'my-contributions' ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  {isNavigating === 'my-contributions' ? (
+                    <Loader size="sm" className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Heart className={`mr-2 h-4 w-4 ${isContrib ? "text-white" : "text-rose-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  )}
+                  <span className={`${isContrib ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>
+                    {isNavigating === 'my-contributions' ? 'Loading...' : 'My Contributions'}
+                  </span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleWhatIHaveSeen} className={`${baseCls} ${isSeen ? activeCls : ""} group`}>
-                  <Eye className={`mr-2 h-4 w-4 ${isSeen ? "text-white" : "text-emerald-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isSeen ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Watchlist</span>
+                <DropdownMenuItem onClick={handleWhatIHaveSeen} className={`${baseCls} ${isSeen ? activeCls : ""} group ${isNavigating === 'what-have-i-seen' ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  {isNavigating === 'what-have-i-seen' ? (
+                    <Loader size="sm" className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Eye className={`mr-2 h-4 w-4 ${isSeen ? "text-white" : "text-emerald-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  )}
+                  <span className={`${isSeen ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>
+                    {isNavigating === 'what-have-i-seen' ? 'Loading...' : 'Watchlist'}
+                  </span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleHistory} className={`${baseCls} ${isHistory ? activeCls : ""} group`}>
-                  <HistoryIcon className={`mr-2 h-4 w-4 ${isHistory ? "text-white" : "text-sky-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isHistory ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>History</span>
+                <DropdownMenuItem onClick={handleHistory} className={`${baseCls} ${isHistory ? activeCls : ""} group ${isNavigating === 'history' ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  {isNavigating === 'history' ? (
+                    <Loader size="sm" className="mr-2 h-4 w-4" />
+                  ) : (
+                    <HistoryIcon className={`mr-2 h-4 w-4 ${isHistory ? "text-white" : "text-sky-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  )}
+                  <span className={`${isHistory ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>
+                    {isNavigating === 'history' ? 'Loading...' : 'History'}
+                  </span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePlanSave} className={`${baseCls} ${isPlanSave ? activeCls : ""} group`}>
-                  <Save className={`mr-2 h-4 w-4 ${isPlanSave ? "text-white" : "text-purple-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isPlanSave ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Plan Save</span>
+                <DropdownMenuItem onClick={handlePlanSave} className={`${baseCls} ${isPlanSave ? activeCls : ""} group ${isNavigating === 'plan-save' ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  {isNavigating === 'plan-save' ? (
+                    <Loader size="sm" className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Save className={`mr-2 h-4 w-4 ${isPlanSave ? "text-white" : "text-purple-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  )}
+                  <span className={`${isPlanSave ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>
+                    {isNavigating === 'plan-save' ? 'Loading...' : 'Plan Save'}
+                  </span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleReportIssue} className={`${baseCls} ${isReport ? activeCls : ""} group`}>
-                  <ShieldAlert className={`mr-2 h-4 w-4 ${isReport ? "text-white" : "text-amber-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
-                  <span className={`${isReport ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>Report Issue</span>
+                <DropdownMenuItem onClick={handleReportIssue} className={`${baseCls} ${isReport ? activeCls : ""} group ${isNavigating === 'report-issue' ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  {isNavigating === 'report-issue' ? (
+                    <Loader size="sm" className="mr-2 h-4 w-4" />
+                  ) : (
+                    <ShieldAlert className={`mr-2 h-4 w-4 ${isReport ? "text-white" : "text-amber-600 group-hover:text-white group-data-[highlighted]:text-white"}`} />
+                  )}
+                  <span className={`${isReport ? "text-white" : "group-hover:text-white group-data-[highlighted]:text-white"}`}>
+                    {isNavigating === 'report-issue' ? 'Loading...' : 'Report Issue'}
+                  </span>
                 </DropdownMenuItem>
               </>
             );

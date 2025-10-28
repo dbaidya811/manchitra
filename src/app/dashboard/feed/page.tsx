@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
 import { Loader } from "@/components/ui/loader";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
-import { Heart, Images, Plus, Smile, Video } from "lucide-react";
+import { Heart, Images, Plus, Video } from "lucide-react";
 import { playLikeSound, playSaveSound } from "@/lib/sound";
 
 export default function FeedPage() {
@@ -149,11 +149,6 @@ export default function FeedPage() {
   const [feedUsers, setFeedUsers] = useState<FeedUser[]>([]);
 
   // Composer: emoji picker and poll
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const commonEmojis = ['😀','😁','😂','😊','😍','😎','😢','😡','🙏','👍','🔥','🎉','❤️','✨','✅'];
-  const [emojiList, setEmojiList] = useState<Array<{ character: string; slug: string }>>([]);
-  const [emojiLoading, setEmojiLoading] = useState(false);
-  const [emojiQuery, setEmojiQuery] = useState("");
   const [pollOpen, setPollOpen] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [pollAllowMultiple, setPollAllowMultiple] = useState<boolean>(false);
@@ -430,27 +425,6 @@ export default function FeedPage() {
     const matches = allCards.filter((n) => n.toLowerCase().includes(q)).slice(0, 10);
     setSuggestions(matches);
   }, [cardQuery, allCards]);
-
-  // Fetch emoji set on demand when opening the picker (best-effort)
-  useEffect(() => {
-    const fetchEmojis = async () => {
-      try {
-        setEmojiLoading(true);
-        const res = await fetch('https://emoji-api.com/emojis?access_key=73094aaa6d540839afb981e07f15f63f32cdebba', { cache: 'force-cache' });
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          // Only keep needed fields
-          const simplified = data.map((e: any) => ({ character: String(e.character || ''), slug: String(e.slug || '') })).filter((e: any) => e.character);
-          setEmojiList(simplified);
-        }
-      } catch {
-        // fall back to commonEmojis only
-      } finally {
-        setEmojiLoading(false);
-      }
-    };
-    if (emojiOpen && emojiList.length === 0 && !emojiLoading) fetchEmojis();
-  }, [emojiOpen, emojiList.length, emojiLoading]);
 
   const canPost = useMemo(() => {
     const hasText = text.trim().length > 0;
@@ -1125,6 +1099,8 @@ export default function FeedPage() {
         .confetti-7 { --tx: -140px; --ty: 10px; background: #fdba74; }
         .confetti-8 { --tx: 95px; --ty: -95px; background: #fbbf24; }
         .confetti-9 { --tx: 10px; --ty: 130px; background: #f97316; }
+        .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
       `}</style>
 
       {/* Compose Dialog */}
@@ -1177,17 +1153,6 @@ export default function FeedPage() {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  onClick={() => setEmojiOpen(v => !v)}
-                  disabled={submitting}
-                  className="absolute left-3 bottom-3 flex h-10 w-10 items-center justify-center bg-transparent text-2xl transition-transform duration-200 hover:scale-110 hover:!bg-transparent focus-visible:!ring-0 focus-visible:!ring-offset-0 focus-visible:!bg-transparent active:!bg-transparent"
-                  aria-label="Toggle emojis"
-                >
-                  <span>😊</span>
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={photos.length >= 5 || submitting}
                   className="absolute right-3 bottom-3 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white transition-transform duration-200 focus-visible:!ring-0 focus-visible:!ring-offset-0 hover:!bg-emerald-500 active:!bg-emerald-600"
@@ -1196,42 +1161,23 @@ export default function FeedPage() {
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              {emojiOpen && (
-                <div className="mt-2 rounded-xl border border-black/10 dark:border-white/10 p-4 bg-white dark:bg-neutral-900 shadow-sm">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">✨</span>
-                      <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Find emojis</div>
-                    </div>
-                    {emojiLoading && <div className="text-[11px] text-neutral-500 shimmer">Loading…</div>}
-                  </div>
-                  <div className="mb-3">
-                    <Input
-                      value={emojiQuery}
-                      onChange={(e) => setEmojiQuery(e.target.value)}
-                      placeholder="🔍 Search (e.g., smile, heart)"
-                      className="h-10 text-sm bg-white dark:bg-neutral-800 rounded-xl border-2 border-orange-200 dark:border-orange-900 focus:border-orange-400 dark:focus:border-orange-600 transition-colors"
-                    />
-                  </div>
-                  <div className="grid grid-cols-8 sm:grid-cols-12 gap-1.5 max-h-64 overflow-auto pr-1">
-                    {((emojiList.length > 0
-                      ? emojiList.filter(e => !emojiQuery.trim() || e.slug.includes(emojiQuery.trim().toLowerCase()))
-                      : commonEmojis.map((c) => ({ character: c, slug: c }))
-                    ).slice(0, 220)).map((em) => (
-                      <button
-                        key={em.slug}
-                        type="button"
-                        className="text-2xl p-2 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                        onClick={() => setText(prev => prev + em.character)}
-                        title={em.slug}
-                        aria-label={em.slug}
-                      >
-                        {em.character}
-                      </button>
-                    ))}
-                  </div>
+              {/* Emoji Picker */}
+              <div className="border border-neutral-200 dark:border-neutral-700 rounded-xl p-3 bg-neutral-50 dark:bg-neutral-800/50">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {['😊', '😂', '😍', '😢', '😡', '👍', '👎', '❤️', '🔥', '🎉', '👍', '👏', '👀', '🤔', '💯', '🙌', '😎', '😭', '😅', '🤣', '🥺', '😘', '🤩', '😤', '😴', '🥴', '🤯', '🤡', '👻', '🎃', '🌟', '✨', '💥', '💫', '🎈', '🎁', '🎂', '🍕', '🍔', '🍟', '🍩', '🍪', '🍭', '🍫', '🌸', '🌺', '🌻', '🌷', '🌹', '🌼', '🌻', '🌺', '🌸', '🌷', '🌹', '🌼'].map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className="flex-shrink-0 text-lg p-2 rounded-full hover:bg-transparent hover:scale-110 transition-all duration-200 shadow-sm hover:shadow-md"
+                      onClick={() => setText((prev) => prev + emoji)}
+                      disabled={submitting}
+                      title={`Add ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
               {pollOpen && (
                 <div className="mt-2 rounded-xl ring-1 ring-black/10 dark:ring-white/10 p-3 bg-white/70 dark:bg-white/5 space-y-3">
                   <div className="flex items-center justify-between">

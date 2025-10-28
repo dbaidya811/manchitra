@@ -36,7 +36,17 @@ export async function POST(req: NextRequest) {
     const session = (await getServerSession(authOptions as any)) as any;
     const email = session?.user?.email as string | undefined;
 
+    console.log('🔐 POST /api/saved-plans - Session check:', {
+      hasSession: !!session,
+      email,
+      sessionUser: session?.user ? {
+        email: session.user.email,
+        name: session.user.name
+      } : null
+    });
+
     if (!email) {
+      console.log('❌ POST /api/saved-plans - No email in session');
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
 
@@ -46,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ ok: false, error: "invalid_name" }, { status: 400 });
     }
-    if (!Array.isArray(destinations) || destinations.some((d) => typeof d !== "string" || !d.trim())) {
+    if (!Array.isArray(destinations) || destinations.some((d) => typeof d !== "object" || !d.displayName || !d.lat || !d.lon)) {
       return NextResponse.json({ ok: false, error: "invalid_destinations" }, { status: 400 });
     }
 
@@ -57,7 +67,12 @@ export async function POST(req: NextRequest) {
       userEmail: email,
       name: name.trim(),
       description: typeof description === "string" ? description.trim() : "",
-      destinations: destinations.map((d: string) => d.trim()),
+      destinations: destinations.map((d: any) => ({
+        displayName: d.displayName?.trim() || "",
+        lat: typeof d.lat === "number" ? d.lat : 0,
+        lon: typeof d.lon === "number" ? d.lon : 0,
+        area: d.area?.trim() || undefined,
+      })),
       createdAt: now,
       updatedAt: now,
     };

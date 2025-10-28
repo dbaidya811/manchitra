@@ -18,10 +18,11 @@ export default function PointToPointPage() {
   const startMapDivRef = useRef<HTMLDivElement | null>(null);
   const startMapRef = useRef<any>(null);
   const startMarkerRef = useRef<any>(null);
-  // End map
-  const endMapDivRef = useRef<HTMLDivElement | null>(null);
-  const endMapRef = useRef<any>(null);
-  const endMarkerRef = useRef<any>(null);
+  const [places, setPlaces] = useState<Array<{ name: string; lat: number; lng: number }>>([
+    { name: "Place 1", lat: 22.5726, lng: 88.3639 },
+    { name: "Place 2", lat: 22.5826, lng: 88.3739 },
+    { name: "Place 3", lat: 22.5626, lng: 88.3539 }
+  ]);
 
   // Load Leaflet CSS/JS from CDN once
   useEffect(() => {
@@ -182,20 +183,10 @@ export default function PointToPointPage() {
     }
   };
 
-  const useCurrentLocation = () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
-    setLoadingLoc(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const coord = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
-        setOrigin(coord);
-        setStartMapTo(latitude, longitude, 15);
-        setLoadingLoc(false);
-      },
-      () => { setLoadingLoc(false); },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
+  const reverseLocations = () => {
+    const temp = origin;
+    setOrigin(destination);
+    setDestination(temp);
   };
 
   const openDirections = () => {
@@ -224,40 +215,94 @@ export default function PointToPointPage() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-6">
-          {/* Start input + small map */}
+          {/* Start and End inputs stacked */}
           <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 shadow-sm p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex h-6 px-2 items-center justify-center rounded-full text-[11px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Start</span>
-              <span className="text-xs text-neutral-500">Choose your starting point</span>
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold">Route Planning</span>
+              <Button onClick={reverseLocations} variant="outline" className="rounded-full">
+                <ArrowRightLeft className="h-4 w-4" />
+              </Button>
             </div>
-            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Starting location</label>
-            <div className="relative">
-              <Input
-                value={origin}
-                onChange={(e) => onOriginChange(e.target.value)}
-                onFocus={() => { if (oSuggest.length > 0) setOOpen(true); }}
-                onBlur={() => setTimeout(() => setOOpen(false), 120)}
-                placeholder="Starting location (place name or lat,lng)"
-                className="h-11 rounded-xl pl-3"
-              />
-              {oOpen && oSuggest.length > 0 && (
-                <div className="absolute z-[1000] mt-1 w-full max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow">
-                  {oSuggest.map((it, idx) => (
-                    <button
-                      key={`${it.lat},${it.lng}-${idx}`}
-                      type="button"
-                      className="w-full text-left text-sm px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => { setOrigin(it.name); setOOpen(false); setOSuggest([]); setStartMapTo(it.lat, it.lng, 15); }}
-                    >
-                      {it.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {/* Visual line with dots */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex flex-col items-center">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="w-0.5 h-8 bg-gray-300"></div>
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              </div>
+              <div className="flex-1 text-center">
+                <svg className="w-full h-4" viewBox="0 0 100 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 8 L95 8" stroke="gray" strokeWidth="2" strokeDasharray="4,4"/>
+                  <polygon points="95,4 95,12 99,8" fill="gray"/>
+                </svg>
+              </div>
             </div>
-            <div className="mt-3 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 relative z-0">
-              <div ref={startMapDivRef} className="w-full h-44" />
+            {/* Start input */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Start location</label>
+              <div className="relative">
+                <Input
+                  value={origin}
+                  onChange={(e) => onOriginChange(e.target.value)}
+                  onFocus={() => { if (oSuggest.length > 0) setOOpen(true); }}
+                  onBlur={() => setTimeout(() => setOOpen(false), 120)}
+                  placeholder="Starting location (place name or lat,lng)"
+                  className="h-11 rounded-xl pl-3"
+                />
+                {oOpen && oSuggest.length > 0 && (
+                  <div className="absolute z-[1000] mt-1 w-full max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow">
+                    {oSuggest.map((it, idx) => (
+                      <button
+                        key={`${it.lat},${it.lng}-${idx}`}
+                        type="button"
+                        className="w-full text-left text-sm px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setOrigin(it.name); setOOpen(false); setOSuggest([]); setStartMapTo(it.lat, it.lng, 15); }}
+                      >
+                        {it.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* End input */}
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">End location</label>
+              <div className="relative">
+                <Input
+                  value={destination}
+                  onChange={(e) => onDestinationChange(e.target.value)}
+                  onFocus={() => { if (dSuggest.length > 0) setDOpen(true); }}
+                  onBlur={() => setTimeout(() => setDOpen(false), 120)}
+                  placeholder="Ending location (optional for directions)"
+                  className="h-11 rounded-xl pl-3"
+                />
+                {dOpen && dSuggest.length > 0 && (
+                  <div className="absolute z-[1000] mt-1 w-full max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow">
+                    {dSuggest.map((it, idx) => (
+                      <button
+                        key={`${it.lat},${it.lng}-${idx}`}
+                        type="button"
+                        className="w-full text-left text-sm px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setDestination(it.name); setDOpen(false); setDSuggest([]); setEndMapTo(it.lat, it.lng, 15); }}
+                      >
+                        {it.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Maps below inputs */}
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 relative z-0">
+                <div ref={startMapDivRef} className="w-full h-32" />
+              </div>
+              <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 relative z-0">
+                <div ref={endMapDivRef} className="w-full h-32" />
+              </div>
             </div>
             <div className="mt-3">
               <Button onClick={useCurrentLocation} variant="secondary" className="rounded-xl h-10 inline-flex items-center gap-2 w-max">
@@ -265,41 +310,18 @@ export default function PointToPointPage() {
               </Button>
             </div>
           </div>
-
-          {/* End input + small map */}
+          {/* List of places */}
           <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 shadow-sm p-4 sm:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex h-6 px-2 items-center justify-center rounded-full text-[11px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">End</span>
-              <span className="text-xs text-neutral-500">Choose your destination</span>
+            <div className="mb-3">
+              <span className="text-sm font-semibold">Selected Pandels</span>
             </div>
-            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ending location</label>
-            <div className="relative">
-              <Input
-                value={destination}
-                onChange={(e) => onDestinationChange(e.target.value)}
-                onFocus={() => { if (dSuggest.length > 0) setDOpen(true); }}
-                onBlur={() => setTimeout(() => setDOpen(false), 120)}
-                placeholder="Ending location (optional for directions)"
-                className="h-11 rounded-xl pl-3"
-              />
-              {dOpen && dSuggest.length > 0 && (
-                <div className="absolute z-[1000] mt-1 w-full max-h-60 overflow-auto rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow">
-                  {dSuggest.map((it, idx) => (
-                    <button
-                      key={`${it.lat},${it.lng}-${idx}`}
-                      type="button"
-                      className="w-full text-left text-sm px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => { setDestination(it.name); setDOpen(false); setDSuggest([]); setEndMapTo(it.lat, it.lng, 15); }}
-                    >
-                      {it.name}
-                    </button>
-                  ))}
+            <div className="space-y-2">
+              {places.map((place, idx) => (
+                <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm">{idx + 1}. {place.name}</span>
                 </div>
-              )}
-            </div>
-            <div className="mt-3 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 relative z-0">
-              <div ref={endMapDivRef} className="w-full h-44" />
+              ))}
             </div>
           </div>
         </div>

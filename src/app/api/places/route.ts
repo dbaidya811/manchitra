@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getDb } from "@/lib/mongodb";
+import { CacheManager, redis } from "@/lib/redis";
+import { securityMiddleware, checkEndpointRateLimit } from "@/lib/auth-check";
 
 export const runtime = "nodejs";
 
@@ -19,38 +21,125 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
-    const url = new URL(req.url);
-    const mine = url.searchParams.get("mine");
+    // Check rate limiting
     const session = await getServerSession(authOptions);
+    const rateLimitResult = await checkEndpointRateLimit(req, 'PLACES', session?.user?.email || undefined);
 
-    const db = await getDb();
-
-    const query: Record<string, any> = {};
-    if (mine && session?.user?.email) {
-      query.userEmail = session.user.email;
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests',
+          ok: false,
+          retryAfter: Math.ceil(rateLimitResult.resetTime / 1000)
+        },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '500',
+            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+            'Retry-After': Math.ceil(rateLimitResult.resetTime / 1000).toString()
+          }
+        }
+      );
     }
 
-    const places = await db
-      .collection("places")
-      .find(query)
-      .sort({ createdAt: -1, id: -1 })
-      .limit(500)
-      .project({ _id: 0 })
+    const url = new URL(req.url);
+    const mine = url.searchParams.get("mine");
+    const page = parseInt(url.searchParams.get("page") || "1");
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "500"), 1000); // Increased cap: default 500, max 1000
+    const search = url.searchParams.get("search");
+    const userEmail = session?.user?.email || undefined;
+
+    // Check cache first for better performance
+    const cacheKey = search
+      ? `places:search:${search}:${page}:${limit}`
+      : userEmail
+        ? `places:user:${userEmail}:${page}:${limit}`
+        : `places:public:${page}:${limit}`;
+
+    const cachedPlaces = await CacheManager.getPlacesCache(userEmail, limit);
+    if (cachedPlaces && !search) {
+      console.log('📋 Returning cached places:', cachedPlaces.length);
+      // Implement pagination for cached results
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedPlaces = cachedPlaces.slice(startIndex, endIndex);
+
+      return NextResponse.json({
+        ok: true,
+        places: paginatedPlaces,
+        pagination: {
+          page,
+          limit,
+          total: cachedPlaces.length,
+          totalPages: Math.ceil(cachedPlaces.length / limit)
+        }
+      }, { headers: corsHeaders });
+    }
+
+    const db = await getDb();
+    const collection = db.collection("places");
+
+    // Build optimized query with proper indexing
+    const query: Record<string, any> = {};
+
+    if (mine && userEmail) {
+      query.userEmail = userEmail;
+    }
+
+    // Add search functionality with text index
+    if (search) {
+      query.$text = { $search: search };
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Optimized query with proper sorting and pagination
+    const places = await collection
+      .find(query, {
+        projection: { _id: 0 },
+        sort: search ? { score: { $meta: "textScore" }, createdAt: -1 } : { createdAt: -1, id: -1 },
+        skip,
+        limit,
+      })
       .toArray();
 
-    return NextResponse.json({ ok: true, places }, { headers: corsHeaders });
+    // Get total count for pagination (cached separately)
+    const totalCount = await collection.countDocuments(query);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    // Cache the results (only non-search results)
+    if (!search) {
+      await CacheManager.setPlacesCache(places, userEmail, limit);
+    }
+
+    console.log('🏛️ Fetched places from DB:', places.length, 'Total:', totalCount);
+    return NextResponse.json({
+      ok: true,
+      places,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    }, { headers: corsHeaders });
   } catch (e: any) {
     console.error("🏛️ Places API error:", e);
 
-    // Log additional debugging information
+    // Enhanced error logging for performance monitoring
     console.error("🏛️ Debug info:", {
       errorMessage: e?.message,
       errorStack: e?.stack,
-      mongoUri: process.env.MONGODB_URI ? "Set (hidden)" : "Not set",
+      mongoUri: process.env.MONGODB_URI1 ? "Set (hidden)" : "Not set",
       mongoDb: process.env.MONGODB_DB || "Not set",
-      nodeEnv: process.env.NODE_ENV || "Not set"
+      nodeEnv: process.env.NODE_ENV || "Not set",
+      timestamp: new Date().toISOString()
     });
 
     return NextResponse.json({ ok: false, error: e?.message || "Server error", places: [] }, {
@@ -98,6 +187,17 @@ export async function POST(req: NextRequest) {
       .collection("places")
       .updateOne({ id }, { $set: doc }, { upsert: true });
 
+    // Invalidate cache when place is created/updated
+    try {
+      // Clear all places cache since data changed
+      await redis.del('places:public:500');
+      if (session?.user?.email) {
+        await redis.del(`places:${session.user.email}:500`);
+      }
+    } catch (cacheError) {
+      console.error('Cache invalidation error:', cacheError);
+    }
+
     return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch (e: any) {
     console.error("POST /api/places error", e);
@@ -129,6 +229,17 @@ export async function DELETE(req: NextRequest) {
     const res = await db.collection("places").deleteOne({ id });
     if (res.deletedCount !== 1) {
       return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    // Invalidate cache when place is deleted
+    try {
+      // Clear all places cache since data changed
+      await redis.del('places:public:500');
+      if (session?.user?.email) {
+        await redis.del(`places:${session.user.email}:500`);
+      }
+    } catch (cacheError) {
+      console.error('Cache invalidation error:', cacheError);
     }
 
     return NextResponse.json({ ok: true }, { headers: corsHeaders });

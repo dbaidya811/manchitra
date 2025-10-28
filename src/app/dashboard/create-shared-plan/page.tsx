@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MapPin, Plus, X, Share2, Save } from "lucide-react";
+import { PlanDestination } from "@/lib/types";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,11 +19,11 @@ export default function CreateSharedPlanPage() {
 
   const [planName, setPlanName] = useState("");
   const [description, setDescription] = useState("");
-  const [destinations, setDestinations] = useState<string[]>([""]);
+  const [destinations, setDestinations] = useState<PlanDestination[]>([{ displayName: "", lat: 0, lon: 0 }]);
   const [saving, setSaving] = useState(false);
 
   const addDestination = () => {
-    setDestinations([...destinations, ""]);
+    setDestinations([...destinations, { displayName: "", lat: 0, lon: 0 }]);
   };
 
   const removeDestination = (index: number) => {
@@ -33,7 +34,7 @@ export default function CreateSharedPlanPage() {
 
   const updateDestination = (index: number, value: string) => {
     const updated = [...destinations];
-    updated[index] = value;
+    updated[index] = { ...updated[index], displayName: value };
     setDestinations(updated);
   };
 
@@ -49,11 +50,11 @@ export default function CreateSharedPlanPage() {
       return;
     }
 
-    const validDestinations = destinations.filter(dest => dest.trim() !== "");
+    const validDestinations = destinations.filter(dest => dest.displayName.trim() && dest.lat !== 0 && dest.lon !== 0);
     if (validDestinations.length === 0) {
       toast({
         title: "Error",
-        description: "Please add at least one destination",
+        description: "Please add at least one destination with valid coordinates",
         variant: "destructive"
       });
       return;
@@ -104,7 +105,7 @@ export default function CreateSharedPlanPage() {
     }
   };
 
-  const canSubmit = planName.trim() && description.trim() && destinations.some(dest => dest.trim());
+  const canSubmit = planName.trim() && description.trim() && destinations.some(dest => dest.displayName.trim() && dest.lat !== 0 && dest.lon !== 0);
 
   return (
     <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-amber-50 to-white dark:from-neutral-950 dark:to-neutral-900">
@@ -185,7 +186,7 @@ export default function CreateSharedPlanPage() {
                         <div className="relative flex-1">
                           <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-neutral-400" />
                           <Input
-                            value={destination}
+                            value={destination.displayName}
                             onChange={(e) => updateDestination(index, e.target.value)}
                             placeholder={`Destination ${index + 1}`}
                             className="pl-10 rounded-xl"
@@ -207,22 +208,22 @@ export default function CreateSharedPlanPage() {
                   </div>
 
                   {/* Preview of destination cards */}
-                  {destinations.filter(dest => dest.trim()).length > 0 && (
+                  {destinations.filter(dest => dest.displayName.trim()).length > 0 && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-neutral-600">Preview:</label>
                       <div className="flex flex-wrap gap-1.5 min-w-0">
-                        {destinations.filter(dest => dest.trim()).slice(0, 4).map((destination, index) => (
+                        {destinations.filter(dest => dest.displayName.trim()).slice(0, 4).map((destination, index) => (
                           <div
                             key={index}
                             className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200 dark:border-orange-800 flex-shrink-0"
                           >
                             <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
-                            <span className="text-xs font-medium whitespace-nowrap">{destination}</span>
+                            <span className="text-xs font-medium whitespace-nowrap">{destination.displayName}</span>
                           </div>
                         ))}
-                        {destinations.filter(dest => dest.trim()).length > 4 && (
+                        {destinations.filter(dest => dest.displayName.trim()).length > 4 && (
                           <div className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700 flex-shrink-0">
-                            <span className="text-xs font-medium">+{destinations.filter(dest => dest.trim()).length - 4} more</span>
+                            <span className="text-xs font-medium">+{destinations.filter(dest => dest.displayName.trim()).length - 4} more</span>
                           </div>
                         )}
                       </div>

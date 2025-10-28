@@ -24,15 +24,15 @@ const providers: any[] = [
   Credentials({
       name: "Email OTP",
       credentials: {
+        name: { label: "Name", type: "text" },
         email: { label: "Email", type: "email" },
         otp: { label: "OTP", type: "text" },
       },
       async authorize(credentials, req) {
         try {
           const emailRaw = String(credentials?.email || "").trim().toLowerCase();
+          const nameRaw = String(credentials?.name || "").trim();
           const otpRaw = String(credentials?.otp || "").trim();
-          
-          console.log('🔐 Login attempt:', { email: emailRaw, otp: otpRaw });
           
           if (!emailRaw || !otpRaw) {
             console.log('❌ Missing email or OTP');

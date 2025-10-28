@@ -37,6 +37,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate destinations format
+    const validDestinations = destinations.filter((d: any) => d && typeof d === 'object' && d.displayName && typeof d.lat === 'number' && typeof d.lon === 'number');
+    if (validDestinations.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one valid destination with coordinates is required' },
+        { status: 400 }
+      );
+    }
+
     const db = await getDb();
 
     // Create new shared plan
