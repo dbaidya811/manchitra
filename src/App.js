@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import './App.css';
 import Dashboard from './Dashboard';
-import LoginPage from './LoginPage';
-import SignupPage from './SignupPage';
-import ForgotPasswordPage from './ForgotPasswordPage';
 
 const App = () => {
   const [currentView, setCurrentView] = useState('landing');
@@ -11,15 +8,6 @@ const App = () => {
   // Render based on current view
   if (currentView === 'dashboard') {
     return <Dashboard />;
-  }
-  if (currentView === 'login') {
-    return <LoginPage setCurrentView={setCurrentView} />;
-  }
-  if (currentView === 'signup') {
-    return <SignupPage setCurrentView={setCurrentView} />;
-  }
-  if (currentView === 'forgot-password') {
-    return <ForgotPasswordPage setCurrentView={setCurrentView} />;
   }
 
   return (
@@ -31,7 +19,7 @@ const App = () => {
         <h1 className="landing-title">manchitra</h1>
         <p className="landing-subtitle">Your Ultimate Pandal Hopping Partner</p>
         
-        <button className="start-btn" onClick={() => setCurrentView('login')}>
+        <button className="start-btn" onClick={() => setCurrentView('dashboard')}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             Start Hopping 
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

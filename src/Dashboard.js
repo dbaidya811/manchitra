@@ -8,13 +8,17 @@ import NotificationPage from './NotificationPage';
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [savedPandals, setSavedPandals] = useState({});
+
+  const toggleSave = (id) => {
+    setSavedPandals(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="app-container">
       {/* Top Header */}
       <header className="app-header">
         <div className="logo-container">
-          <span className="logo-icon">M</span>
           <h1 className="logo-text">manchitra</h1>
         </div>
         <button 
@@ -35,13 +39,13 @@ const Dashboard = () => {
           <>
         {/* Hero / Greeting */}
         <section className="hero-section">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            Shubho Sharadiya! 
-            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <h2 className="greeting-text">
+            <span>Shubho Sharadiya!</span> 
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#ff7b00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
             </svg>
           </h2>
-          <p>Your ultimate guide to pandal hopping. Find, explore, and navigate easily.</p>
+          <p className="greeting-subtext">Your ultimate guide to pandal hopping. Find, explore, and navigate easily.</p>
         </section>
 
         {/* Search */}
@@ -71,8 +75,14 @@ const Dashboard = () => {
             <span className="see-all">See All</span>
           </div>
           
+          <div className="pandal-list-horizontal">
           <div className="pandal-card">
             <div className="pandal-image bg-1">
+              <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave('pandal1')}>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals['pandal1'] ? "#c8102e" : "none"} stroke={savedPandals['pandal1'] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
               <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -98,6 +108,11 @@ const Dashboard = () => {
 
           <div className="pandal-card">
             <div className="pandal-image bg-2">
+              <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave('pandal2')}>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals['pandal2'] ? "#c8102e" : "none"} stroke={savedPandals['pandal2'] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
               <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -119,6 +134,7 @@ const Dashboard = () => {
                 </span>
               </button>
             </div>
+          </div>
           </div>
         </section>
           </>
