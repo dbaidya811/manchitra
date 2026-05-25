@@ -1,17 +1,158 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import MapPage from './MapPage';
 import SavedPage from './SavedPage';
 import ProfilePage from './ProfilePage';
 import NotificationPage from './NotificationPage';
+import MyPostsPage from './MyPostsPage';
+import SeeAllPage from './SeeAllPage';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [savedPandals, setSavedPandals] = useState({});
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Simulate initial data loading for skeleton effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleScroll = (e) => {
+    if (e.target.scrollTop > 300) {
+      setShowScrollTop(true);
+    } else {
+      setShowScrollTop(false);
+    }
+  };
+
+  const scrollToTop = () => {
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Dummy data for home page pandals categorized by area
+  const dummyPandals = [
+    {
+      id: 'pandal1',
+      name: 'Ballygunge Cultural Association',
+      area: 'South Kolkata',
+      description: 'Famous for traditional idol and lighting.',
+      distance: '1.2 km',
+      imageClass: 'bg-1',
+      isNearby: true,
+      isTopRated: true,
+      postedBy: 'A'
+    },
+    {
+      id: 'pandal2',
+      name: 'Deshapriya Park',
+      area: 'South Kolkata',
+      description: 'Known for the tallest Durga idol history.',
+      distance: '2.8 km',
+      imageClass: 'bg-2',
+      isTrending: true,
+      postedBy: 'S'
+    },
+    {
+      id: 'pandal3',
+      name: 'Bagbazar Sarbojonin',
+      area: 'North Kolkata',
+      description: 'A century-old traditional puja.',
+      distance: '5.4 km',
+      imageClass: 'bg-1',
+      isTopRated: true,
+      postedBy: 'R'
+    },
+    {
+      id: 'pandal4',
+      name: 'Kumartuli Park',
+      area: 'North Kolkata',
+      description: 'Renowned for theme and architecture.',
+      distance: '6.1 km',
+      imageClass: 'bg-2',
+      isTrending: true,
+      postedBy: 'M'
+    },
+    {
+      id: 'pandal5',
+      name: 'Sreebhumi Sporting',
+      area: 'Salt Lake & New Town',
+      description: 'Spectacular themes and grand lighting.',
+      distance: '8.2 km',
+      imageClass: 'bg-1',
+      isTrending: true,
+      isTopRated: true,
+      postedBy: 'P'
+    }
+  ];
+
+  const filteredPandals = dummyPandals.filter(p => 
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    p.area.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const categoriesData = {
+    'Nearby': filteredPandals.filter(p => p.isNearby),
+    'Trending': filteredPandals.filter(p => p.isTrending),
+    'Top Rated': filteredPandals.filter(p => p.isTopRated)
+  };
+
+  filteredPandals.forEach(pandal => {
+    if (!categoriesData[pandal.area]) categoriesData[pandal.area] = [];
+    categoriesData[pandal.area].push(pandal);
+  });
+
+  Object.keys(categoriesData).forEach(key => {
+    if (categoriesData[key].length === 0) delete categoriesData[key];
+  });
+
+  const filterOptions = ['All', ...Object.keys(categoriesData)];
 
   const toggleSave = (id) => {
     setSavedPandals(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // State to manage user's posts
+  const [myPosts, setMyPosts] = useState([]);
+
+  const handleDeletePost = (id) => {
+    setMyPosts(myPosts.filter(post => post.id !== id));
+  };
+
+  const handlePostSubmit = (e) => {
+    e.preventDefault();
+    setIsSubmitting(true); // Start micro loading
+    const formData = new FormData(e.target);
+    
+    // Simulate network request for 1 second
+    setTimeout(() => {
+      const newPost = {
+        id: Date.now(),
+        pandalName: formData.get('pandalName'),
+        area: formData.get('area'),
+        time: "Just now",
+        content: formData.get('description'),
+        likes: 0,
+        comments: 0,
+        imageClass: "bg-1"
+      };
+      
+      setMyPosts([newPost, ...myPosts]);
+      setIsSubmitting(false); // Stop micro loading
+      setIsModalOpen(false);
+      setActiveTab('my-posts');
+    }, 1000);
   };
 
   return (
@@ -34,7 +175,7 @@ const Dashboard = () => {
       </header>
 
       {/* Main Content */}
-      <main className="main-content">
+      <main className="main-content" onScroll={handleScroll}>
         {activeTab === 'home' && (
           <>
         {/* Hero / Greeting */}
@@ -50,7 +191,13 @@ const Dashboard = () => {
 
         {/* Search */}
         <div className="search-container">
-          <input type="text" placeholder="Search pandals or locations..." className="search-input" />
+          <input 
+            type="text" 
+            placeholder="Search pandals or locations..." 
+            className="search-input" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <button className="search-btn" aria-label="Search">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -61,89 +208,128 @@ const Dashboard = () => {
 
         {/* Quick Filters */}
         <div className="filters-container">
-          <button className="filter-pill active">Nearby</button>
-          <button className="filter-pill">Top Rated</button>
-          <button className="filter-pill">South Kolkata</button>
-          <button className="filter-pill">North Kolkata</button>
-          <button className="filter-pill">Food Stalls</button>
+          {filterOptions.map(option => (
+            <button 
+              key={option} 
+              className={`filter-pill ${activeFilter === option ? 'active' : ''}`} 
+              onClick={() => setActiveFilter(option)}
+            >
+              {option}
+            </button>
+          ))}
         </div>
 
-        {/* Pandal List */}
-        <section className="pandal-list-section">
-          <div className="section-header">
-            <h3 className="section-title">Trending Pandals</h3>
-            <span className="see-all">See All</span>
+        {/* Empty State for Search */}
+        {Object.keys(categoriesData).length === 0 && (
+          <div className="empty-state" style={{ marginTop: '30px' }}>
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px' }}>
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <p>No pandals found for "{searchQuery}"</p>
           </div>
-          
-          <div className="pandal-list-horizontal">
-          <div className="pandal-card">
-            <div className="pandal-image bg-1">
-              <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave('pandal1')}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals['pandal1'] ? "#c8102e" : "none"} stroke={savedPandals['pandal1'] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </button>
-              <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                1.2 km
-              </span>
-            </div>
-            <div className="pandal-info">
-              <h4>Ballygunge Cultural Association</h4>
-              <p>Famous for traditional idol and lighting.</p>
-              <button className="navigate-btn">
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                  </svg>
-                  Guide Me to Pandal
-                </span>
-              </button>
-            </div>
-          </div>
+        )}
 
-          <div className="pandal-card">
-            <div className="pandal-image bg-2">
-              <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave('pandal2')}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals['pandal2'] ? "#c8102e" : "none"} stroke={savedPandals['pandal2'] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </button>
-              <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                2.8 km
+        {/* Pandal Lists by Category / Area */}
+        {isLoading ? (
+          /* Skeleton Loading UI */
+          <section className="pandal-list-section" style={{ marginBottom: '25px' }}>
+            <div className="section-header">
+              <div className="skeleton skeleton-text" style={{ width: '120px', height: '24px' }}></div>
+              <div className="skeleton skeleton-text" style={{ width: '50px', height: '16px' }}></div>
+            </div>
+            <div className="pandal-list-horizontal">
+              {[1, 2].map(i => (
+                <div key={i} className="pandal-card skeleton-card">
+                  <div className="skeleton skeleton-image" style={{ height: '180px' }}></div>
+                  <div className="pandal-info">
+                    <div className="skeleton skeleton-text" style={{ width: '80%', height: '20px', marginBottom: '8px' }}></div>
+                    <div className="skeleton skeleton-text" style={{ width: '60%', height: '14px', marginBottom: '15px' }}></div>
+                    <div className="skeleton skeleton-button" style={{ width: '100%', height: '44px', borderRadius: '16px' }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : (
+          /* Actual Data */
+          Object.entries(categoriesData)
+        .filter(([category]) => activeFilter === 'All' || activeFilter === category)
+        .map(([category, pandals]) => (
+          <section key={category} className="pandal-list-section" style={{ marginBottom: '25px' }}>
+            <div className="section-header">
+              <h3 className="section-title">{category}</h3>
+              <span className="see-all" onClick={() => {
+                setSelectedCategory(category);
+                setActiveTab('see-all');
+              }}>
+                See All
               </span>
             </div>
-            <div className="pandal-info">
-              <h4>Deshapriya Park</h4>
-              <p>Known for the tallest Durga idol history.</p>
-              <button className="navigate-btn">
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                  </svg>
-                  Guide Me to Pandal
-                </span>
-              </button>
+            
+            <div className="pandal-list-horizontal">
+              {pandals.map(pandal => (
+                <div key={pandal.id} className="pandal-card">
+                  <div className={`pandal-image ${pandal.imageClass}`}>
+                    <div className="card-user-dp" title="Posted by User">{pandal.postedBy || 'U'}</div>
+                    <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave(pandal.id)}>
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals[pandal.id] ? "#c8102e" : "none"} stroke={savedPandals[pandal.id] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                    </button>
+                    <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                      </svg>
+                      {pandal.distance}
+                    </span>
+                  </div>
+                  <div className="pandal-info">
+                    <h4>{pandal.name}</h4>
+                    <p>{pandal.description}</p>
+                    <button className="navigate-btn">
+                      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                        </svg>
+                        Guide Me to Pandal
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-          </div>
-        </section>
+          </section>
+        ))
+        )}
           </>
         )}
         {activeTab === 'map' && <MapPage />}
         {activeTab === 'saved' && <SavedPage />}
-        {activeTab === 'profile' && <ProfilePage />}
+        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} />}
         {activeTab === 'notifications' && <NotificationPage />}
+        {activeTab === 'my-posts' && <MyPostsPage posts={myPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} />}
+        {activeTab === 'see-all' && selectedCategory && (
+          <SeeAllPage 
+            category={selectedCategory} 
+            pandals={categoriesData[selectedCategory]} 
+            setActiveTab={setActiveTab} 
+            savedPandals={savedPandals} 
+            toggleSave={toggleSave} 
+          />
+        )}
       </main>
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button className="scroll-to-top-btn" onClick={scrollToTop} aria-label="Scroll to Top">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+        </button>
+      )}
 
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
@@ -189,15 +375,60 @@ const Dashboard = () => {
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Create New</h3>
+              <h3>Post a Pandal</h3>
               <button className="modal-close-btn" onClick={() => setIsModalOpen(false)} aria-label="Close">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
             <div className="modal-body">
-              <button className="modal-action-btn"><span className="modal-action-icon">📸</span> Add Pandal Photo</button>
-              <button className="modal-action-btn"><span className="modal-action-icon">📍</span> Check-in Here</button>
-              <button className="modal-action-btn"><span className="modal-action-icon">⭐</span> Write a Review</button>
+              {/* User DP and Name Header */}
+              <div className="modal-user-row">
+                <div className="modal-avatar">A</div>
+                <span className="modal-user-name">Aritra Das</span>
+              </div>
+              
+              <form className="post-form" onSubmit={handlePostSubmit}>
+                <input type="text" name="pandalName" className="post-input" placeholder="Pandal Name" required />
+                
+                <select name="area" className="post-input" required defaultValue="">
+                  <option value="" disabled>Select Area</option>
+                  <option value="North Kolkata">North Kolkata</option>
+                  <option value="South Kolkata">South Kolkata</option>
+                  <option value="Central Kolkata">Central Kolkata</option>
+                  <option value="East Kolkata">East Kolkata</option>
+                  <option value="Salt Lake & New Town">Salt Lake & New Town</option>
+                  <option value="Howrah">Howrah</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <textarea name="description" className="post-textarea" placeholder="Description..." rows="3" required></textarea>
+                
+                <div className="location-input-group">
+                  <input type="text" className="post-input" placeholder="Add Location" required />
+                  <button type="button" className="auto-loc-btn" title="Use Automatic Location">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="map-preview">
+                  <span>Map Preview</span>
+                </div>
+                
+                <div className="image-upload-box">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                  <span>Tap to upload image</span>
+                </div>
+                
+                <button type="submit" className="post-submit-btn" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <span className="spinner-micro"></span>
+                  ) : (
+                    "Submit Post"
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         </div>

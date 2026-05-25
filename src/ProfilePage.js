@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const ProfilePage = () => {
+const ProfilePage = ({ setActiveTab }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
@@ -45,6 +45,21 @@ const ProfilePage = () => {
       {/* Settings Menu List */}
       <div className="profile-menu-list">
         
+        {/* Auto Intelligent Option */}
+        <div className="profile-menu-item auto-ai" onClick={() => alert('Auto Intelligent AI is getting ready!')}>
+          <div className="menu-icon ai-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+            </svg>
+          </div>
+          <span className="ai-text">
+            Auto Intelligent AI
+          </span>
+          <div className="menu-arrow">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </div>
+        </div>
+
         {/* Dark Mode Toggle */}
         <div className="profile-menu-item" onClick={toggleDarkMode}>
           <div className="menu-icon">
@@ -59,7 +74,7 @@ const ProfilePage = () => {
         </div>
 
         {/* My Posts Option */}
-        <div className="profile-menu-item">
+        <div className="profile-menu-item" onClick={() => setActiveTab('my-posts')}>
           <div className="menu-icon">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>

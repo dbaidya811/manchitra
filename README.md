@@ -1,70 +1,107 @@
-# Getting Started with Create React App
+# Manchitra (মানচিত্র) 🗺️
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> **Your Ultimate Pandal Hopping Partner**  
+> A modern, React-based web application designed to help users navigate, explore, and review Durga Puja pandals seamlessly across Kolkata.
 
-## Available Scripts
+<p align="center">
+  <img src="./public/syestem1.png" alt="App Screen 1" width="30%">
+  <img src="./public/syestem2.png" alt="App Screen 2" width="30%">
+  <img src="./public/syestem3.png" alt="App Screen 3" width="30%">
+</p>
+<p align="center">
+  <img src="./public/syestem4.png" alt="App Screen 4" width="30%">
+  <img src="./public/syestem5.png" alt="App Screen 5" width="30%">
+  <img src="./public/syestem6.png" alt="App Screen 6" width="30%">
+</p>
 
-In the project directory, you can run:
 
-### `npm start`
+## ✨ Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+*   **📱 Modern UI/UX:** Built with Glassmorphism, smooth animations, and a clean interface inspired by modern iOS and Android apps.
+*   **🌓 Dark Mode Support:** Seamlessly switch between light and dark themes for comfortable nighttime pandal hopping.
+*   **📍 Dynamic Categories:** Browse pandals by area (North Kolkata, South Kolkata, etc.) or by categories like **Nearby**, **Trending**, and **Top Rated**.
+*   **🔍 Smart Search:** Real-time search to instantly find your favorite pandals or locations.
+*   **📌 Save & Bookmark:** Shortlist your favorite pandals and manage them in a dedicated 'Saved' page.
+*   **✍️ Post a Pandal:** Discover a hidden gem? Users can post a new pandal with name, description, location (with map preview), and images.
+*   **👤 User Profile:** Manage your saved locations, your posts, and access the upcoming **Auto Intelligent AI** feature.
+*   **🔔 Notifications:** Stay updated with alerts for nearby pandals, new reviews, and updates with a categorized notification center.
+*   **🚀 Performance:** Includes Micro-interactions, Scroll-to-Top functionality, and Skeleton Loading screens for a smooth user experience.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🛠️ Tech Stack
 
-### `npm test`
+*   **Frontend:** React.js, HTML5, CSS3 (Custom scoped styling)
+*   **Icons:** Inline scalable SVG vectors
+*   **Typography:** Google Fonts (Poppins)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 🚀 Getting Started
 
-### `npm run build`
+Follow these steps to run the project on your local machine.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### Prerequisites
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Make sure you have [Node.js](https://nodejs.org/) and npm installed on your computer.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Installation
 
-### `npm run eject`
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/dbaidya811/manchitra.git
+   cd manchitra
+   ```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+3. **Start the development server:**
+   ```bash
+   npm start
+   ```
+   The app will automatically open in your browser at `http://localhost:3000/`.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## 📂 Project Structure
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```text
+manchitra/
+├── public/
+│   ├── index.html
+│   └── ...
+├── src/
+│   ├── App.js                 # Main App Component & Landing Page
+│   ├── App.css                # Global Styles & Animations
+│   ├── Dashboard.js           # Main Home/Dashboard View
+│   ├── MapPage.js             # Map & Navigation View
+│   ├── SavedPage.js           # Bookmarked Pandals
+│   ├── ProfilePage.js         # User Profile & Settings
+│   ├── NotificationPage.js    # User Notifications
+│   ├── MyPostsPage.js         # User Generated Posts
+│   ├── SeeAllPage.js          # Expanded Category View
+│   └── index.js               # Entry Point
+├── package.json
+└── README.md
+```
 
-## Learn More
+## 🤖 Upcoming Features
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+*   **Auto Intelligent AI:** An integrated AI assistant to curate personalized pandal hopping routes and suggestions.
+*   **Google Maps Integration:** Native map rendering and live route guidance directly within the app.
+*   **Backend Integration:** Connect with a Node.js/Firebase backend to support real-time data syncing, user authentication, and photo uploads.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🤝 Contributing
 
-### Code Splitting
+Contributions, issues, and feature requests are welcome!  
+Feel free to check the issues page if you want to contribute.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-### Analyzing the Bundle Size
+## 📝 License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+*Made with ❤️ for the love of Pandal Hopping.*
