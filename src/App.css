@@ -17,6 +17,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* Fixes mobile browser toolbar jump */
   max-width: 1024px; /* Adapts for tablet and desktop */
   width: 100%;
   margin: 0 auto;
@@ -480,17 +481,13 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  height: 100dvh; /* Fixes mobile browser toolbar jump */
   max-width: 1024px;
   width: 100%;
   margin: 0 auto;
-  /* Animated Festive gradient */
-  background: linear-gradient(135deg, #ff7b00, #c8102e, #ff4c4c, #e66a00);
-  background-size: 300% 300%;
-  animation: gradientShift 8s ease infinite;
-  color: white;
+  background-color: #ffffff; /* Clean white iOS feel */
   text-align: center;
   padding: 20px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.1);
   position: relative;
   overflow: hidden;
 }
@@ -499,92 +496,54 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
   z-index: 2;
-  animation: fadeInUp 1s ease-out;
+  animation: fadeIn 0.8s ease-out forwards;
 }
 
-.logo-icon-large {
-  background-color: white;
-  color: #c8102e;
-  font-weight: bold;
-  font-size: 60px;
-  width: 100px;
-  height: 100px;
+.landing-bottom-text {
+  position: absolute;
+  bottom: 50px;
+  left: 0;
+  right: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  border-radius: 25px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  animation: float 3s ease-in-out infinite;
+  gap: 4px;
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+.landing-logo {
+  margin-bottom: 15px;
+}
+
+/* iOS Style App Icon Logo */
+.logo-icon-large {
+  background: #ffffff;
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  padding: 22px; /* Adds space around the icon inside the box */
+  border-radius: 28px;
+  box-shadow: 0 15px 35px rgba(200, 16, 46, 0.2);
 }
 
 .landing-title {
-  font-size: 40px;
+  font-size: 36px;
   font-weight: 700;
   margin: 0;
-  letter-spacing: 2px;
-  text-shadow: 2px 4px 10px rgba(0,0,0,0.2);
+  letter-spacing: 0.5px;
+  text-transform: lowercase;
+  color: #c8102e; /* Brand Red Color */
 }
 
 .landing-subtitle {
-  font-size: 16px;
-  font-weight: 300;
-  opacity: 0.95;
-  margin-bottom: 30px;
-  letter-spacing: 0.5px;
-}
-
-.start-btn {
-  background-color: white;
-  color: #c8102e;
-  border: none;
-  padding: 16px 36px;
-  font-size: 18px;
-  font-weight: 600;
-  border-radius: 30px;
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.start-btn:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 15px 30px rgba(0,0,0,0.3);
-  color: #ff7b00;
-}
-
-.start-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  font-size: 15px;
+  font-weight: 400;
+  margin-bottom: 0;
+  color: #888;
 }
 
 /* Keyframes for Animations */
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-15px); }
-  100% { transform: translateY(0px); }
-}
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -614,11 +573,11 @@ body {
   }
 
   .landing-title {
-    font-size: 54px;
+    font-size: 56px;
   }
 
   .landing-subtitle {
-    font-size: 20px;
+    font-size: 18px;
   }
 }
 
@@ -1514,7 +1473,8 @@ body.dark-mode {
   color: #e0e0e0;
 }
 
-body.dark-mode .app-container {
+body.dark-mode .app-container,
+body.dark-mode .landing-container {
   background-color: #121212;
   box-shadow: none;
 }
@@ -1559,7 +1519,8 @@ body.dark-mode .profile-user-info p,
 body.dark-mode .stat-box p,
 body.dark-mode .saved-header p,
 body.dark-mode .post-meta span,
-body.dark-mode .action-btn {
+body.dark-mode .action-btn,
+body.dark-mode .landing-subtitle {
   color: #a0a0a0;
 }
 

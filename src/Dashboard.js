@@ -6,10 +6,10 @@ import ProfilePage from './ProfilePage';
 import NotificationPage from './NotificationPage';
 import MyPostsPage from './MyPostsPage';
 import SeeAllPage from './SeeAllPage';
+import PostPage from './PostPage';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('home');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [savedPandals, setSavedPandals] = useState({});
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -150,7 +150,6 @@ const Dashboard = () => {
       
       setMyPosts([newPost, ...myPosts]);
       setIsSubmitting(false); // Stop micro loading
-      setIsModalOpen(false);
       setActiveTab('my-posts');
     }, 1000);
   };
@@ -320,6 +319,7 @@ const Dashboard = () => {
             toggleSave={toggleSave} 
           />
         )}
+        {activeTab === 'post' && <PostPage setActiveTab={setActiveTab} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} />}
       </main>
 
       {/* Scroll to Top Button */}
@@ -348,7 +348,7 @@ const Dashboard = () => {
         
         {/* Center Floating Plus Button */}
         <div className="nav-fab-wrapper">
-          <div className="nav-fab" aria-label="Add or Create" onClick={() => setIsModalOpen(true)}>
+          <div className="nav-fab" aria-label="Add or Create" onClick={() => setActiveTab('post')}>
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -369,71 +369,6 @@ const Dashboard = () => {
           <span>Profile</span>
         </div>
       </nav>
-
-      {/* Add / Create Modal Popup */}
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Post a Pandal</h3>
-              <button className="modal-close-btn" onClick={() => setIsModalOpen(false)} aria-label="Close">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
-            </div>
-            <div className="modal-body">
-              {/* User DP and Name Header */}
-              <div className="modal-user-row">
-                <div className="modal-avatar">A</div>
-                <span className="modal-user-name">Aritra Das</span>
-              </div>
-              
-              <form className="post-form" onSubmit={handlePostSubmit}>
-                <input type="text" name="pandalName" className="post-input" placeholder="Pandal Name" required />
-                
-                <select name="area" className="post-input" required defaultValue="">
-                  <option value="" disabled>Select Area</option>
-                  <option value="North Kolkata">North Kolkata</option>
-                  <option value="South Kolkata">South Kolkata</option>
-                  <option value="Central Kolkata">Central Kolkata</option>
-                  <option value="East Kolkata">East Kolkata</option>
-                  <option value="Salt Lake & New Town">Salt Lake & New Town</option>
-                  <option value="Howrah">Howrah</option>
-                  <option value="Other">Other</option>
-                </select>
-
-                <textarea name="description" className="post-textarea" placeholder="Description..." rows="3" required></textarea>
-                
-                <div className="location-input-group">
-                  <input type="text" className="post-input" placeholder="Add Location" required />
-                  <button type="button" className="auto-loc-btn" title="Use Automatic Location">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
-                    </svg>
-                  </button>
-                </div>
-                
-                <div className="map-preview">
-                  <span>Map Preview</span>
-                </div>
-                
-                <div className="image-upload-box">
-                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                  <span>Tap to upload image</span>
-                </div>
-                
-                <button type="submit" className="post-submit-btn" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <span className="spinner-micro"></span>
-                  ) : (
-                    "Submit Post"
-                  )}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
