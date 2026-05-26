@@ -30,6 +30,7 @@ const App = () => {
       <div className="landing-bottom-text">
         <h1 className="landing-title">manchitra</h1>
         <p className="landing-subtitle">Your Ultimate Pandal Hopping Partner</p>
+        <div className="global-spinner" style={{ marginTop: '20px', width: '28px', height: '28px', borderWidth: '3px' }}></div>
       </div>
     </div>
   );
