@@ -2,43 +2,28 @@ import React from 'react';
 import './App.css';
 
 const NotificationPage = () => {
-  // Dummy data for notifications
-  const notifications = [
-    {
-      id: 1,
-      title: "Nearby Pandal Alert!",
-      message: "You are just 500m away from Ballygunge Cultural. Check it out now!",
-      time: "2 mins ago",
-      type: "alert", 
-      read: false,
-    },
-    {
-      id: 2,
-      title: "New Review Added",
-      message: "Aritra liked your review on Deshapriya Park.",
-      time: "1 hour ago",
-      type: "info",
-      read: false,
-    },
-    {
-      id: 3,
-      title: "Saved Pandal Updated",
-      message: "New photos were added to Mudiali Club.",
-      time: "3 hours ago",
-      type: "update",
-      read: true,
-    }
-  ];
+  // Data for notifications (Demo data removed)
+  const notifications = [];
 
   return (
     <div className="notification-page">
       <div className="notification-header">
         <h2>Notifications</h2>
-        <button className="mark-read-btn">Mark all as read</button>
+        {notifications.length > 0 && <button className="mark-read-btn">Mark all as read</button>}
       </div>
       
       <div className="notification-list">
-        {notifications.map(notif => (
+        {notifications.length === 0 ? (
+          <div className="empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px' }}>
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px' }}>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <p style={{ color: '#666', fontSize: '15px', fontWeight: '500', marginBottom: '4px' }}>No notifications yet.</p>
+            <span style={{ fontSize: '13px', color: '#999' }}>You're all caught up!</span>
+          </div>
+        ) : (
+          notifications.map(notif => (
           <div key={notif.id} className={`notification-card ${notif.type} ${notif.read ? 'read' : 'unread'}`}>
             <div className={`notification-icon ${notif.type}`}>
               {notif.type === 'alert' && (
@@ -66,7 +51,8 @@ const NotificationPage = () => {
               <span className="notification-time">{notif.time}</span>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );

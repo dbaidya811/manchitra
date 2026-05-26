@@ -8,7 +8,7 @@ import MyPostsPage from './MyPostsPage';
 import SeeAllPage from './SeeAllPage';
 import PostPage from './PostPage';
 
-const Dashboard = () => {
+const Dashboard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('home');
   const [savedPandals, setSavedPandals] = useState({});
   const [activeFilter, setActiveFilter] = useState('All');
@@ -18,12 +18,20 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Simulate initial data loading for skeleton effect
+  // Fetch data from backend directly (No .env used)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1500);
-    return () => clearTimeout(timer);
+    fetch('http://localhost:5000/api/posts')
+      .then(res => res.json())
+      .then(data => {
+        // Map backend 'description' to frontend 'content'
+        const formattedPosts = data.map(p => ({ ...p, content: p.description }));
+        setMyPosts(formattedPosts);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching posts:", err);
+        setIsLoading(false);
+      });
   }, []);
 
   const handleScroll = (e) => {
@@ -41,61 +49,8 @@ const Dashboard = () => {
     }
   };
 
-  // Dummy data for home page pandals categorized by area
-  const dummyPandals = [
-    {
-      id: 'pandal1',
-      name: 'Ballygunge Cultural Association',
-      area: 'South Kolkata',
-      description: 'Famous for traditional idol and lighting.',
-      distance: '1.2 km',
-      imageClass: 'bg-1',
-      isNearby: true,
-      isTopRated: true,
-      postedBy: 'A'
-    },
-    {
-      id: 'pandal2',
-      name: 'Deshapriya Park',
-      area: 'South Kolkata',
-      description: 'Known for the tallest Durga idol history.',
-      distance: '2.8 km',
-      imageClass: 'bg-2',
-      isTrending: true,
-      postedBy: 'S'
-    },
-    {
-      id: 'pandal3',
-      name: 'Bagbazar Sarbojonin',
-      area: 'North Kolkata',
-      description: 'A century-old traditional puja.',
-      distance: '5.4 km',
-      imageClass: 'bg-1',
-      isTopRated: true,
-      postedBy: 'R'
-    },
-    {
-      id: 'pandal4',
-      name: 'Kumartuli Park',
-      area: 'North Kolkata',
-      description: 'Renowned for theme and architecture.',
-      distance: '6.1 km',
-      imageClass: 'bg-2',
-      isTrending: true,
-      postedBy: 'M'
-    },
-    {
-      id: 'pandal5',
-      name: 'Sreebhumi Sporting',
-      area: 'Salt Lake & New Town',
-      description: 'Spectacular themes and grand lighting.',
-      distance: '8.2 km',
-      imageClass: 'bg-1',
-      isTrending: true,
-      isTopRated: true,
-      postedBy: 'P'
-    }
-  ];
+  // Data for home page pandals (Demo data removed)
+  const dummyPandals = [];
 
   const filteredPandals = dummyPandals.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -123,35 +78,51 @@ const Dashboard = () => {
     setSavedPandals(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const savedCount = Object.values(savedPandals).filter(Boolean).length;
+
   // State to manage user's posts
   const [myPosts, setMyPosts] = useState([]);
+  const postsCount = myPosts.length;
 
   const handleDeletePost = (id) => {
-    setMyPosts(myPosts.filter(post => post.id !== id));
+    fetch(`http://localhost:5000/api/posts/${id}`, { method: 'DELETE' })
+      .then(res => res.json())
+      .then(() => {
+        setMyPosts(myPosts.filter(post => post.id !== id));
+      })
+      .catch(err => console.error("Error deleting post:", err));
   };
 
-  const handlePostSubmit = (e) => {
+  const handlePostSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true); // Start micro loading
     const formData = new FormData(e.target);
     
-    // Simulate network request for 1 second
-    setTimeout(() => {
-      const newPost = {
-        id: Date.now(),
-        pandalName: formData.get('pandalName'),
-        area: formData.get('area'),
-        time: "Just now",
-        content: formData.get('description'),
-        likes: 0,
-        comments: 0,
-        imageClass: "bg-1"
-      };
-      
-      setMyPosts([newPost, ...myPosts]);
+    const postData = {
+      pandalName: formData.get('pandalName'),
+      area: formData.get('area'),
+      description: formData.get('description'),
+      time: "Just now",
+      imageClass: "bg-1"
+    };
+
+    try {
+      const response = await fetch('http://localhost:5000/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(postData)
+      });
+      if (response.ok) {
+        const newPost = await response.json();
+        newPost.content = newPost.description; // Map description to content
+        setMyPosts([newPost, ...myPosts]);
+        setActiveTab('my-posts');
+      }
+    } catch (error) {
+      console.error("Error submitting post:", error);
+    } finally {
       setIsSubmitting(false); // Stop micro loading
-      setActiveTab('my-posts');
-    }, 1000);
+    }
   };
 
   return (
@@ -218,14 +189,14 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Empty State for Search */}
+        {/* Empty State for Search or No Data */}
         {Object.keys(categoriesData).length === 0 && (
-          <div className="empty-state" style={{ marginTop: '30px' }}>
+          <div className="empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px' }}>
             <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px' }}>
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <p>No pandals found for "{searchQuery}"</p>
+            <p style={{ color: '#666', fontSize: '15px', fontWeight: '500' }}>{searchQuery ? `No pandals found for "${searchQuery}"` : "No pandals available at the moment."}</p>
           </div>
         )}
 
@@ -307,7 +278,7 @@ const Dashboard = () => {
         )}
         {activeTab === 'map' && <MapPage />}
         {activeTab === 'saved' && <SavedPage />}
-        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} />}
+        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} />}
         {activeTab === 'notifications' && <NotificationPage />}
         {activeTab === 'my-posts' && <MyPostsPage posts={myPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} />}
         {activeTab === 'see-all' && selectedCategory && (

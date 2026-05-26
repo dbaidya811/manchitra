@@ -2,23 +2,8 @@ import React from 'react';
 import './App.css';
 
 const SavedPage = () => {
-  // Dummy data for saved pandals
-  const savedList = [
-    {
-      id: 'pandal1',
-      name: 'Ballygunge Cultural Association',
-      description: 'Famous for traditional idol and lighting.',
-      distance: '1.2 km',
-      imageClass: 'bg-1'
-    },
-    {
-      id: 'pandal2',
-      name: 'Deshapriya Park',
-      description: 'Known for the tallest Durga idol history.',
-      distance: '2.8 km',
-      imageClass: 'bg-2'
-    }
-  ];
+  // Data for saved pandals (Demo data removed)
+  const savedList = [];
 
   return (
     <div className="saved-page">
@@ -28,7 +13,16 @@ const SavedPage = () => {
       </div>
       
       <div className="saved-list">
-        {savedList.map(pandal => (
+        {savedList.length === 0 ? (
+          <div className="empty-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '40px' }}>
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ccc" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '10px' }}>
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <p style={{ color: '#666', fontSize: '15px', fontWeight: '500', marginBottom: '4px' }}>No saved pandals yet.</p>
+            <span style={{ fontSize: '13px', color: '#999' }}>Tap the bookmark icon to save your favorites.</span>
+          </div>
+        ) : (
+          savedList.map(pandal => (
           <div key={pandal.id} className="saved-card">
             <div className={`saved-image ${pandal.imageClass}`}>
               <button className="remove-save-btn" aria-label="Remove Saved">
@@ -55,7 +49,8 @@ const SavedPage = () => {
               </button>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
