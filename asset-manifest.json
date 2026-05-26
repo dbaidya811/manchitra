@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/manchitra/static/css/main.cb5fb31e.css",
-    "main.js": "/manchitra/static/js/main.dad6347e.js",
+    "main.css": "/manchitra/static/css/main.c58707e1.css",
+    "main.js": "/manchitra/static/js/main.4fe49724.js",
     "static/js/453.e43c0a7f.chunk.js": "/manchitra/static/js/453.e43c0a7f.chunk.js",
     "index.html": "/manchitra/index.html",
-    "main.cb5fb31e.css.map": "/manchitra/static/css/main.cb5fb31e.css.map",
-    "main.dad6347e.js.map": "/manchitra/static/js/main.dad6347e.js.map",
+    "main.c58707e1.css.map": "/manchitra/static/css/main.c58707e1.css.map",
+    "main.4fe49724.js.map": "/manchitra/static/js/main.4fe49724.js.map",
     "453.e43c0a7f.chunk.js.map": "/manchitra/static/js/453.e43c0a7f.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.cb5fb31e.css",
-    "static/js/main.dad6347e.js"
+    "static/css/main.c58707e1.css",
+    "static/js/main.4fe49724.js"
   ]
 }
