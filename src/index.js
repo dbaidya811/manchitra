@@ -5,8 +5,11 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Set dark mode as the default theme
-document.body.classList.add('dark-mode');
+// Check local storage for theme preference, default is light mode
+const savedTheme = localStorage.getItem('manchitra_theme');
+if (savedTheme === 'dark') {
+  document.body.classList.add('dark-mode');
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

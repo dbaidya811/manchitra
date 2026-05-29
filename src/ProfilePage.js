@@ -10,8 +10,9 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0 }) => 
   }, []);
 
   const toggleDarkMode = () => {
-    document.body.classList.toggle('dark-mode');
-    setIsDarkMode(document.body.classList.contains('dark-mode'));
+    const isDark = document.body.classList.toggle('dark-mode');
+    setIsDarkMode(isDark);
+    localStorage.setItem('manchitra_theme', isDark ? 'dark' : 'light');
   };
 
   const handleLogout = () => {
