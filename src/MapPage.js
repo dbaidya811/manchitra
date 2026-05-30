@@ -31,12 +31,60 @@ const getNavIcon = (heading) => new L.DivIcon({
 });
 
 // --- Voice Navigation Helpers ---
-const speak = (text) => {
+let voices = [];
+const loadVoices = () => {
   if ('speechSynthesis' in window) {
+    // Eagerly load voices
+    voices = window.speechSynthesis.getVoices();
+    // And also set up the event listener for when they change
+    window.speechSynthesis.onvoiceschanged = () => {
+      voices = window.speechSynthesis.getVoices();
+    };
+  }
+};
+loadVoices(); // Load voices when script is parsed
+
+const speak = (text, settings = {}) => {
+  const { voiceEnabled = true, voiceGender = 'female' } = settings;
+
+  // Map voice 'off' থাকলে কোনো ভয়েস কমেন্ট হবে না
+  if (!voiceEnabled) {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // আগের কোনো ভয়েস চললে তা বন্ধ করে দেবে
+    }
+    return;
+  }
+
+  if ('speechSynthesis' in window && text) {
     window.speechSynthesis.cancel(); // Cancel ongoing speech
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-IN'; // Indian English pronunciation
     utterance.rate = 0.9;
+
+    if (voices.length > 0) {
+      let selectedVoice = null;
+      
+      if (voiceGender === 'female') {
+        // Female ভয়েসের জন্য পরিচিত নামগুলো (Google Female, Heera, Veena, Zira ইত্যাদি)
+        selectedVoice = voices.find(v => v.lang.includes('en-IN') && /female|heera|veena|zira|samantha|hazel/i.test(v.name))
+                     || voices.find(v => /female|heera|veena|zira|samantha|hazel/i.test(v.name));
+      } else { // male
+        // Male ভয়েসের জন্য পরিচিত নামগুলো (Google Male, Ravi, Rishi, David ইত্যাদি)
+        selectedVoice = voices.find(v => v.lang.includes('en-IN') && /male|ravi|rishi|david|mark|george|alex/i.test(v.name))
+                     || voices.find(v => /male|ravi|rishi|david|mark|george|alex/i.test(v.name));
+      }
+      
+      // যদি নির্দিষ্ট জেন্ডারের ভয়েস না পাওয়া যায়, তবে ডিভাইসের যেকোনো একটি ডিফল্ট ইন্ডিয়ান ইংলিশ ভয়েস নেবে
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.includes('en-IN'));
+      }
+
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        utterance.lang = selectedVoice.lang; // ব্রাউজারের সমস্যার কারণে ল্যাংগুয়েজ পুনরায় সেট করা হলো
+      }
+    }
+
     window.speechSynthesis.speak(utterance);
   }
 };
@@ -88,7 +136,10 @@ const MapUpdater = ({ center, routePath, isNavigating, userLocation }) => {
   return null;
 };
 
-const MapPage = () => {
+const DEFAULT_SETTINGS = { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
+
+const MapPage = ({ settings = DEFAULT_SETTINGS }) => {
+
   // Kolkata coordinates as default
   const [position, setPosition] = useState([22.5726, 88.3639]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +192,7 @@ const MapPage = () => {
           }
         },
         (error) => console.error("Geolocation watch error:", error),
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 5000 }
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
       );
     }
     return () => {
@@ -217,12 +268,26 @@ const MapPage = () => {
   };
 
   const handleStartNavigation = () => {
+    // প্রথমে এক্সটার্নাল ম্যাপ সেটিং চেক করুন
+    if (settings.useExternalMap && position && userLocation) {
+      const [destLat, destLon] = position;
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation[0]},${userLocation[1]}&destination=${destLat},${destLon}&travelmode=driving`;
+      window.open(url, '_blank');
+      return; // অভ্যন্তরীণ নেভিগেশন বন্ধ করুন
+    }
+
+    // রুট উপলব্ধ থাকলে অভ্যন্তরীণ নেভিগেশন শুরু করুন
+    if (!routePath || routePath.length === 0) {
+      alert("Please select a destination to start navigation.");
+      return;
+    }
+
     setIsNavigating(true);
     setCurrentStepIndex(0);
     setWarned200m(false);
     const firstInstruction = routeSteps.length > 0 ? generateInstruction(routeSteps[0]) : "forward";
     setNavInstruction({ text: firstInstruction, distance: 'Starting...' });
-    speak(`Navigation started. ${firstInstruction}.`);
+    speak(`Navigation started. ${firstInstruction}.`, settings);
   };
 
   const handleExitNavigation = () => {
@@ -246,12 +311,12 @@ const MapPage = () => {
 
       // Warn at 200m
       if (dist <= 200 && dist > 50 && !warned200m) {
-        speak(`In ${Math.round(dist / 10) * 10} meters, ${generateInstruction(nextStep)}`);
+        speak(`In ${Math.round(dist / 10) * 10} meters, ${generateInstruction(nextStep)}`, settings);
         setWarned200m(true);
       } 
       // Execute turn at 50m
       else if (dist <= 50) {
-        speak(`${generateInstruction(nextStep)}`);
+        speak(`${generateInstruction(nextStep)}`, settings);
         setCurrentStepIndex(prev => prev + 1);
         setWarned200m(false);
       }
@@ -264,7 +329,7 @@ const MapPage = () => {
       if (dist <= 30) {
         setNavInstruction({ text: "Arrived at destination!", distance: "" });
         if (!warned200m) {
-          speak("You have arrived at your destination.");
+          speak("You have arrived at your destination.", settings);
           setWarned200m(true);
           setTimeout(() => setIsNavigating(false), 5000); // Auto exit after 5s
         }
@@ -273,17 +338,17 @@ const MapPage = () => {
         setNavInstruction({ text: "Head to destination", distance: distText });
       }
     }
-  }, [userLocation, isNavigating, routeSteps, currentStepIndex, warned200m]);
+  }, [userLocation, isNavigating, routeSteps, currentStepIndex, warned200m, settings]);
 
   // Check if map is exactly at the user's location to hide the default marker
   const isPositionUserLocation = userLocation && position[0] === userLocation[0] && position[1] === userLocation[1];
 
   return (
-    <div style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, zIndex: 0 }}>
+    <div className="map-page" style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, zIndex: 0 }}>
       
       {/* Top Panel: Search Bar or Navigation Instruction */}
       {!isNavigating ? (
-        <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', zIndex: 1000 }}>
+        <div className="map-search-container" style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', zIndex: 1000 }}>
           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff', borderRadius: '25px', padding: '10px 15px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)' }}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '10px' }}>
             <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -331,7 +396,7 @@ const MapPage = () => {
         )}
         </div>
       ) : (
-        <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', zIndex: 1000, backgroundColor: '#0088ff', color: 'white', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 4px 15px rgba(0, 136, 255, 0.4)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+        <div className="map-search-container" style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', zIndex: 1000, backgroundColor: '#0088ff', color: 'white', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 4px 15px rgba(0, 136, 255, 0.4)', display: 'flex', alignItems: 'center', gap: '15px' }}>
           <div style={{ backgroundColor: 'rgba(255,255,255,0.2)', padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="9 17 4 12 9 7"></polyline>
@@ -349,7 +414,7 @@ const MapPage = () => {
 
       {/* Route Info Bottom Bar */}
       {routeInfo && (
-        <div style={{ position: 'absolute', bottom: '90px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', backgroundColor: '#fff', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
+        <div className="map-bottom-panel" style={{ position: 'absolute', bottom: '90px', left: '50%', transform: 'translateX(-50%)', width: '90%', maxWidth: '400px', backgroundColor: '#fff', borderRadius: '16px', padding: '15px 20px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)', zIndex: 1000, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '22px', fontWeight: '700', color: '#0088ff' }}>{routeInfo.duration} min</span>

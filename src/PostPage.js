@@ -1,7 +1,86 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import './App.css';
 
-const PostPage = ({ setActiveTab, handlePostSubmit, isSubmitting }) => {
+const markerIcon = new L.DivIcon({
+  className: 'custom-red-marker',
+  html: `<svg viewBox="0 0 24 24" width="36" height="36" fill="#c8102e" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.3));"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="white"></circle></svg>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 36]
+});
+
+// Helper function to determine Kolkata areas based on coordinates
+const getAreaFromCoordinates = (lat, lng) => {
+  // Exact Boundaries based on user provided coordinates
+  if (lat >= 22.54 && lat <= 22.56 && lng >= 88.35 && lng <= 88.37) return "Central Kolkata";
+  if (lat >= 22.58 && lat <= 22.65 && lng >= 88.35 && lng <= 88.39) return "North Kolkata";
+  if (lat >= 22.46 && lat <= 22.53 && lng >= 88.31 && lng <= 88.38) return "South Kolkata";
+  if (lat >= 22.50 && lat <= 22.55 && lng >= 88.39 && lng <= 88.42) return "East Kolkata";
+  if (lat >= 22.57 && lat <= 22.59 && lng >= 88.41 && lng <= 88.43) return "Salt Lake & New Town"; // Salt Lake
+  if (lat >= 22.56 && lat <= 22.61 && lng >= 88.45 && lng <= 88.50) return "Salt Lake & New Town"; // New Town
+  if (lat >= 22.57 && lat <= 22.60 && lng >= 88.29 && lng <= 88.34) return "Howrah";
+
+  // Fallback heuristics for locations falling slightly outside the exact strict boxes
+  if (lng < 88.345) return "Howrah";
+  if (lng >= 88.405) return "Salt Lake & New Town";
+  if (lng >= 88.380 && lng < 88.405 && lat >= 22.50 && lat <= 22.56) return "East Kolkata";
+  if (lat >= 22.57) return "North Kolkata";
+  if (lat >= 22.54 && lat < 22.57) return "Central Kolkata";
+  if (lat <= 22.53) return "South Kolkata";
+
+  return "Other";
+};
+
+const LocationPicker = ({ position, setPosition, setLocationName, setArea }) => {
+  useMapEvents({
+    click(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      setPosition([lat, lng]);
+      setLocationName(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      setArea(getAreaFromCoordinates(lat, lng)); // Auto-select area
+    },
+  });
+  return position ? <Marker position={position} icon={markerIcon} /> : null;
+};
+
+const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
+  const [position, setPosition] = useState([22.5726, 88.3639]); // Default Kolkata
+  const [locationName, setLocationName] = useState('');
+  const [area, setArea] = useState(''); // State to control selected area
+  const [imagePreview, setImagePreview] = useState(null); // State for image preview
+
+  const handleAutoLocation = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const loc = [lat, lng];
+          setPosition(loc);
+          setLocationName(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          setArea(getAreaFromCoordinates(lat, lng)); // Auto-select area
+        },
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
+    }
+  };
+
+  const MapUpdater = ({ center }) => {
+    const map = useMap();
+    React.useEffect(() => {
+      if (center) {
+        map.flyTo(center, 15, { animate: true });
+      }
+    }, [center, map]);
+    return null;
+  };
+
   return (
     <div className="my-posts-page">
       <div className="my-posts-header">
@@ -17,14 +96,16 @@ const PostPage = ({ setActiveTab, handlePostSubmit, isSubmitting }) => {
       <div className="post-card">
         {/* User DP and Name Header */}
         <div className="modal-user-row" style={{ marginBottom: '15px' }}>
-          <div className="modal-avatar">A</div>
-          <span className="modal-user-name">Aritra Das</span>
+          <div className="modal-avatar">
+            {user?.name ? user.name.charAt(0).toUpperCase() : 'G'}
+          </div>
+          <span className="modal-user-name">{user?.name || 'Guest User'}</span>
         </div>
         
         <form className="post-form" onSubmit={handlePostSubmit}>
           <input type="text" name="pandalName" className="post-input" placeholder="Pandal Name" required />
           
-          <select name="area" className="post-input" required defaultValue="">
+          <select name="area" className="post-input" required value={area} onChange={(e) => setArea(e.target.value)}>
             <option value="" disabled>Select Area</option>
             <option value="North Kolkata">North Kolkata</option>
             <option value="South Kolkata">South Kolkata</option>
@@ -38,21 +119,44 @@ const PostPage = ({ setActiveTab, handlePostSubmit, isSubmitting }) => {
           <textarea name="description" className="post-textarea" placeholder="Description..." rows="3" required></textarea>
           
           <div className="location-input-group">
-            <input type="text" className="post-input" placeholder="Add Location" required />
-            <button type="button" className="auto-loc-btn" title="Use Automatic Location">
+            <input 
+              type="text" 
+              name="location"
+              className="post-input" 
+              placeholder="Select location on map or auto-detect" 
+              value={locationName}
+              readOnly
+              required 
+            />
+            <button type="button" className="auto-loc-btn" title="Use Automatic Location" onClick={handleAutoLocation}>
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
               </svg>
             </button>
           </div>
           
-          <div className="map-preview">
-            <span>Map Preview</span>
+          <div className="map-preview" style={{ height: '160px', padding: 0, overflow: 'hidden', position: 'relative', zIndex: 0 }}>
+            <MapContainer center={position} zoom={13} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+              <MapUpdater center={position} />
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <LocationPicker position={position} setPosition={setPosition} setLocationName={setLocationName} setArea={setArea} />
+            </MapContainer>
           </div>
           
-          <div className="image-upload-box">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-            <span>Tap to upload image</span>
+          <div className="image-upload-box" onClick={() => document.getElementById('imageUpload').click()} style={{ overflow: 'hidden', padding: 0 }}>
+            <input type="file" id="imageUpload" name="image" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                setImagePreview(URL.createObjectURL(e.target.files[0]));
+              }
+            }} />
+            {imagePreview ? (
+              <img src={imagePreview} alt="Upload Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <span>Tap to upload image</span>
+              </>
+            )}
           </div>
           
           <button type="submit" className="post-submit-btn" disabled={isSubmitting}>

@@ -9,6 +9,13 @@ import SeeAllPage from './SeeAllPage';
 import PostPage from './PostPage';
 
 const Dashboard = ({ user }) => {
+  // Debugging: Check which component is undefined
+  console.log("Checking Components:", { MapPage, SavedPage, ProfilePage, NotificationPage, MyPostsPage, SeeAllPage, PostPage });
+
+  // State to manage user's posts (Moved to top for better scoping)
+  const [myPosts, setMyPosts] = useState([]);
+  const postsCount = myPosts.length;
+
   const [activeTab, setActiveTab] = useState('home');
   const [savedPandals, setSavedPandals] = useState({});
   const [activeFilter, setActiveFilter] = useState('All');
@@ -17,6 +24,18 @@ const Dashboard = ({ user }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('manchitra_settings');
+    return saved ? JSON.parse(saved) : { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  const handleSettingChange = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   // Fetch data from backend directly (No .env used)
   useEffect(() => {
@@ -79,10 +98,6 @@ const Dashboard = ({ user }) => {
   };
 
   const savedCount = Object.values(savedPandals).filter(Boolean).length;
-
-  // State to manage user's posts
-  const [myPosts, setMyPosts] = useState([]);
-  const postsCount = myPosts.length;
 
   const handleDeletePost = (id) => {
     fetch(`http://localhost:5000/api/posts/${id}`, { method: 'DELETE' })
@@ -278,9 +293,9 @@ const Dashboard = ({ user }) => {
         )}
           </>
         )}
-        {activeTab === 'map' && <MapPage />}
+        {activeTab === 'map' && <MapPage settings={settings} />}
         {activeTab === 'saved' && <SavedPage />}
-        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} />}
+        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} settings={settings} handleSettingChange={handleSettingChange} />}
         {activeTab === 'notifications' && <NotificationPage />}
         {activeTab === 'my-posts' && <MyPostsPage posts={myPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} />}
         {activeTab === 'see-all' && selectedCategory && (
@@ -292,7 +307,7 @@ const Dashboard = ({ user }) => {
             toggleSave={toggleSave} 
           />
         )}
-        {activeTab === 'post' && <PostPage setActiveTab={setActiveTab} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} />}
+        {activeTab === 'post' && <PostPage user={user} setActiveTab={setActiveTab} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} />}
       </main>
 
       {/* Scroll to Top Button */}

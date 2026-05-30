@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0 }) => {
+const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, settings, handleSettingChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
 
@@ -67,7 +67,6 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0 }) => 
 
       {/* Settings Menu List */}
       <div className="profile-menu-list">
-
         {/* Emergency Option */}
         <div className="profile-menu-item emergency" onClick={() => setShowEmergency(true)}>
           <div className="menu-icon" style={{ background: 'rgba(200, 16, 46, 0.1)', color: '#c8102e' }}>
@@ -126,6 +125,75 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0 }) => 
           </div>
         </div>
 
+      </div>
+
+      {/* Map Settings Section */}
+      <div className="profile-menu-list" style={{ marginTop: '20px' }}>
+        <div className="profile-menu-item section-header">
+            <span>Map Settings</span>
+        </div>
+        {/* Map Voice On/Off Toggle */}
+        <div className="profile-menu-item">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </div>
+          <span>Map Voice</span>
+          <div 
+            className={`toggle-switch ${settings?.voiceEnabled ? 'active' : ''}`}
+            onClick={() => handleSettingChange && handleSettingChange('voiceEnabled', !settings?.voiceEnabled)}
+          >
+            <div className={`switch-ball ${settings?.voiceEnabled ? 'on' : ''}`}></div>
+          </div>
+        </div>
+
+        {/* Voice Gender Selection */}
+        <div className="profile-menu-item">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+            </svg>
+          </div>
+          <span>Voice Gender</span>
+          <div className="segmented-control">
+            <button 
+              className={settings?.voiceGender === 'female' ? 'active' : ''}
+              onClick={() => handleSettingChange && handleSettingChange('voiceGender', 'female')}
+            >
+              Female
+            </button>
+            <button 
+              className={settings?.voiceGender === 'male' ? 'active' : ''}
+              onClick={() => handleSettingChange && handleSettingChange('voiceGender', 'male')}
+            >
+              Male
+            </button>
+          </div>
+        </div>
+
+        {/* External Google Maps Toggle */}
+        <div className="profile-menu-item">
+          <div className="menu-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
+          </div>
+          <span>Use Google Maps</span>
+          <div 
+            className={`toggle-switch ${settings?.useExternalMap ? 'active' : ''}`}
+            onClick={() => handleSettingChange && handleSettingChange('useExternalMap', !settings?.useExternalMap)}
+          >
+            <div className={`switch-ball ${settings?.useExternalMap ? 'on' : ''}`}></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Account Actions Section */}
+      <div className="profile-menu-list" style={{ marginTop: '20px' }}>
         {/* Refer Option */}
         <div className="profile-menu-item" onClick={handleRefer}>
           <div className="menu-icon" style={{ background: 'rgba(0, 120, 255, 0.1)', color: '#0078ff' }}>
