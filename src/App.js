@@ -8,6 +8,7 @@ const MainApp = () => {
   const [currentView, setCurrentView] = useState('landing');
   const [user, setUser] = useState(null);
   const [showLoginPopup, setShowLoginPopup] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     // Check if user is logged in
@@ -18,6 +19,27 @@ const MainApp = () => {
       // If not logged in, trigger popup slightly after splash screen
       setTimeout(() => setShowLoginPopup(true), 3000);
     }
+  }, []);
+
+  // Watch real-time location globally to trigger auto-visited logic anywhere in the app
+  useEffect(() => {
+    let watchId;
+    if ("geolocation" in navigator) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude, 
+            lng: pos.coords.longitude,
+            heading: pos.coords.heading
+          });
+        },
+        (error) => console.error("Geolocation watch error:", error),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      );
+    }
+    return () => {
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   // Automatically transition from landing to dashboard after a delay
@@ -49,7 +71,7 @@ const MainApp = () => {
 
   return (
     <>
-      <Dashboard user={user} />
+      <Dashboard user={user} globalUserLocation={userLocation} />
 
       {/* Bottom Popup for Google Login */}
       {showLoginPopup && !user && (

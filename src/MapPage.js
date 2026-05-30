@@ -30,6 +30,35 @@ const getNavIcon = (heading) => new L.DivIcon({
   popupAnchor: [0, -18]
 });
 
+// Custom Pandal Icon with circular image and short name
+const createPandalIcon = (pandal) => {
+  let imageStyle = '';
+  if (pandal.imageUrl) {
+    const fullImageUrl = pandal.imageUrl.startsWith('http') ? pandal.imageUrl : `http://localhost:5000${pandal.imageUrl}`;
+    imageStyle = `background-image: url('${fullImageUrl}'); background-size: cover; background-position: center;`;
+  } else {
+    // Fallback normal color (gradient) if no image is uploaded
+    imageStyle = `background: linear-gradient(135deg, #ff7b00, #ffb347);`;
+  }
+
+  const shortName = pandal.name ? (pandal.name.length > 12 ? pandal.name.substring(0, 12) + '...' : pandal.name) : 'Pandal';
+  
+  return new L.DivIcon({
+    className: 'custom-pandal-marker',
+    html: `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translateY(-10px);">
+        <div style="width: 42px; height: 42px; border-radius: 50%; border: 2.5px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.3); ${imageStyle}"></div>
+        <span style="background: rgba(255,255,255,0.95); backdrop-filter: blur(4px); padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; color: #c8102e; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); white-space: nowrap; z-index: 10; border: 1px solid rgba(200, 16, 46, 0.1);">
+          ${shortName}
+        </span>
+      </div>
+    `,
+    iconSize: [60, 60],
+    iconAnchor: [30, 30], // Anchor at center
+    popupAnchor: [0, -30] // Popup above the icon
+  });
+};
+
 // --- Voice Navigation Helpers ---
 let voices = [];
 const loadVoices = () => {
@@ -138,7 +167,7 @@ const MapUpdater = ({ center, routePath, isNavigating, userLocation }) => {
 
 const DEFAULT_SETTINGS = { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
 
-const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPandals = [] }) => {
+const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPandals = [], globalUserLocation }) => {
 
   // Kolkata coordinates as default
   const [position, setPosition] = useState([22.5726, 88.3639]);
@@ -165,40 +194,22 @@ const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPa
     };
   }, []);
 
-  // Get user location automatically on mount
+  // Get user location from global location tracker
   useEffect(() => {
-    let watchId;
-    if ("geolocation" in navigator) {
-      // Initial get position
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const loc = [pos.coords.latitude, pos.coords.longitude];
-          setUserLocation(loc);
-          setPosition(loc); 
-        },
-        (error) => {
-          console.error("Geolocation error:", error);
-        },
-        { enableHighAccuracy: true }
+    if (globalUserLocation) {
+      const loc = [globalUserLocation.lat, globalUserLocation.lng];
+      setUserLocation(loc);
+      
+      // Update initial position if it's still default
+      setPosition(prevPos => 
+        (prevPos[0] === 22.5726 && prevPos[1] === 88.3639) ? loc : prevPos
       );
-
-      // Continuous watch position for real-time navigation tracking
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const loc = [pos.coords.latitude, pos.coords.longitude];
-          setUserLocation(loc);
-          if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) {
-            setHeading(pos.coords.heading);
-          }
-        },
-        (error) => console.error("Geolocation watch error:", error),
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-      );
+      
+      if (globalUserLocation.heading !== null && !isNaN(globalUserLocation.heading)) {
+        setHeading(globalUserLocation.heading);
+      }
     }
-    return () => {
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-    };
-  }, []);
+  }, [globalUserLocation]);
 
   // Debounced effect to fetch location suggestions from OpenStreetMap Nominatim API
   useEffect(() => {
@@ -370,6 +381,15 @@ const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPa
   // Check if map is exactly at the user's location to hide the default marker
   const isPositionUserLocation = userLocation && position[0] === userLocation[0] && position[1] === userLocation[1];
 
+  // Determine if there is an active search or route going on
+  const hasActiveRouteOrSearch = isNavigating || !!routePath || (searchQuery && !isPositionUserLocation);
+
+  // Check if the current target position exactly matches any pandal
+  const isTargetPandal = allPandals.some(pandal => {
+    let coords = pandal.parsedCoords || (pandal.location && pandal.location.includes(',') ? pandal.location.split(',').map(c => parseFloat(c.trim())) : null);
+    return coords && coords.length === 2 && coords[0] === position[0] && coords[1] === position[1];
+  });
+
   return (
     <div className="map-page" style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, zIndex: 0 }}>
       
@@ -481,14 +501,51 @@ const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPa
           <Polyline positions={routePath} color="#0088ff" weight={5} opacity={0.7} />
         )}
 
-        {/* Standard Marker (Hides if map is centered exactly on user's live location without search) */}
-        {!isPositionUserLocation && (
+        {/* Searched Location Marker */}
+        {!isPositionUserLocation && searchQuery && !isTargetPandal && (
           <Marker position={position} icon={redMarkerIcon}>
             <Popup>
-              {searchQuery || "Kolkata"} <br /> Welcome to Pandal Hopping!
+              {searchQuery} <br /> Welcome to Pandal Hopping!
             </Popup>
           </Marker>
         )}
+
+        {/* All Pandals Markers (Hide others when navigating/searching) */}
+        {allPandals.map((pandal) => {
+          let coords = pandal.parsedCoords;
+          if (!coords && pandal.location && pandal.location.includes(',')) {
+            coords = pandal.location.split(',').map(c => parseFloat(c.trim()));
+          }
+          if (coords && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+            const isTarget = coords[0] === position[0] && coords[1] === position[1];
+            
+            // Hide the rest of the pandals if there is an active search/route
+            if (hasActiveRouteOrSearch && !isTarget) return null;
+
+            return (
+              <Marker 
+                key={pandal.id} 
+                position={coords} 
+                icon={createPandalIcon(pandal)}
+              >
+                <Popup>
+                  <div style={{ textAlign: 'center', minWidth: '120px' }}>
+                    <strong style={{ fontSize: '15px', color: '#c8102e' }}>{pandal.name}</strong><br/>
+                    <span style={{ fontSize: '13px', color: '#666' }}>{pandal.area}</span><br/>
+                    <button 
+                      style={{ marginTop: '10px', padding: '8px 15px', background: 'linear-gradient(135deg, #0088ff, #00c6ff)', color: 'white', border: 'none', borderRadius: '20px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', gap: '6px', boxShadow: '0 4px 10px rgba(0, 136, 255, 0.3)' }}
+                      onClick={() => handleSelectLocation({ lat: coords[0].toString(), lon: coords[1].toString(), display_name: pandal.name })}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                      Guide Me
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          }
+          return null;
+        })}
 
         {/* User's Live Location Blue Dot / Navigation Arrow */}
         {userLocation && (

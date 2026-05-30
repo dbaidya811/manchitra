@@ -6,7 +6,10 @@ const { OAuth2Client } = require('google-auth-library');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const { Server } = require('socket.io');
 const app = express();
+const server = http.createServer(app);
 const port = process.env.PORT || 5000;
 
 // Enable CORS for all routes (allows frontend to communicate with backend)
@@ -17,6 +20,19 @@ app.use(express.json());
 
 // Serve static files (images)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Initialize Socket.io and allow CORS for your React app
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE"]
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('A user connected via Socket.io:', socket.id);
+  socket.on('disconnect', () => console.log('User disconnected:', socket.id));
+});
 
 const imgDir = path.join(__dirname, 'public', 'images');
 if (!fs.existsSync(imgDir)){
@@ -58,12 +74,14 @@ const db = new sqlite3.Database('./manchitra.db', (err) => {
       time TEXT,
       likes INTEGER DEFAULT 0,
       comments INTEGER DEFAULT 0,
+      visits INTEGER DEFAULT 0,
       userEmail TEXT,
       userName TEXT,
       userPicture TEXT
     )`, () => {
       // Automatically add missing columns for older databases (Safe Schema Upgrade)
       db.run(`ALTER TABLE posts ADD COLUMN location TEXT`, () => {});
+      db.run(`ALTER TABLE posts ADD COLUMN visits INTEGER DEFAULT 0`, () => {});
       db.run(`ALTER TABLE posts ADD COLUMN imageUrl TEXT`, () => {});
       db.run(`ALTER TABLE posts ADD COLUMN userEmail TEXT`, () => {});
       db.run(`ALTER TABLE posts ADD COLUMN userName TEXT`, () => {});
@@ -101,8 +119,8 @@ app.post('/api/posts', upload.single('image'), (req, res) => {
 
   db.run(sql, params, function (err) {
     if (err) return res.status(400).json({ error: err.message });
-    // Return the newly created post
-    res.status(201).json({ 
+    
+    const newPost = { 
       id: this.lastID, 
       pandalName, 
       area, 
@@ -112,10 +130,24 @@ app.post('/api/posts', upload.single('image'), (req, res) => {
       time, 
       likes: 0, 
       comments: 0,
+      visits: 0,
       userEmail,
       userName,
       userPicture
+    };
+
+    // Emit a real-time notification to EVERY connected user
+    io.emit('receive-notification', {
+      id: Date.now() + Math.floor(Math.random() * 1000), 
+      type: 'info', 
+      title: `New Pandal Added`, 
+      message: `${pandalName || 'A new pandal'} was added to ${area || 'the map'}.`, 
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+      read: false 
     });
+
+    // Return the newly created post
+    res.status(201).json(newPost);
   });
 });
 
@@ -135,7 +167,45 @@ app.put('/api/posts/:id', upload.single('image'), (req, res) => {
     
     db.get(`SELECT * FROM posts WHERE id = ?`, [postId], (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
+      
+      // Emit a real-time notification to EVERY connected user
+      io.emit('receive-notification', {
+        id: Date.now() + Math.floor(Math.random() * 1000), 
+        type: 'update', 
+        title: `${row.pandalName || 'Pandal'} Updated`, 
+        message: `Information for ${row.pandalName || 'a pandal'} was recently updated.`, 
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+        read: false 
+      });
+
       res.json(row);
+    });
+  });
+});
+
+// POST a visit to a pandal (to track crowd)
+app.post('/api/posts/:id/visit', (req, res) => {
+  const postId = req.params.id;
+  
+  db.run(`UPDATE posts SET visits = visits + 1 WHERE id = ?`, [postId], function (err) {
+    if (err) return res.status(400).json({ error: err.message });
+    
+    db.get(`SELECT pandalName, visits, area FROM posts WHERE id = ?`, [postId], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      
+      // Emit Crowd Alert Notification at specific milestones (e.g., 5, 10, 20, 50 visits)
+      // Here we use 5 and multiples of 10 for demonstration
+      if (row && (row.visits === 5 || row.visits % 10 === 0)) {
+        io.emit('receive-notification', {
+          id: Date.now() + Math.floor(Math.random() * 1000), 
+          type: 'alert', 
+          title: `🚨 Crowd Alert!`, 
+          message: `${row.pandalName || 'A pandal'} in ${row.area || 'your area'} is getting very crowded! Over ${row.visits} people are currently visiting.`, 
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+          read: false 
+        });
+      }
+      res.json({ success: true, visits: row ? row.visits : 0 });
     });
   });
 });
@@ -216,7 +286,7 @@ app.get('/', (req, res) => {
   res.send('Manchitra Backend is running successfully! 🚀');
 });
 
-// Start the server
-app.listen(port, () => {
+// Start the server (Using server.listen instead of app.listen for Socket.io)
+server.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

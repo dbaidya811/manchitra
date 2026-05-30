@@ -1,15 +1,24 @@
 import React from 'react';
 import './App.css';
 
-const NotificationPage = () => {
-  // Data for notifications (Demo data removed)
-  const notifications = [];
+const NotificationPage = ({ notifications = [], setNotifications }) => {
+  const markAllAsRead = () => {
+    if (setNotifications) {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    }
+  };
+
+  const markAsRead = (id) => {
+    if (setNotifications) {
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    }
+  };
 
   return (
     <div className="notification-page">
       <div className="notification-header">
         <h2>Notifications</h2>
-        {notifications.length > 0 && <button className="mark-read-btn">Mark all as read</button>}
+        {notifications.some(n => !n.read) && <button className="mark-read-btn" onClick={markAllAsRead}>Mark all as read</button>}
       </div>
       
       <div className="notification-list">
@@ -24,7 +33,7 @@ const NotificationPage = () => {
           </div>
         ) : (
           notifications.map(notif => (
-          <div key={notif.id} className={`notification-card ${notif.type} ${notif.read ? 'read' : 'unread'}`}>
+          <div key={notif.id} className={`notification-card ${notif.type} ${notif.read ? 'read' : 'unread'}`} onClick={() => markAsRead(notif.id)}>
             <div className={`notification-icon ${notif.type}`}>
               {notif.type === 'alert' && (
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

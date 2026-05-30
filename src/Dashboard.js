@@ -7,8 +7,9 @@ import NotificationPage from './NotificationPage';
 import MyPostsPage from './MyPostsPage';
 import SeeAllPage from './SeeAllPage';
 import PostPage from './PostPage';
+import { io } from 'socket.io-client';
 
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user, globalUserLocation }) => {
   // Debugging: Check which component is undefined
   console.log("Checking Components:", { MapPage, SavedPage, ProfilePage, NotificationPage, MyPostsPage, SeeAllPage, PostPage });
 
@@ -26,12 +27,16 @@ const Dashboard = ({ user }) => {
     const visited = localStorage.getItem('manchitra_visited');
     return visited ? JSON.parse(visited) : {};
   });
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('manchitra_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [targetPandal, setTargetPandal] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [postToDelete, setPostToDelete] = useState(null);
@@ -40,22 +45,7 @@ const Dashboard = ({ user }) => {
     const saved = localStorage.getItem('manchitra_settings');
     return saved ? JSON.parse(saved) : { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
   });
-
-  useEffect(() => {
-    localStorage.setItem('manchitra_settings', JSON.stringify(settings));
-  }, [settings]);
-
-  useEffect(() => {
-    localStorage.setItem('manchitra_saved', JSON.stringify(savedPandals));
-  }, [savedPandals]);
-
-  useEffect(() => {
-    localStorage.setItem('manchitra_visited', JSON.stringify(visitedPandals));
-  }, [visitedPandals]);
-
-  const handleSettingChange = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
+  const [weatherChecked, setWeatherChecked] = useState(false);
 
   // Fetch data from backend directly (No .env used)
   useEffect(() => {
@@ -73,28 +63,14 @@ const Dashboard = ({ user }) => {
       });
   }, []);
 
-  const handleScroll = (e) => {
-    if (e.target.scrollTop > 300) {
-      setShowScrollTop(true);
-    } else {
-      setShowScrollTop(false);
-    }
-  };
-
-  const scrollToTop = () => {
-    const mainContent = document.querySelector('.main-content');
-    if (mainContent) {
-      mainContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
   // Data for home page pandals mapped from backend posts
-  const allPandals = myPosts.map(post => ({
+  const allPandals = React.useMemo(() => myPosts.map(post => ({
     id: post.id,
     name: post.pandalName,
     area: post.area,
     description: post.description,
     location: post.location,
+    parsedCoords: post.location && post.location.includes(',') ? post.location.split(',').map(c => parseFloat(c.trim())) : null,
     imageUrl: post.imageUrl,
     postedBy: post.userName ? post.userName.charAt(0).toUpperCase() : 'U',
     userPicture: post.userPicture,
@@ -102,7 +78,129 @@ const Dashboard = ({ user }) => {
     isNearby: true, // Show all in Nearby for now
     isTrending: post.likes > 0,
     isTopRated: post.comments > 0
-  }));
+  })), [myPosts]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_saved', JSON.stringify(savedPandals));
+  }, [savedPandals]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_visited', JSON.stringify(visitedPandals));
+  }, [visitedPandals]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  // Establish Socket.io connection for real-time notifications
+  useEffect(() => {
+    const socket = io('http://localhost:5000');
+
+    socket.on('receive-notification', (newNotif) => {
+      setNotifications(prev => {
+        // Prevent duplicate notifications in case the sender receives it locally and via socket
+        if (prev.some(n => n.id === newNotif.id)) return prev;
+        return [newNotif, ...prev];
+      });
+    });
+
+    return () => socket.disconnect();
+  }, []);
+
+  // Free Weather Notification (Heat/Rain Alert) using Open-Meteo API
+  useEffect(() => {
+    if (globalUserLocation && !weatherChecked) {
+      setWeatherChecked(true); // Ensure we only check once per session to avoid spamming
+      
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${globalUserLocation.lat}&longitude=${globalUserLocation.lng}&current_weather=true`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.current_weather) {
+            const temp = data.current_weather.temperature;
+            const code = data.current_weather.weathercode;
+            let alertTitle = '';
+            let alertMsg = '';
+
+            // WMO Weather codes for rain/drizzle/thunderstorms
+            const rainCodes = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99];
+            
+            if (temp >= 35) {
+              alertTitle = '🌡️ High Temperature Alert';
+              alertMsg = `It's very hot outside (${temp}°C). Please carry water and sunglasses while pandal hopping!`;
+            } else if (rainCodes.includes(code)) {
+              alertTitle = '🌧️ Rain Alert';
+              alertMsg = 'Rain or bad weather is expected. Please carry an umbrella to stay safe!';
+            }
+
+            if (alertTitle) {
+              setNotifications(prev => {
+                // Prevent duplicate weather alerts in the list
+                if (prev.some(n => n.title === alertTitle)) return prev;
+                return [{ id: 'weather-' + Date.now(), type: 'alert', title: alertTitle, message: alertMsg, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), read: false }, ...prev];
+              });
+            }
+          }
+        })
+        .catch(err => console.error("Weather fetch error:", err));
+    }
+  }, [globalUserLocation, weatherChecked]);
+
+  // Auto-mark as visited if within 50 meters
+  useEffect(() => {
+    if (globalUserLocation && allPandals.length > 0) {
+      let newlyVisited = false;
+      const updatedVisited = { ...visitedPandals };
+
+      const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
+        // FAST PATH: Bounding Box Optimization
+        // 0.0006 degrees is ~65 meters. If the difference is larger, it's impossible to be <= 50m.
+        // This skips the expensive trigonometric math for 99% of locations!
+        if (Math.abs(lat1 - lat2) > 0.0006 || Math.abs(lon1 - lon2) > 0.0006) {
+          return Infinity;
+        }
+
+        const R = 6371e3;
+        const p1 = lat1 * Math.PI / 180;
+        const p2 = lat2 * Math.PI / 180;
+        const dp = (lat2 - lat1) * Math.PI / 180;
+        const dl = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      allPandals.forEach(pandal => {
+        if (!updatedVisited[pandal.id] && pandal.parsedCoords) {
+          const [lat, lng] = pandal.parsedCoords;
+          if (!isNaN(lat) && !isNaN(lng)) {
+            const distance = getDistanceMeters(globalUserLocation.lat, globalUserLocation.lng, lat, lng);
+            if (distance <= 50) {
+              updatedVisited[pandal.id] = true;
+              newlyVisited = true;
+              
+              // Inform backend about the real-world visit to track crowd
+              fetch(`http://localhost:5000/api/posts/${pandal.id}/visit`, { method: 'POST' })
+                .catch(err => console.error("Error logging visit:", err));
+            }
+          }
+        }
+      });
+
+      if (newlyVisited) {
+        setVisitedPandals(updatedVisited);
+        setToastMessage(`Pandal visited! Your visited count has increased.`);
+        setTimeout(() => setToastMessage(''), 4000);
+      }
+    }
+  }, [globalUserLocation, allPandals, visitedPandals]);
+
+  const handleSettingChange = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
 
   const filteredPandals = allPandals.filter(p => 
     (p.name && p.name.toLowerCase().includes(searchQuery.toLowerCase())) || 
@@ -143,6 +241,7 @@ const Dashboard = ({ user }) => {
 
   const confirmDeletePost = () => {
     if (!postToDelete) return;
+    setIsDeleting(true);
 
     fetch(`http://localhost:5000/api/posts/${postToDelete}`, { method: 'DELETE' })
       .then(res => res.json())
@@ -155,7 +254,8 @@ const Dashboard = ({ user }) => {
       .catch(err => {
         console.error("Error deleting post:", err);
         setPostToDelete(null);
-      });
+      })
+      .finally(() => setIsDeleting(false));
   };
 
   const handleEditPost = (post) => {
@@ -203,9 +303,38 @@ const Dashboard = ({ user }) => {
         savedPost.content = savedPost.description; 
         
         if (isEdit) {
+          // Detect changes for notification
+          let changes = [];
+          if (editingPost.pandalName !== savedPost.pandalName) changes.push('Name');
+          if (editingPost.description !== savedPost.description) changes.push('Description');
+          if (editingPost.area !== savedPost.area) changes.push('Area');
+          if (editingPost.location !== savedPost.location) changes.push('Location');
+          
+          if (changes.length > 0) {
+            const newNotif = { 
+              id: Date.now(), 
+              type: 'update', 
+              title: `${savedPost.pandalName || 'Pandal'} Updated`, 
+              message: `Information was updated. Changes: ${changes.join(', ')}.`, 
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+              read: false 
+            };
+            setNotifications(prev => [newNotif, ...prev]);
+          }
+
           setMyPosts(myPosts.map(p => p.id === savedPost.id ? savedPost : p));
           setToastMessage('Post updated successfully!');
         } else {
+          const newNotif = { 
+            id: Date.now(), 
+            type: 'info', 
+            title: `New Pandal Added`, 
+            message: `${savedPost.pandalName || 'A new pandal'} was added to ${savedPost.area || 'the map'}.`, 
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+            read: false 
+          };
+          setNotifications(prev => [newNotif, ...prev]);
+
           setMyPosts([savedPost, ...myPosts]);
           setToastMessage('Post submitted successfully!');
         }
@@ -238,17 +367,21 @@ const Dashboard = ({ user }) => {
             className="icon-btn" 
             aria-label="Notifications" 
             onClick={() => setActiveTab('notifications')}
+            style={{ position: 'relative' }}
           >
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
+            {notifications.some(n => !n.read) && (
+              <span style={{ position: 'absolute', top: '0px', right: '0px', width: '10px', height: '10px', backgroundColor: '#c8102e', borderRadius: '50%', border: '2px solid #fff' }}></span>
+            )}
           </button>
         </header>
       )}
 
       {/* Main Content */}
-      <main className="main-content" onScroll={handleScroll}>
+      <main className="main-content">
         {activeTab === 'home' && (
           <>
         {/* Hero / Greeting */}
@@ -356,6 +489,14 @@ const Dashboard = ({ user }) => {
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                       </svg>
                     </button>
+                    {visitedPandals[pandal.id] && (
+                      <span className="visited-badge" style={{ position: 'absolute', top: '15px', right: '60px', background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(8px)', padding: '6px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: '#34A853', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 2 }}>
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Visited
+                      </span>
+                    )}
                     <span className="distance-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
@@ -385,10 +526,10 @@ const Dashboard = ({ user }) => {
         )}
           </>
         )}
-        {activeTab === 'map' && <MapPage settings={settings} targetPandal={targetPandal} clearTarget={() => setTargetPandal(null)} allPandals={allPandals} />}
+        {activeTab === 'map' && <MapPage settings={settings} targetPandal={targetPandal} clearTarget={() => setTargetPandal(null)} allPandals={allPandals} globalUserLocation={globalUserLocation} />}
         {activeTab === 'saved' && <SavedPage savedPandals={savedPandals} allPandals={allPandals} toggleSave={toggleSave} handleGuideMe={handleGuideMe} />}
         {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} visitedCount={visitedCount} settings={settings} handleSettingChange={handleSettingChange} />}
-        {activeTab === 'notifications' && <NotificationPage />}
+        {activeTab === 'notifications' && <NotificationPage notifications={notifications} setNotifications={setNotifications} />}
         {activeTab === 'my-posts' && <MyPostsPage user={user} posts={userPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} handleEditPost={handleEditPost} />}
         {activeTab === 'see-all' && selectedCategory && (
           <SeeAllPage 
@@ -404,15 +545,6 @@ const Dashboard = ({ user }) => {
         )}
         {activeTab === 'post' && <PostPage user={user} setActiveTab={(tab) => { setActiveTab(tab); setEditingPost(null); }} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} editingPost={editingPost} />}
       </main>
-
-      {/* Scroll to Top Button */}
-      {showScrollTop && (
-        <button className="scroll-to-top-btn" onClick={scrollToTop} aria-label="Scroll to Top">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="18 15 12 9 6 15"></polyline>
-          </svg>
-        </button>
-      )}
 
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
@@ -475,8 +607,8 @@ const Dashboard = ({ user }) => {
             <button onClick={() => setPostToDelete(null)} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: 'transparent', color: 'inherit', fontSize: '14px', fontWeight: '600', cursor: 'pointer', flex: 1, transition: 'background 0.2s' }}>
               Cancel
             </button>
-            <button onClick={confirmDeletePost} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#c8102e', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', flex: 1, boxShadow: '0 4px 15px rgba(200,16,46,0.2)' }}>
-              Delete
+            <button onClick={confirmDeletePost} disabled={isDeleting} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#c8102e', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', flex: 1, boxShadow: '0 4px 15px rgba(200,16,46,0.2)', opacity: isDeleting ? 0.8 : 1 }}>
+              {isDeleting ? <span className="spinner-micro"></span> : 'Delete'}
             </button>
           </div>
         </div>

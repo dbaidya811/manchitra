@@ -51,6 +51,8 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingP
   const [locationName, setLocationName] = useState('');
   const [area, setArea] = useState(''); // State to control selected area
   const [imagePreview, setImagePreview] = useState(null); // State for image preview
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   React.useEffect(() => {
     if (editingPost) {
@@ -73,6 +75,7 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingP
 
   const handleAutoLocation = () => {
     if ("geolocation" in navigator) {
+      setIsFetchingLocation(true);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           const lat = pos.coords.latitude;
@@ -81,12 +84,23 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingP
           setPosition(loc);
           setLocationName(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
           setArea(getAreaFromCoordinates(lat, lng)); // Auto-select area
+          setIsFetchingLocation(false);
         },
-        (err) => console.error("Geolocation error:", err),
+        (err) => {
+          console.error("Geolocation error:", err);
+          setIsFetchingLocation(false);
+          if (err.code === 1) { // PERMISSION_DENIED
+            setToastMessage("Location permission denied.");
+          } else {
+            setToastMessage("Failed to fetch location.");
+          }
+          setTimeout(() => setToastMessage(''), 3000);
+        },
         { enableHighAccuracy: true }
       );
     } else {
-      alert("Geolocation is not supported by your browser.");
+      setToastMessage("Geolocation is not supported by your browser.");
+      setTimeout(() => setToastMessage(''), 3000);
     }
   };
 
@@ -175,10 +189,14 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingP
               title="Please enter valid coordinates in 'latitude, longitude' format"
               required 
             />
-            <button type="button" className="auto-loc-btn" title="Use Automatic Location" onClick={handleAutoLocation}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
-              </svg>
+            <button type="button" className="auto-loc-btn" title="Use Automatic Location" onClick={handleAutoLocation} disabled={isFetchingLocation}>
+              {isFetchingLocation ? (
+                <span className="spinner-micro" style={{ borderColor: 'rgba(0, 120, 255, 0.3)', borderTopColor: '#0078ff' }}></span>
+              ) : (
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+                </svg>
+              )}
             </button>
           </div>
           
@@ -215,6 +233,13 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingP
           </button>
         </form>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="toast-notification" style={{ backgroundColor: '#c8102e' }}>
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 };
