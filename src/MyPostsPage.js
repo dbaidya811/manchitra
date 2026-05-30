@@ -1,13 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './App.css';
 
-const MyPostsPage = ({ posts, setActiveTab, handleDeletePost }) => {
-  const [openDropdown, setOpenDropdown] = useState(null);
-
-  const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
-  };
-
+const MyPostsPage = ({ user, posts, setActiveTab, handleDeletePost, handleEditPost }) => {
   return (
     <div className="my-posts-page">
       <div className="my-posts-header">
@@ -31,35 +25,27 @@ const MyPostsPage = ({ posts, setActiveTab, handleDeletePost }) => {
           </div>
         ) : (
           posts.map(post => (
-            <div key={post.id} className="post-card">
-              <div className="post-header" style={{ position: 'relative' }}>
-                <div className="post-avatar">A</div>
-                <div className="post-meta">
-                  <h4>{post.pandalName}</h4>
-                  <span>{post.time}</span>
-                </div>
-                <button className="post-options-btn" onClick={() => toggleDropdown(post.id)}>
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
-                </button>
+            <div key={post.id} className="my-post-card">
+              {post.imageUrl ? (
+                <div className="my-post-image" style={{ backgroundImage: `url(http://localhost:5000${post.imageUrl})` }}></div>
+              ) : (
+                <div className="my-post-image bg-1"></div>
+              )}
+              <div className="my-post-content">
+                <h4>{post.pandalName || 'Untitled Pandal'}</h4>
+                <span className="post-time">{post.time}</span>
+                <p>{post.content}</p>
                 
-                {openDropdown === post.id && (
-                  <div className="post-dropdown">
-                    <button className="dropdown-item" onClick={() => { alert('Edit feature is coming soon!'); setOpenDropdown(null); }}>Edit Post</button>
-                    <button className="dropdown-item delete" onClick={() => { handleDeletePost(post.id); setOpenDropdown(null); }}>Delete</button>
-                  </div>
-                )}
-              </div>
-              <p className="post-content-text">{post.content}</p>
-              <div className={`post-image-box ${post.imageClass}`}></div>
-              <div className="post-actions">
-                <button className="action-btn">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                  <span>{post.likes}</span>
-                </button>
-                <button className="action-btn">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                  <span>{post.comments}</span>
-                </button>
+                <div className="my-post-actions">
+                  <button className="edit-btn" onClick={() => handleEditPost(post)}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    Edit
+                  </button>
+                  <button className="delete-btn" onClick={() => handleDeletePost(post.id)}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))

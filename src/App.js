@@ -35,7 +35,7 @@ const MainApp = () => {
       <div className="landing-container">
         <div className="landing-content">
           <div className="landing-logo">
-            <img src="https://cdn-icons-png.flaticon.com/512/1001/1001022.png" alt="Manchitra Logo" className="logo-icon-large" />
+            <img src={`${process.env.PUBLIC_URL}/appicon.png`} alt="Manchitra Logo" className="logo-icon-large" />
           </div>
         </div>
         <div className="landing-bottom-text">

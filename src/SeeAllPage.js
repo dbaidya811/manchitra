@@ -1,7 +1,7 @@
 import React from 'react';
 import './App.css';
 
-const SeeAllPage = ({ category, pandals, setActiveTab, savedPandals, toggleSave }) => {
+const SeeAllPage = ({ category, pandals, setActiveTab, savedPandals, toggleSave, visitedPandals, toggleVisited, handleGuideMe }) => {
   return (
     <div className="see-all-page">
       <div className="see-all-header">
@@ -17,8 +17,14 @@ const SeeAllPage = ({ category, pandals, setActiveTab, savedPandals, toggleSave 
       <div className="see-all-list">
         {pandals.map(pandal => (
           <div key={pandal.id} className="pandal-card see-all-card">
-            <div className={`pandal-image ${pandal.imageClass}`}>
-              <div className="card-user-dp" title="Posted by User">{pandal.postedBy || 'U'}</div>
+            <div className="pandal-image bg-1" style={pandal.imageUrl ? { backgroundImage: `url(http://localhost:5000${pandal.imageUrl})` } : {}}>
+              <div className="card-user-dp" title="Posted by User">
+                {pandal.userPicture && pandal.userPicture.startsWith('http') ? (
+                  <img src={pandal.userPicture} alt="User DP" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                ) : (
+                  pandal.postedBy || 'U'
+                )}
+              </div>
               <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave(pandal.id)}>
                 <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals[pandal.id] ? "#c8102e" : "none"} stroke={savedPandals[pandal.id] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
@@ -35,7 +41,7 @@ const SeeAllPage = ({ category, pandals, setActiveTab, savedPandals, toggleSave 
             <div className="pandal-info">
               <h4>{pandal.name}</h4>
               <p>{pandal.description}</p>
-              <button className="navigate-btn">
+              <button className="navigate-btn" onClick={() => handleGuideMe && handleGuideMe(pandal)}>
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>

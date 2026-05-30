@@ -46,11 +46,30 @@ const LocationPicker = ({ position, setPosition, setLocationName, setArea }) => 
   return position ? <Marker position={position} icon={markerIcon} /> : null;
 };
 
-const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
+const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting, editingPost }) => {
   const [position, setPosition] = useState([22.5726, 88.3639]); // Default Kolkata
   const [locationName, setLocationName] = useState('');
   const [area, setArea] = useState(''); // State to control selected area
   const [imagePreview, setImagePreview] = useState(null); // State for image preview
+
+  React.useEffect(() => {
+    if (editingPost) {
+      if (editingPost.location) {
+        const parts = editingPost.location.split(',');
+        if (parts.length === 2) {
+          setPosition([parseFloat(parts[0].trim()), parseFloat(parts[1].trim())]);
+          setLocationName(editingPost.location);
+        }
+      }
+      if (editingPost.area) setArea(editingPost.area);
+      if (editingPost.imageUrl) setImagePreview(`http://localhost:5000${editingPost.imageUrl}`);
+    } else {
+      setPosition([22.5726, 88.3639]);
+      setLocationName('');
+      setArea('');
+      setImagePreview(null);
+    }
+  }, [editingPost]);
 
   const handleAutoLocation = () => {
     if ("geolocation" in navigator) {
@@ -68,6 +87,22 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
       );
     } else {
       alert("Geolocation is not supported by your browser.");
+    }
+  };
+
+  const handleLocationInputChange = (e) => {
+    // Remove any letters or invalid characters. Only allow numbers, dots, commas, minus signs, and spaces
+    const val = e.target.value.replace(/[^0-9.,\s-]/g, '');
+    setLocationName(val);
+    
+    const parts = val.split(',');
+    if (parts.length === 2) {
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        setPosition([lat, lng]);
+        setArea(getAreaFromCoordinates(lat, lng));
+      }
     }
   };
 
@@ -90,20 +125,30 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
         </button>
-        <h2>Post a Pandal</h2>
+        <h2>{editingPost ? 'Edit Pandal' : 'Post a Pandal'}</h2>
       </div>
 
       <div className="post-card">
         {/* User DP and Name Header */}
         <div className="modal-user-row" style={{ marginBottom: '15px' }}>
           <div className="modal-avatar">
-            {user?.name ? user.name.charAt(0).toUpperCase() : 'G'}
+            {user?.picture && user.picture.startsWith('http') ? (
+              <img src={user.picture} alt={user?.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+            ) : (
+              user?.name ? user.name.charAt(0).toUpperCase() : 'G'
+            )}
           </div>
           <span className="modal-user-name">{user?.name || 'Guest User'}</span>
         </div>
         
         <form className="post-form" onSubmit={handlePostSubmit}>
-          <input type="text" name="pandalName" className="post-input" placeholder="Pandal Name" required />
+          {/* Hidden inputs to send user data to backend */}
+          <input type="hidden" name="userEmail" value={user?.email || 'guest@manchitra.com'} />
+          <input type="hidden" name="userName" value={user?.name || 'Guest User'} />
+          <input type="hidden" name="userPicture" value={user?.picture || ''} />
+          <input type="hidden" name="existingImageUrl" value={editingPost?.imageUrl || ''} />
+
+          <input type="text" name="pandalName" className="post-input" placeholder="Pandal Name" defaultValue={editingPost ? (editingPost.pandalName || editingPost.name) : ''} required />
           
           <select name="area" className="post-input" required value={area} onChange={(e) => setArea(e.target.value)}>
             <option value="" disabled>Select Area</option>
@@ -116,16 +161,18 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
             <option value="Other">Other</option>
           </select>
 
-          <textarea name="description" className="post-textarea" placeholder="Description..." rows="3" required></textarea>
+          <textarea name="description" className="post-textarea" placeholder="Description..." rows="3" defaultValue={editingPost?.description || ''} required></textarea>
           
           <div className="location-input-group">
             <input 
               type="text" 
               name="location"
               className="post-input" 
-              placeholder="Select location on map or auto-detect" 
+              placeholder="e.g. 22.5726, 88.3639 (Lat, Lng)" 
               value={locationName}
-              readOnly
+              onChange={handleLocationInputChange}
+              pattern="^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$"
+              title="Please enter valid coordinates in 'latitude, longitude' format"
               required 
             />
             <button type="button" className="auto-loc-btn" title="Use Automatic Location" onClick={handleAutoLocation}>
@@ -163,7 +210,7 @@ const PostPage = ({ user, setActiveTab, handlePostSubmit, isSubmitting }) => {
             {isSubmitting ? (
               <span className="spinner-micro"></span>
             ) : (
-              "Submit Post"
+              editingPost ? "Update Post" : "Submit Post"
             )}
           </button>
         </form>

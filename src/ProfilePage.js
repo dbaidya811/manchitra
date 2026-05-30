@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, settings, handleSettingChange }) => {
+const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, visitedCount = 0, settings, handleSettingChange }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showEmergency, setShowEmergency] = useState(false);
 
@@ -37,7 +37,7 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, setti
       {/* Profile Header Card */}
       <div className="profile-header-card">
         <div className="profile-avatar">
-          {user?.picture ? (
+          {user?.picture && user.picture.startsWith('http') ? (
             <img src={user.picture} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
           ) : (
             <span>{user?.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
@@ -52,7 +52,7 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, setti
       {/* Profile Stats */}
       <div className="profile-stats">
         <div className="stat-box">
-          <h4>0</h4>
+          <h4>{visitedCount}</h4>
           <p>Visited</p>
         </div>
         <div className="stat-box">

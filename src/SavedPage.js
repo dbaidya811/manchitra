@@ -1,9 +1,9 @@
 import React from 'react';
 import './App.css';
 
-const SavedPage = () => {
-  // Data for saved pandals (Demo data removed)
-  const savedList = [];
+const SavedPage = ({ savedPandals = {}, allPandals = [], toggleSave, handleGuideMe }) => {
+  // Filter only the pandals that are saved
+  const savedList = allPandals.filter(p => savedPandals[p.id]);
 
   return (
     <div className="saved-page">
@@ -24,8 +24,8 @@ const SavedPage = () => {
         ) : (
           savedList.map(pandal => (
           <div key={pandal.id} className="saved-card">
-            <div className={`saved-image ${pandal.imageClass}`}>
-              <button className="remove-save-btn" aria-label="Remove Saved">
+            <div className="saved-image bg-1" style={pandal.imageUrl ? { backgroundImage: `url(http://localhost:5000${pandal.imageUrl})` } : {}}>
+              <button className="remove-save-btn" aria-label="Remove Saved" onClick={() => toggleSave && toggleSave(pandal.id)}>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="#c8102e" stroke="#c8102e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -41,7 +41,7 @@ const SavedPage = () => {
             <div className="saved-info">
               <h4>{pandal.name}</h4>
               <p>{pandal.description}</p>
-              <button className="route-btn">
+              <button className="route-btn" onClick={() => handleGuideMe && handleGuideMe(pandal)}>
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
                 </svg>

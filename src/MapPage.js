@@ -47,10 +47,10 @@ loadVoices(); // Load voices when script is parsed
 const speak = (text, settings = {}) => {
   const { voiceEnabled = true, voiceGender = 'female' } = settings;
 
-  // Map voice 'off' থাকলে কোনো ভয়েস কমেন্ট হবে না
+  // If map voice is 'off', no voice comments will be made
   if (!voiceEnabled) {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // আগের কোনো ভয়েস চললে তা বন্ধ করে দেবে
+      window.speechSynthesis.cancel(); // Stop any ongoing voice
     }
     return;
   }
@@ -65,23 +65,23 @@ const speak = (text, settings = {}) => {
       let selectedVoice = null;
       
       if (voiceGender === 'female') {
-        // Female ভয়েসের জন্য পরিচিত নামগুলো (Google Female, Heera, Veena, Zira ইত্যাদি)
+        // Common names for female voices (Google Female, Heera, Veena, Zira, etc.)
         selectedVoice = voices.find(v => v.lang.includes('en-IN') && /female|heera|veena|zira|samantha|hazel/i.test(v.name))
                      || voices.find(v => /female|heera|veena|zira|samantha|hazel/i.test(v.name));
       } else { // male
-        // Male ভয়েসের জন্য পরিচিত নামগুলো (Google Male, Ravi, Rishi, David ইত্যাদি)
+        // Common names for male voices (Google Male, Ravi, Rishi, David, etc.)
         selectedVoice = voices.find(v => v.lang.includes('en-IN') && /male|ravi|rishi|david|mark|george|alex/i.test(v.name))
                      || voices.find(v => /male|ravi|rishi|david|mark|george|alex/i.test(v.name));
       }
       
-      // যদি নির্দিষ্ট জেন্ডারের ভয়েস না পাওয়া যায়, তবে ডিভাইসের যেকোনো একটি ডিফল্ট ইন্ডিয়ান ইংলিশ ভয়েস নেবে
+      // If the specific gender voice is not found, fallback to any default Indian English voice
       if (!selectedVoice) {
         selectedVoice = voices.find(v => v.lang.includes('en-IN'));
       }
 
       if (selectedVoice) {
         utterance.voice = selectedVoice;
-        utterance.lang = selectedVoice.lang; // ব্রাউজারের সমস্যার কারণে ল্যাংগুয়েজ পুনরায় সেট করা হলো
+        utterance.lang = selectedVoice.lang; // Resetting language due to browser inconsistencies
       }
     }
 
@@ -138,7 +138,7 @@ const MapUpdater = ({ center, routePath, isNavigating, userLocation }) => {
 
 const DEFAULT_SETTINGS = { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
 
-const MapPage = ({ settings = DEFAULT_SETTINGS }) => {
+const MapPage = ({ settings = DEFAULT_SETTINGS, targetPandal, clearTarget, allPandals = [] }) => {
 
   // Kolkata coordinates as default
   const [position, setPosition] = useState([22.5726, 88.3639]);
@@ -203,17 +203,34 @@ const MapPage = ({ settings = DEFAULT_SETTINGS }) => {
   // Debounced effect to fetch location suggestions from OpenStreetMap Nominatim API
   useEffect(() => {
     const fetchSuggestions = async () => {
-      if (searchQuery.trim().length < 3) {
+      if (searchQuery.trim().length < 2) {
         setSuggestions([]);
         return;
       }
       setIsLoading(true);
+
+      // 1. Search in local database (allPandals)
+      const dbMatches = allPandals.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (p.area && p.area.toLowerCase().includes(searchQuery.toLowerCase()))
+      ).filter(p => p.location && p.location.includes(',')).map(p => {
+        const coords = p.location.split(',');
+        return {
+          place_id: `db-${p.id}`,
+          display_name: `${p.name} (${p.area})`,
+          lat: coords[0].trim(),
+          lon: coords[1].trim(),
+          isPandal: true
+        };
+      });
+
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5`);
         const data = await res.json();
-        setSuggestions(data);
+        setSuggestions([...dbMatches, ...data]);
       } catch (error) {
         console.error("Location search failed:", error);
+        setSuggestions(dbMatches); // Fallback to DB matches if API fails
       } finally {
         setIsLoading(false);
       }
@@ -267,16 +284,26 @@ const MapPage = ({ settings = DEFAULT_SETTINGS }) => {
     }
   };
 
+  // Auto-trigger navigation when targetPandal prop changes
+  useEffect(() => {
+    if (targetPandal && userLocation) {
+      const [lat, lng] = targetPandal.coords;
+      handleSelectLocation({ lat: lat.toString(), lon: lng.toString(), display_name: targetPandal.name });
+      if (clearTarget) clearTarget();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetPandal, userLocation]);
+
   const handleStartNavigation = () => {
-    // প্রথমে এক্সটার্নাল ম্যাপ সেটিং চেক করুন
+    // First check the external map setting
     if (settings.useExternalMap && position && userLocation) {
       const [destLat, destLon] = position;
       const url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation[0]},${userLocation[1]}&destination=${destLat},${destLon}&travelmode=driving`;
       window.open(url, '_blank');
-      return; // অভ্যন্তরীণ নেভিগেশন বন্ধ করুন
+      return; // Exit internal navigation
     }
 
-    // রুট উপলব্ধ থাকলে অভ্যন্তরীণ নেভিগেশন শুরু করুন
+    // Start internal navigation if route is available
     if (!routePath || routePath.length === 0) {
       alert("Please select a destination to start navigation.");
       return;
@@ -382,12 +409,18 @@ const MapPage = ({ settings = DEFAULT_SETTINGS }) => {
               <div 
                 key={loc.place_id || index}
                 onClick={() => handleSelectLocation(loc)}
-                style={{ padding: '12px 15px', borderBottom: index < suggestions.length - 1 ? '1px solid #f0f0f0' : 'none', cursor: 'pointer', fontSize: '14px', color: '#333', display: 'flex', alignItems: 'center', gap: '10px' }}
+                style={{ padding: '12px 15px', borderBottom: index < suggestions.length - 1 ? '1px solid #f0f0f0' : 'none', cursor: 'pointer', fontSize: '14px', color: '#333', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: loc.isPandal ? '#fff8f8' : 'transparent' }}
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {loc.isPandal ? (
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="rgba(200,16,46,0.1)" stroke="#c8102e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                )}
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: loc.isPandal ? '600' : 'normal', color: loc.isPandal ? '#c8102e' : '#333' }}>
                   {loc.display_name}
                 </span>
               </div>

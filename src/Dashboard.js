@@ -12,18 +12,30 @@ const Dashboard = ({ user }) => {
   // Debugging: Check which component is undefined
   console.log("Checking Components:", { MapPage, SavedPage, ProfilePage, NotificationPage, MyPostsPage, SeeAllPage, PostPage });
 
-  // State to manage user's posts (Moved to top for better scoping)
+  // State to manage all posts
   const [myPosts, setMyPosts] = useState([]);
-  const postsCount = myPosts.length;
+  const userPosts = myPosts.filter(post => user && post.userEmail === user.email);
+  const postsCount = userPosts.length;
 
   const [activeTab, setActiveTab] = useState('home');
-  const [savedPandals, setSavedPandals] = useState({});
+  const [savedPandals, setSavedPandals] = useState(() => {
+    const saved = localStorage.getItem('manchitra_saved');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [visitedPandals, setVisitedPandals] = useState(() => {
+    const visited = localStorage.getItem('manchitra_visited');
+    return visited ? JSON.parse(visited) : {};
+  });
   const [activeFilter, setActiveFilter] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [targetPandal, setTargetPandal] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [toastMessage, setToastMessage] = useState('');
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('manchitra_settings');
     return saved ? JSON.parse(saved) : { voiceEnabled: true, voiceGender: 'female', useExternalMap: false };
@@ -32,6 +44,14 @@ const Dashboard = ({ user }) => {
   useEffect(() => {
     localStorage.setItem('manchitra_settings', JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_saved', JSON.stringify(savedPandals));
+  }, [savedPandals]);
+
+  useEffect(() => {
+    localStorage.setItem('manchitra_visited', JSON.stringify(visitedPandals));
+  }, [visitedPandals]);
 
   const handleSettingChange = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -68,12 +88,25 @@ const Dashboard = ({ user }) => {
     }
   };
 
-  // Data for home page pandals (Demo data removed)
-  const dummyPandals = [];
+  // Data for home page pandals mapped from backend posts
+  const allPandals = myPosts.map(post => ({
+    id: post.id,
+    name: post.pandalName,
+    area: post.area,
+    description: post.description,
+    location: post.location,
+    imageUrl: post.imageUrl,
+    postedBy: post.userName ? post.userName.charAt(0).toUpperCase() : 'U',
+    userPicture: post.userPicture,
+    distance: "Nearby",
+    isNearby: true, // Show all in Nearby for now
+    isTrending: post.likes > 0,
+    isTopRated: post.comments > 0
+  }));
 
-  const filteredPandals = dummyPandals.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    p.area.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPandals = allPandals.filter(p => 
+    (p.name && p.name.toLowerCase().includes(searchQuery.toLowerCase())) || 
+    (p.area && p.area.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const categoriesData = {
@@ -99,42 +132,95 @@ const Dashboard = ({ user }) => {
 
   const savedCount = Object.values(savedPandals).filter(Boolean).length;
 
+  const toggleVisited = (id) => {
+    setVisitedPandals(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+  const visitedCount = Object.values(visitedPandals).filter(Boolean).length;
+
   const handleDeletePost = (id) => {
-    fetch(`http://localhost:5000/api/posts/${id}`, { method: 'DELETE' })
+    setPostToDelete(id);
+  };
+
+  const confirmDeletePost = () => {
+    if (!postToDelete) return;
+
+    fetch(`http://localhost:5000/api/posts/${postToDelete}`, { method: 'DELETE' })
       .then(res => res.json())
       .then(() => {
-        setMyPosts(myPosts.filter(post => post.id !== id));
+        setMyPosts(myPosts.filter(post => post.id !== postToDelete));
+        setPostToDelete(null);
+        setToastMessage('Post deleted successfully!');
+        setTimeout(() => setToastMessage(''), 3000);
       })
-      .catch(err => console.error("Error deleting post:", err));
+      .catch(err => {
+        console.error("Error deleting post:", err);
+        setPostToDelete(null);
+      });
+  };
+
+  const handleEditPost = (post) => {
+    setEditingPost(post);
+    setActiveTab('post');
+  };
+
+  const handleGuideMe = (pandal) => {
+    if (!pandal.location) {
+      alert("Location coordinates are missing for this pandal.");
+      return;
+    }
+    const coords = pandal.location.split(',').map(coord => parseFloat(coord.trim()));
+    if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+      // Check if user prefers external Google Maps
+      if (settings && settings.useExternalMap) {
+        const [destLat, destLon] = coords;
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLon}&travelmode=driving`;
+        window.open(url, '_blank');
+      } else {
+        setTargetPandal({ coords, name: pandal.name });
+        setActiveTab('map');
+      }
+    } else {
+      alert("Invalid location coordinates for this pandal.");
+    }
   };
 
   const handlePostSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true); // Start micro loading
     const formData = new FormData(e.target);
-    
-    const postData = {
-      pandalName: formData.get('pandalName'),
-      area: formData.get('area'),
-      description: formData.get('description'),
-      time: "Just now",
-      imageClass: "bg-1"
-    };
+
+    const isEdit = !!editingPost;
+    const url = isEdit ? `http://localhost:5000/api/posts/${editingPost.id}` : 'http://localhost:5000/api/posts';
+    const method = isEdit ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch('http://localhost:5000/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(postData)
+      const response = await fetch(url, {
+        method: method,
+        body: formData
       });
       if (response.ok) {
-        const newPost = await response.json();
-        newPost.content = newPost.description; // Map description to content
-        setMyPosts([newPost, ...myPosts]);
-        setActiveTab('my-posts');
+        const savedPost = await response.json();
+        savedPost.content = savedPost.description; 
+        
+        if (isEdit) {
+          setMyPosts(myPosts.map(p => p.id === savedPost.id ? savedPost : p));
+          setToastMessage('Post updated successfully!');
+        } else {
+          setMyPosts([savedPost, ...myPosts]);
+          setToastMessage('Post submitted successfully!');
+        }
+        
+        setActiveTab('home');
+        setEditingPost(null);
+        setTimeout(() => setToastMessage(''), 3000); // 3 সেকেন্ড পর মেসেজটি চলে যাবে
+      } else {
+        const errData = await response.json();
+        console.error("Backend error:", errData);
+        alert("Failed to submit post: " + (errData.error || "Unknown Error"));
       }
     } catch (error) {
       console.error("Error submitting post:", error);
+      alert("Network error: Make sure the backend server is running.");
     } finally {
       setIsSubmitting(false); // Stop micro loading
     }
@@ -257,8 +343,14 @@ const Dashboard = ({ user }) => {
             <div className="pandal-list-horizontal">
               {pandals.map(pandal => (
                 <div key={pandal.id} className="pandal-card">
-                  <div className={`pandal-image ${pandal.imageClass}`}>
-                    <div className="card-user-dp" title="Posted by User">{pandal.postedBy || 'U'}</div>
+                  <div className="pandal-image bg-1" style={pandal.imageUrl ? { backgroundImage: `url(http://localhost:5000${pandal.imageUrl})` } : {}}>
+                    <div className="card-user-dp" title="Posted by User">
+                      {pandal.userPicture && pandal.userPicture.startsWith('http') ? (
+                        <img src={pandal.userPicture} alt="User DP" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} referrerPolicy="no-referrer" />
+                      ) : (
+                        pandal.postedBy || 'U'
+                      )}
+                    </div>
                     <button className="save-btn" aria-label="Save Pandal" onClick={() => toggleSave(pandal.id)}>
                       <svg viewBox="0 0 24 24" width="18" height="18" fill={savedPandals[pandal.id] ? "#c8102e" : "none"} stroke={savedPandals[pandal.id] ? "#c8102e" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
@@ -275,7 +367,7 @@ const Dashboard = ({ user }) => {
                   <div className="pandal-info">
                     <h4>{pandal.name}</h4>
                     <p>{pandal.description}</p>
-                    <button className="navigate-btn">
+                    <button className="navigate-btn" onClick={() => handleGuideMe(pandal)}>
                       <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10"></circle>
@@ -293,11 +385,11 @@ const Dashboard = ({ user }) => {
         )}
           </>
         )}
-        {activeTab === 'map' && <MapPage settings={settings} />}
-        {activeTab === 'saved' && <SavedPage />}
-        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} settings={settings} handleSettingChange={handleSettingChange} />}
+        {activeTab === 'map' && <MapPage settings={settings} targetPandal={targetPandal} clearTarget={() => setTargetPandal(null)} allPandals={allPandals} />}
+        {activeTab === 'saved' && <SavedPage savedPandals={savedPandals} allPandals={allPandals} toggleSave={toggleSave} handleGuideMe={handleGuideMe} />}
+        {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} visitedCount={visitedCount} settings={settings} handleSettingChange={handleSettingChange} />}
         {activeTab === 'notifications' && <NotificationPage />}
-        {activeTab === 'my-posts' && <MyPostsPage posts={myPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} />}
+        {activeTab === 'my-posts' && <MyPostsPage user={user} posts={userPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} handleEditPost={handleEditPost} />}
         {activeTab === 'see-all' && selectedCategory && (
           <SeeAllPage 
             category={selectedCategory} 
@@ -305,9 +397,12 @@ const Dashboard = ({ user }) => {
             setActiveTab={setActiveTab} 
             savedPandals={savedPandals} 
             toggleSave={toggleSave} 
+            visitedPandals={visitedPandals}
+            toggleVisited={toggleVisited}
+            handleGuideMe={handleGuideMe}
           />
         )}
-        {activeTab === 'post' && <PostPage user={user} setActiveTab={setActiveTab} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} />}
+        {activeTab === 'post' && <PostPage user={user} setActiveTab={(tab) => { setActiveTab(tab); setEditingPost(null); }} handlePostSubmit={handlePostSubmit} isSubmitting={isSubmitting} editingPost={editingPost} />}
       </main>
 
       {/* Scroll to Top Button */}
@@ -336,7 +431,7 @@ const Dashboard = ({ user }) => {
         
         {/* Center Floating Plus Button */}
         <div className="nav-fab-wrapper">
-          <div className="nav-fab" aria-label="Add or Create" onClick={() => setActiveTab('post')}>
+          <div className="nav-fab" aria-label="Add or Create" onClick={() => { setEditingPost(null); setActiveTab('post'); }}>
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -357,6 +452,36 @@ const Dashboard = ({ user }) => {
           <span>Profile</span>
         </div>
       </nav>
+
+    {/* Toast Notification */}
+    {toastMessage && (
+      <div className="toast-notification">
+        {toastMessage}
+      </div>
+    )}
+
+    {/* Delete Confirmation Modal */}
+    {postToDelete && (
+      <div className="modal-overlay" onClick={() => setPostToDelete(null)}>
+        <div className="modal-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center', padding: '30px 20px', maxWidth: '320px' }}>
+          <div style={{ marginBottom: '15px' }}>
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="rgba(200, 16, 46, 0.1)" stroke="#c8102e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </div>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '20px' }}>Delete Post</h3>
+          <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#888' }}>Are you sure you want to delete this post? This action cannot be undone.</p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <button onClick={() => setPostToDelete(null)} style={{ padding: '12px 20px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: 'transparent', color: 'inherit', fontSize: '14px', fontWeight: '600', cursor: 'pointer', flex: 1, transition: 'background 0.2s' }}>
+              Cancel
+            </button>
+            <button onClick={confirmDeletePost} style={{ padding: '12px 20px', borderRadius: '12px', border: 'none', background: '#c8102e', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: 'pointer', flex: 1, boxShadow: '0 4px 15px rgba(200,16,46,0.2)' }}>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 };
