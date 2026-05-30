@@ -7,6 +7,7 @@ import NotificationPage from './NotificationPage';
 import MyPostsPage from './MyPostsPage';
 import SeeAllPage from './SeeAllPage';
 import PostPage from './PostPage';
+import AIPage from './AIPage';
 import { io } from 'socket.io-client';
 
 const Dashboard = ({ user, globalUserLocation }) => {
@@ -358,7 +359,7 @@ const Dashboard = ({ user, globalUserLocation }) => {
   return (
     <div className="app-container">
       {/* Top Header */}
-      {activeTab !== 'map' && (
+      {activeTab !== 'map' && activeTab !== 'ai' && (
         <header className="app-header">
           <div className="logo-container">
             <h1 className="logo-text">manchitra</h1>
@@ -381,7 +382,7 @@ const Dashboard = ({ user, globalUserLocation }) => {
       )}
 
       {/* Main Content */}
-      <main className="main-content">
+      <main className="main-content" style={activeTab === 'ai' ? { padding: '20px', display: 'flex', flexDirection: 'column' } : {}}>
         {activeTab === 'home' && (
           <>
         {/* Hero / Greeting */}
@@ -530,6 +531,7 @@ const Dashboard = ({ user, globalUserLocation }) => {
         {activeTab === 'saved' && <SavedPage savedPandals={savedPandals} allPandals={allPandals} toggleSave={toggleSave} handleGuideMe={handleGuideMe} />}
         {activeTab === 'profile' && <ProfilePage setActiveTab={setActiveTab} user={user} savedCount={savedCount} postsCount={postsCount} visitedCount={visitedCount} settings={settings} handleSettingChange={handleSettingChange} />}
         {activeTab === 'notifications' && <NotificationPage notifications={notifications} setNotifications={setNotifications} />}
+        {activeTab === 'ai' && <AIPage setActiveTab={setActiveTab} />}
         {activeTab === 'my-posts' && <MyPostsPage user={user} posts={userPosts} setActiveTab={setActiveTab} handleDeletePost={handleDeletePost} handleEditPost={handleEditPost} />}
         {activeTab === 'see-all' && selectedCategory && (
           <SeeAllPage 
@@ -547,7 +549,8 @@ const Dashboard = ({ user, globalUserLocation }) => {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="bottom-nav">
+      {activeTab !== 'ai' && (
+        <nav className="bottom-nav">
         <div className={`nav-item ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
           <span className="nav-icon">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
@@ -584,6 +587,7 @@ const Dashboard = ({ user, globalUserLocation }) => {
           <span>Profile</span>
         </div>
       </nav>
+      )}
 
     {/* Toast Notification */}
     {toastMessage && (

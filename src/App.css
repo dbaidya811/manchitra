@@ -1636,6 +1636,194 @@ body.dark-mode .my-post-card {
   box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
+/* --- AI Page Modern Styles --- */
+.ai-avatar-header {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0078ff, #00c6ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 10px rgba(0, 120, 255, 0.3);
+}
+
+.ai-avatar-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0078ff, #00c6ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+.chat-bubble {
+  padding: 14px 18px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+.chat-bubble.user {
+  background: linear-gradient(135deg, #ff7b00, #c8102e);
+  color: #fff;
+  border-radius: 20px 20px 4px 20px;
+  box-shadow: 0 4px 15px rgba(200, 16, 46, 0.2);
+  border: none;
+}
+
+.chat-bubble.ai {
+  background: #ffffff;
+  color: #333;
+  border-radius: 20px 20px 20px 4px;
+  border: 1px solid rgba(0,0,0,0.03);
+}
+
+.chat-bubble.ai.typing {
+  display: flex;
+  gap: 6px;
+  padding: 16px 20px;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  background: #0078ff;
+  border-radius: 50%;
+  animation: blink 1.4s infinite both;
+}
+
+.ai-suggestions-container {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  margin-bottom: 5px;
+  scrollbar-width: none;
+  margin: 0 -5px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.ai-suggestions-container::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-suggestion-btn {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.ai-suggestion-btn:hover {
+  background: #f9f9f9;
+  border-color: #ff7b00;
+  color: #ff7b00;
+}
+
+.ai-input-form {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+.ai-input {
+  flex: 1;
+  padding: 10px 15px;
+  border: none;
+  font-size: 14.5px;
+  outline: none;
+  background: transparent;
+}
+
+.ai-send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  color: #aaa;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.ai-send-btn.active {
+  background: linear-gradient(135deg, #ff7b00, #c8102e);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(200, 16, 46, 0.2);
+}
+
+body.dark-mode .glass-panel {
+  background: rgba(30, 30, 30, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+body.dark-mode .chat-bubble.ai {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .ai-suggestion-btn {
+  background: #1e1e1e;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #bbb;
+}
+
+body.dark-mode .ai-suggestion-btn:hover {
+  background: #2a2a2a;
+  color: #ff7b00;
+}
+
+body.dark-mode .ai-input-form {
+  background: #1e1e1e;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .ai-input {
+  color: #fff;
+}
+
+body.dark-mode .ai-send-btn:not(.active) {
+  background: #333;
+  color: #666;
+}
+
+body.dark-mode .ai-page h2 {
+  color: #fff !important;
+}
+
 body.dark-mode .card-user-dp {
   border-color: #1e1e1e;
 }
@@ -1689,6 +1877,12 @@ body.dark-mode .notification-card.unread {
   border-top-color: #fff;
   animation: spin 0.8s ease-in-out infinite;
   display: inline-block;
+}
+
+@keyframes blink {
+  0% { opacity: 0.2; }
+  20% { opacity: 1; }
+  100% { opacity: 0.2; }
 }
 
 /* --- Global Spinner & Overlay --- */

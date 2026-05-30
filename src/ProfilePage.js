@@ -81,7 +81,7 @@ const ProfilePage = ({ setActiveTab, user, savedCount = 0, postsCount = 0, visit
         </div>
         
         {/* Auto Intelligent Option */}
-        <div className="profile-menu-item auto-ai" onClick={() => alert('Auto Intelligent AI is getting ready!')}>
+        <div className="profile-menu-item auto-ai" onClick={() => setActiveTab('ai')}>
           <div className="menu-icon ai-icon">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>

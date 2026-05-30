@@ -56,6 +56,7 @@ const googleClient = new OAuth2Client(
   'http://localhost:5000/api/auth/callback/google' // Redirect URI
 );
 
+
 // SQLite database setup
 const db = new sqlite3.Database('./manchitra.db', (err) => {
   if (err) {
@@ -284,6 +285,19 @@ app.get('/api/auth/callback/google', async (req, res) => {
 // Basic test route
 app.get('/', (req, res) => {
   res.send('Manchitra Backend is running successfully! 🚀');
+});
+
+// Mock AI Chat Route (OpenRouter Removed)
+app.post('/api/chat', async (req, res) => {
+  try {
+    // OpenRouter integration has been removed. Returning a fallback message.
+    setTimeout(() => {
+      res.json({ role: 'assistant', content: 'I am currently offline. The AI system has been removed from the backend.' });
+    }, 1000);
+  } catch (error) {
+    console.error('AI Chat Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to communicate with AI' });
+  }
 });
 
 // Start the server (Using server.listen instead of app.listen for Socket.io)
