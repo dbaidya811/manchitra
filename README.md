@@ -140,16 +140,25 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your web browser. The Express server automatically boots the Vite dev server in development mode (HMR enabled).
 
-### 5. Build for Production
+### 5. Automated Deployment (GitHub Actions)
+Every time you push code to GitHub (`git push origin main`), the included GitHub Actions workflow (`.github/workflows/deploy.yml`) **automatically builds and deploys** the latest version to GitHub Pages!
+
+**One-Time Setup in your GitHub Repository:**
+1. Go to your repo on GitHub -> **Settings** -> **Pages**.
+2. Under **Build and deployment** -> **Source**, select **`GitHub Actions`**.
+3. That's it! Every future `git push` will deploy automatically without any manual commands.
+
+### 6. Build for Production & Static Hosting
 ```bash
 npm run build
 ```
+The output in `dist/` is a 100% self-contained static Progressive Web App that can be hosted on GitHub Pages, Netlify, Vercel, Firebase Hosting, or any static web server without requiring a Node.js backend.
 
-### 6. Start Production Server
+### 7. Start Local Full-Stack Server (Optional)
 ```bash
 npm start
 ```
-In production, the Express server serves the compiled `dist/` bundle with secure headers enabled.
+Runs the Express server on port 3000.
 
 ---
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Place } from '../types';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { getSafeImageUrl, handleImageError } from '../utils/imageHelper';
 
 interface GuideScreenProps {
   places: Place[];
@@ -595,13 +596,10 @@ export const GuideScreen: React.FC<GuideScreenProps> = ({
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <img
-                          src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                          src={getSafeImageUrl(place.image)}
                           alt={place.name}
                           className="w-8 h-8 rounded-lg object-cover shrink-0 border border-slate-200 dark:border-slate-700"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                          }}
+                          onError={handleImageError}
                         />
                         <div className="truncate">
                           <p className="font-bold text-slate-800 dark:text-slate-100 truncate text-[11px]">
@@ -860,13 +858,10 @@ export const GuideScreen: React.FC<GuideScreenProps> = ({
                   className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 rounded-2xl p-3 shadow-xs transition-all cursor-pointer flex gap-3"
                 >
                   <img
-                    src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                    src={getSafeImageUrl(place.image)}
                     alt={place.name}
                     className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100 dark:border-slate-800"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                    }}
+                    onError={handleImageError}
                   />
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>

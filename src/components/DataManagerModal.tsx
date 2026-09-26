@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Place } from '../types';
 import placesDefault from '../data/places.json';
+import { getSafeImageUrl, handleImageError } from '../utils/imageHelper';
 
 interface DataManagerModalProps {
   isOpen?: boolean;
@@ -310,13 +311,10 @@ export const DataManagerModal: React.FC<DataManagerModalProps> = ({
                     className="aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative group"
                   >
                     <img
-                      src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                      src={getSafeImageUrl(place.image)}
                       alt={place.name}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                      }}
+                      onError={handleImageError}
                     />
                     <div className="absolute inset-x-0 bottom-0 bg-slate-900/80 p-1 text-[9px] text-white truncate text-center">
                       {place.name}

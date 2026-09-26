@@ -16,10 +16,12 @@ import {
   Navigation,
   Trash2,
   CheckCircle2,
-  LogOut
+  LogOut,
+  AlertCircle
 } from 'lucide-react';
 import { Place, UserProfile } from '../types';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { getSafeImageUrl, handleImageError, FALLBACK_PANDAL_IMAGE } from '../utils/imageHelper';
 
 interface ProfileScreenProps {
   user: UserProfile;
@@ -75,9 +77,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
 
   // PWA Install prompt state
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(
+    () => (typeof window !== 'undefined' ? (window as any).deferredInstallPrompt : null)
+  );
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [installSuccessMessage, setInstallSuccessMessage] = useState<string | null>(null);
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
 
   // Settings state
   const [notificationsActive, setNotificationsActive] = useState<boolean>(true);
@@ -88,51 +93,72 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setIsInstalled(true);
     }
 
+    if ((window as any).deferredInstallPrompt) {
+      setDeferredPrompt((window as any).deferredInstallPrompt);
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
+      (window as any).deferredInstallPrompt = e;
       setDeferredPrompt(e);
+    };
+
+    const handlePromptAvailable = () => {
+      if ((window as any).deferredInstallPrompt) {
+        setDeferredPrompt((window as any).deferredInstallPrompt);
+      }
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      (window as any).deferredInstallPrompt = null;
       setInstallSuccessMessage('Manchitra was installed successfully!');
       setTimeout(() => setInstallSuccessMessage(null), 5000);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('pwa-prompt-available', handlePromptAvailable);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('pwa-prompt-available', handlePromptAvailable);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstalled(true);
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' ? (window as any).deferredInstallPrompt : null);
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const choiceResult = await promptEvent.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+          setInstallSuccessMessage('Manchitra was installed successfully!');
+        }
+      } catch (err) {
+        console.warn('Install prompt error:', err);
       }
       setDeferredPrompt(null);
+      if (typeof window !== 'undefined') (window as any).deferredInstallPrompt = null;
     } else {
-      setInstallSuccessMessage(
-        'To install Manchitra: Tap your browser menu or Share button (⎋), then select "Add to Home Screen" ⊞.'
-      );
+      if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+        setIsInstalled(true);
+        setInstallSuccessMessage('Manchitra is already installed on your device!');
+      } else {
+        setInstallSuccessMessage(
+          'To install Manchitra: Tap your browser menu (⋮) or Share button (⎋), then select "Install app" or "Add to Home Screen" ⊞.'
+        );
+      }
     }
   };
 
-  // Safe, one-tap Google Sign-In with NO technical keys or origins shown
+  // Google Sign-In disabled notification as requested:
   const handleGoogleSignIn = () => {
-    const updated: GoogleAuthUser = {
-      name: 'dbaidya811',
-      email: 'dbaidya811@gmail.com',
-      isConnected: true
-    };
-    setGoogleUser(updated);
-    localStorage.setItem('manchitra_google_user', JSON.stringify(updated));
+    setGoogleNotice('Current time system is not working');
+    setTimeout(() => setGoogleNotice(null), 5000);
   };
 
   const handleDisconnectGoogle = () => {
@@ -217,6 +243,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </svg>
               <span>Continue with Google</span>
             </button>
+
+            {googleNotice && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-200 font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>{googleNotice}</span>
+              </div>
+            )}
           </div>
         ) : (
           /* LOGGED IN STATE: Name and Email appear ONLY after signing in */
@@ -303,13 +336,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 {/* Pandal Thumbnail */}
                 <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 shrink-0 border border-slate-200 dark:border-slate-700 relative">
                   <img
-                    src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                    src={getSafeImageUrl(place.image)}
                     alt={place.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                    }}
+                    onError={handleImageError}
                   />
                 </div>
 
@@ -490,7 +520,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-white p-2 shadow-xs shrink-0 flex items-center justify-center">
             <img
-              src="https://cdn-icons-png.flaticon.com/512/14025/14025686.png"
+              src={FALLBACK_PANDAL_IMAGE}
               alt="Manchitra"
               className="w-full h-full object-contain"
             />

@@ -38,7 +38,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
   ];
 
   return (
-    <nav className="shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-3 py-1.5 z-40 select-none shadow-sm transition-colors">
+    <nav className="shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] z-40 select-none shadow-lg transition-colors">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
@@ -49,7 +49,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange }) 
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className="group relative flex flex-col items-center justify-center -mt-5 focus:outline-none cursor-pointer"
+                className="group relative flex flex-col items-center justify-center -mt-6 focus:outline-none cursor-pointer"
                 aria-label={tab.label}
               >
                 <div

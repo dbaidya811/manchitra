@@ -12,6 +12,7 @@ import {
 import { Place, CategoryType } from '../types';
 import { ZONE_CATEGORIES } from '../data/mockData';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { getSafeImageUrl, handleImageError } from '../utils/imageHelper';
 
 interface HomeScreenProps {
   places: Place[];
@@ -206,13 +207,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     className="w-[82vw] max-w-[310px] sm:w-[310px] h-[195px] rounded-2xl relative overflow-hidden shrink-0 cursor-pointer group shadow-sm border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all bg-slate-900"
                   >
                     <img
-                      src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                      src={getSafeImageUrl(place.image)}
                       alt={place.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                      }}
+                      onError={handleImageError}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
 
@@ -296,14 +294,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {/* Thumbnail */}
                     <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden shrink-0 relative bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-800">
                       <img
-                        src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                        src={getSafeImageUrl(place.image)}
                         alt={place.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src =
-                            'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                        }}
+                        onError={handleImageError}
                       />
                       <div className="absolute top-1.5 left-1.5 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xs px-1.5 py-0.5 rounded text-[10px] text-slate-900 dark:text-slate-100 font-bold flex items-center gap-0.5 shadow-xs border dark:border-slate-800">
                         <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />

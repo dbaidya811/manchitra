@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857"/>
+      <stop offset="50%" stop-color="#065f46"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#eab308" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="230" r="160" fill="url(#halo)"/>
+  
+  <!-- Outer Decorative Ring -->
+  <circle cx="256" cy="230" r="140" fill="none" stroke="url(#gold)" stroke-width="4" stroke-dasharray="8 8" opacity="0.6"/>
+  
+  <!-- Central Trident / Trishul Icon -->
+  <g fill="url(#gold)" stroke="#a16207" stroke-width="3" stroke-linejoin="round">
+    <!-- Middle Blade -->
+    <path d="M256 100 L272 170 L262 270 L250 270 L240 170 Z"/>
+    <path d="M256 85 L264 105 L248 105 Z"/>
+    <!-- Left Curved Blade -->
+    <path d="M256 220 C210 220 180 180 180 130 C195 155 215 175 240 185 L240 220 Z"/>
+    <!-- Right Curved Blade -->
+    <path d="M256 220 C302 220 332 180 332 130 C317 155 297 175 272 185 L272 220 Z"/>
+    <!-- Handle -->
+    <rect x="250" y="270" width="12" height="120" rx="6" fill="url(#gold)"/>
+    <!-- Diya / Base Flame -->
+    <ellipse cx="256" cy="390" rx="34" ry="10" fill="url(#gold)"/>
+  </g>
+  
+  <!-- Maa Durga Eye / Third Eye (Symbolic) -->
+  <path d="M256 160 Q270 175 256 190 Q242 175 256 160 Z" fill="#dc2626" stroke="#fef08a" stroke-width="2"/>
+  <circle cx="256" cy="175" r="3" fill="#fef08a"/>
+
+  <!-- Text: Manchitra -->
+  <text x="256" y="440" font-family="sans-serif" font-size="36" font-weight="bold" fill="#ffffff" text-anchor="middle" letter-spacing="2">MANCHITRA</text>
+  <text x="256" y="472" font-family="sans-serif" font-size="20" font-weight="600" fill="#fde047" text-anchor="middle">মানচিত্র • KOLKATA</text>
+</svg>

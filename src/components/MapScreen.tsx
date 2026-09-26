@@ -16,9 +16,11 @@ import {
   Flag,
   ChevronRight,
   ChevronLeft,
-  Check
+  Check,
+  Share2
 } from 'lucide-react';
 import { Place } from '../types';
+import { getSafeImageUrl, FALLBACK_PANDAL_IMAGE, handleImageError } from '../utils/imageHelper';
 import {
   validateCoordinates,
   calculateDistanceKm,
@@ -126,7 +128,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
 
   // Create custom marker with real pandal photo (NO emojis)
   const createPandalIcon = useCallback((place: Place, isSelected: boolean) => {
-    const imgUrl = place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
+    const imgUrl = getSafeImageUrl(place.image);
     const isPopular = Boolean(place.isPopular);
 
     return L.divIcon({
@@ -137,7 +139,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
             <img
               src="${imgUrl}"
               alt="${place.name.replace(/"/g, '&quot;')}"
-              onerror="this.src='https://cdn-icons-png.flaticon.com/512/14025/14025686.png';"
+              onerror="this.src='${FALLBACK_PANDAL_IMAGE}';"
               style="width: 100%; height: 100%; object-fit: cover;"
             />
           </div>
@@ -195,9 +197,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       iconCreateFunction: (cluster) => {
         const childMarkers = cluster.getAllChildMarkers();
         const firstMarker = childMarkers[0] as L.Marker & { placeData?: Place };
-        const representativeImg =
-          firstMarker?.placeData?.image ||
-          'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
+        const representativeImg = getSafeImageUrl(firstMarker?.placeData?.image);
 
         return L.divIcon({
           html: `
@@ -206,7 +206,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({
                 <img 
                   src="${representativeImg}" 
                   alt="Pandal Group" 
-                  onerror="this.src='https://cdn-icons-png.flaticon.com/512/14025/14025686.png';" 
+                  onerror="this.src='${FALLBACK_PANDAL_IMAGE}';" 
                 />
               </div>
             </div>
@@ -790,25 +790,49 @@ export const MapScreen: React.FC<MapScreenProps> = ({
       {!isNavigating && selectedPlace && (
         <div className="absolute bottom-3 left-3 right-3 z-30 animate-in slide-in-from-bottom-6 duration-300">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 shadow-2xl flex gap-3 relative">
-            {/* Close Button */}
-            <button
-              onClick={onClearSelectedPlace}
-              className="absolute top-2.5 right-2.5 w-7 h-7 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 cursor-pointer transition-colors"
-              aria-label="Close Preview"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            {/* Top Right Action Buttons: Share and Close */}
+            <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10">
+              <button
+                onClick={() => {
+                  try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('pandal', selectedPlace.id);
+                    const shareUrl = url.toString();
+                    if (navigator.share) {
+                      navigator.share({
+                        title: `${selectedPlace.name} - Manchitra`,
+                        text: `Explore ${selectedPlace.name} on Manchitra Durga Puja Guide!`,
+                        url: shareUrl
+                      }).catch(() => {});
+                    } else if (navigator.clipboard?.writeText) {
+                      navigator.clipboard.writeText(shareUrl);
+                      alert('Pandal link copied to clipboard!');
+                    }
+                  } catch {}
+                }}
+                className="w-7 h-7 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 cursor-pointer transition-colors"
+                aria-label="Share Pandal"
+                title="Share Pandal"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={onClearSelectedPlace}
+                className="w-7 h-7 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 cursor-pointer transition-colors"
+                aria-label="Close Preview"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
             {/* Pandal Photo Thumbnail */}
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-800 relative border border-slate-100 dark:border-slate-800">
               <img
-                src={selectedPlace.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                src={getSafeImageUrl(selectedPlace.image)}
                 alt={selectedPlace.name}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                }}
+                onError={handleImageError}
               />
               <div className="absolute top-1 left-1 bg-white/95 dark:bg-slate-900/95 px-1 py-0.5 rounded text-[9px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-0.5 shadow-xs border border-slate-200 dark:border-slate-800">
                 <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />

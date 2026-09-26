@@ -18,6 +18,7 @@ import { PlaceDetailModal } from './components/PlaceDetailModal';
 import { DataManagerModal } from './components/DataManagerModal';
 import { SplashScreen } from './components/SplashScreen';
 import { validateCoordinates } from './utils/geo';
+import { getSafeImageUrl } from './utils/imageHelper';
 import { CheckCircle2 } from 'lucide-react';
 
 // Robust place data sanitizer to strictly avoid any NaN or missing coordinates
@@ -39,12 +40,12 @@ function sanitizePlace(item: any, idx = 0): Place {
     longitude: coords[1],
     rating: typeof item.rating === 'number' && !isNaN(item.rating) ? item.rating : 4.8,
     reviewCount: typeof item.reviewCount === 'number' && !isNaN(item.reviewCount) ? item.reviewCount : 50,
-    image:
+    image: getSafeImageUrl(
       item.image ||
       (item.local_images && item.local_images[0]
-        ? '/' + item.local_images[0].replace(/^\/+/, '')
-        : '') ||
-      'https://cdn-icons-png.flaticon.com/512/14025/14025686.png',
+        ? item.local_images[0]
+        : '')
+    ),
     images: item.images || item.local_images || [],
     description: item.description || 'Famous Durga Puja pandal in Kolkata, India.',
     sourceUrl: item.sourceUrl || item.source_url || '',
@@ -109,7 +110,7 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Initial sync with backend places.json on disk
+  // Pure frontend support: attempt backend sync if available, otherwise rely on bundled places.json & localStorage
   useEffect(() => {
     fetch('/api/places')
       .then((res) => (res.ok ? res.json() : null))
@@ -119,10 +120,34 @@ export default function App() {
           setPlaces(sanitized);
         }
       })
-      .catch((err) => {
-        console.warn('API sync fallback to cached places:', err);
+      .catch(() => {
+        // Pure frontend mode on GitHub Pages or static host: gracefully ignored
       });
   }, []);
+
+  // Shared Pandal Deep Link Handler:
+  // If user opens a shared link like ?pandal=xyz, automatically open that pandal
+  useEffect(() => {
+    if (places.length === 0) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pandalParam = params.get('pandal');
+      if (pandalParam) {
+        const found = places.find(
+          (p) => p.id === pandalParam || String(p.id).toLowerCase() === String(pandalParam).toLowerCase()
+        );
+        if (found) {
+          setSelectedPlaceForModal(found);
+          setSelectedPlaceForMap(found);
+          setActiveTab('map');
+          setToastMessage(`Viewing: ${found.name}`);
+          setTimeout(() => setToastMessage(null), 4500);
+        }
+      }
+    } catch (e) {
+      console.warn('Deep link error:', e);
+    }
+  }, [places]);
 
   // Sync places to localStorage
   useEffect(() => {

@@ -25,7 +25,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
     >
       <div className="flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-500">
         <img
-          src="https://cdn-icons-png.flaticon.com/512/14025/14025686.png"
+          src="./pandal-icon.svg"
           alt="Manchitra Logo"
           className="w-24 h-24 sm:w-28 sm:h-28 object-contain mb-4 drop-shadow-sm"
         />

@@ -4,7 +4,6 @@ import {
   MapPin,
   Star,
   Heart,
-  Navigation,
   Share2,
   Check,
   Compass,
@@ -13,6 +12,7 @@ import {
 import { Place } from '../types';
 import { validateCoordinates } from '../utils/geo';
 import { PandalWeatherWidget } from './PandalWeatherWidget';
+import { getSafeImageUrl, handleImageError } from '../utils/imageHelper';
 
 interface PlaceDetailModalProps {
   place: Place | null;
@@ -35,16 +35,28 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   if (!place) return null;
 
   const handleShare = () => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `${place.name} - Manchitra`,
-          text: `${place.name}, ${place.zone || 'Kolkata'} - Durga Puja Parikrama on Manchitra.`,
-          url: window.location.href
-        })
-        .catch(() => {});
-    } else {
-      navigator.clipboard?.writeText?.(window.location.href);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pandal', place.id);
+      const shareUrl = url.toString();
+
+      if (navigator.share) {
+        navigator
+          .share({
+            title: `${place.name} - Manchitra`,
+            text: `Explore ${place.name} (${place.zone || 'Kolkata'}) on Manchitra Durga Puja Map!`,
+            url: shareUrl
+          })
+          .catch(() => {
+            // User cancelled share
+          });
+      } else if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } catch {
+      // Fallback
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     }
@@ -63,15 +75,12 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="w-full max-w-lg bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300 shadow-2xl transition-colors">
         {/* Cover Image */}
-        <div className="relative h-64 w-full shrink-0 bg-slate-100 dark:bg-slate-800">
+        <div className="relative h-64 w-full shrink-0 bg-slate-950 flex items-center justify-center overflow-hidden">
           <img
-            src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+            src={getSafeImageUrl(place.image)}
             alt={place.name}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-            }}
+            onError={handleImageError}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
 
@@ -109,8 +118,9 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
           </div>
 
           {copied && (
-            <div className="absolute top-14 right-3 bg-slate-900 text-white text-[11px] px-2.5 py-1 rounded-lg shadow-md animate-in fade-in">
-              Link copied!
+            <div className="absolute top-14 right-3 bg-emerald-600 text-white text-[11px] font-semibold px-3 py-1 rounded-lg shadow-lg animate-in fade-in flex items-center gap-1.5 z-20">
+              <Check className="w-3.5 h-3.5" />
+              <span>Link copied! Share it with friends</span>
             </div>
           )}
 

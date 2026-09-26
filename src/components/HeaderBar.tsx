@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, MapPin, ArrowLeft } from 'lucide-react';
 import { Place, NavigationTab } from '../types';
 import { POPULAR_SEARCH_TAGS } from '../data/mockData';
+import { getSafeImageUrl, handleImageError, FALLBACK_PANDAL_IMAGE } from '../utils/imageHelper';
 
 interface HeaderBarProps {
   searchQuery: string;
@@ -59,7 +60,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 select-none">
             <img
-              src="https://cdn-icons-png.flaticon.com/512/14025/14025686.png"
+              src={FALLBACK_PANDAL_IMAGE}
               alt="Manchitra"
               className="w-8 h-8 object-contain"
             />
@@ -146,12 +147,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                   className="w-full flex items-center gap-3 p-2 text-left hover:bg-slate-50 rounded-xl transition-colors group cursor-pointer"
                 >
                   <img
-                    src={place.image || 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png'}
+                    src={getSafeImageUrl(place.image)}
                     alt={place.name}
                     className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-100"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://cdn-icons-png.flaticon.com/512/14025/14025686.png';
-                    }}
+                    onError={handleImageError}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold text-slate-900 group-hover:text-emerald-700 truncate">
