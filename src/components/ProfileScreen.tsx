@@ -520,9 +520,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-white p-2 shadow-xs shrink-0 flex items-center justify-center">
             <img
-              src={FALLBACK_PANDAL_IMAGE}
+              src="./logo.png"
               alt="Manchitra"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain rounded-xl"
             />
           </div>
 

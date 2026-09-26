@@ -4,7 +4,7 @@
  * Replaces any broken third-party icon URLs (like Flaticon) with guaranteed local assets.
  */
 
-export const FALLBACK_PANDAL_IMAGE = './pandal-icon.svg';
+export const FALLBACK_PANDAL_IMAGE = './logo.png';
 
 export function getSafeImageUrl(imgUrl?: string): string {
   if (!imgUrl || typeof imgUrl !== 'string') {
@@ -30,7 +30,7 @@ export function getSafeImageUrl(imgUrl?: string): string {
 
 export function handleImageError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
   const target = e.currentTarget;
-  if (!target.src.includes('pandal-icon.svg') && !target.src.includes('pandal-placeholder.svg')) {
+  if (!target.src.includes('logo.png')) {
     target.src = FALLBACK_PANDAL_IMAGE;
   }
 }

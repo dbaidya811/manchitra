@@ -1,5 +1,16 @@
-const CACHE_NAME = 'manchitra-cache-v3';
-const PRECACHE_URLS = ['./', './index.html', './manifest.json', './pandal-icon.svg'];
+const CACHE_NAME = 'manchitra-cache-v5';
+const PRECACHE_URLS = [
+  './',
+  './index.html',
+  './manifest.json',
+  './logo.png',
+  './favicon.png',
+  './favicon.ico',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png',
+  './pandal-icon.svg'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

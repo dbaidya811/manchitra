@@ -60,9 +60,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 select-none">
             <img
-              src={FALLBACK_PANDAL_IMAGE}
+              src="./logo.png"
               alt="Manchitra"
-              className="w-8 h-8 object-contain"
+              className="w-8 h-8 object-contain rounded-lg"
             />
             <div className="flex flex-col">
               <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white leading-tight">
