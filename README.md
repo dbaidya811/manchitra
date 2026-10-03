@@ -116,7 +116,7 @@ With over **2,900+ curated and verified pandal locations**, Manchitra combines s
 
 ### 1. Clone or Download the Repository
 ```bash
-git clone https://github.com/your-username/manchitra.git
+git clone https://github.com/dbaidya811/manchitra.git
 cd manchitra
 ```
 
