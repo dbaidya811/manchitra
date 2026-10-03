@@ -24,20 +24,26 @@
   <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased overflow-hidden transition-colors duration-200">
     <div id="root"></div>
     <script>
+      // Inside the Capacitor Android WebView the assets are already local, so the
+      // service worker is skipped to avoid serving stale cached builds.
+      const isNativeApp = Boolean(window.Capacitor && window.Capacitor.isNativePlatform);
+
       // Capture PWA install prompt at root level so it is never missed
       window.deferredInstallPrompt = null;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        window.deferredInstallPrompt = e;
-        window.dispatchEvent(new CustomEvent('pwa-prompt-available'));
-      });
-
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js').catch((err) => {
-            console.warn('SW registration skipped:', err);
-          });
+      if (!isNativeApp) {
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          window.deferredInstallPrompt = e;
+          window.dispatchEvent(new CustomEvent('pwa-prompt-available'));
         });
+
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch((err) => {
+              console.warn('SW registration skipped:', err);
+            });
+          });
+        }
       }
     </script>
     <script type="module" src="/src/main.tsx"></script>

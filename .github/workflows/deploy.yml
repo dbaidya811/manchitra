@@ -40,6 +40,7 @@ jobs:
         env:
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/manchitra.apk
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

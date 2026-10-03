@@ -22,11 +22,12 @@ import {
   AlertCircle,
   Pencil,
   Landmark,
-  ArrowLeft
+  ArrowLeft,
+  Download
 } from 'lucide-react';
 import { Place, AuthUser, AuthStatus } from '../types';
 import { useDragScroll } from '../hooks/useDragScroll';
-import { ApiError, apiFetch } from '../lib/api';
+import { ApiError, APK_DOWNLOAD_URL, apiFetch } from '../lib/api';
 import { getSafeImageUrl, handleImageError, FALLBACK_PANDAL_IMAGE } from '../utils/imageHelper';
 
 interface ProfileScreenProps {
@@ -88,13 +89,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [showPrivacyModal, setShowPrivacyModal] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
 
-  // PWA Install prompt state
+  // App install prompt state
   const [deferredPrompt, setDeferredPrompt] = useState<any>(
     () => (typeof window !== 'undefined' ? (window as any).deferredInstallPrompt : null)
   );
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [installSuccessMessage, setInstallSuccessMessage] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // True when running inside the Capacitor Android shell
+  const isNativeApp = Boolean(
+    typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform
+  );
 
   // My Contributions: edit / delete the pandals this account published
   const [showContributions, setShowContributions] = useState(false);
@@ -107,7 +113,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   // Settings state
   const [notificationsActive, setNotificationsActive] = useState<boolean>(true);
 
-  // Check if running in standalone PWA mode
+  // Check if the app is already running as an installed standalone window
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
@@ -169,7 +175,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         setInstallSuccessMessage('Manchitra is already installed on your device!');
       } else {
         setInstallSuccessMessage(
-          'To install Manchitra: Tap your browser menu (⋮) or Share button (⎋), then select "Install app" or "Add to Home Screen" ⊞.'
+          'Manchitra could not be installed automatically here. Open your browser menu and choose "Install app", or download the Android app below.'
         );
       }
     }
@@ -628,7 +634,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </button>
       </div>
 
-      {/* PWA APP INSTALL OPTION AT THE BOTTOM */}
+      {/* APP INSTALL OPTION AT THE BOTTOM */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-700 dark:from-emerald-800 dark:to-teal-900 rounded-3xl p-4 text-white shadow-md space-y-3">
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-2xl bg-white p-2 shadow-xs shrink-0 flex items-center justify-center">
@@ -642,13 +648,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <div className="flex-1 min-w-0">
             <div className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full text-[10px] font-bold text-white mb-1">
               <Smartphone className="w-3 h-3" />
-              <span>Progressive Web App</span>
+              <span>Mobile App</span>
             </div>
             <h3 className="font-extrabold text-sm text-white">
               Install Manchitra App
             </h3>
             <p className="text-[11px] text-emerald-100 leading-snug mt-0.5">
-              Install Manchitra directly to your phone's home screen for rapid pandal navigation without App Store downloads.
+              Get Manchitra on your phone for quicker launch and smooth pandal navigation, without
+              searching the App Store.
             </p>
           </div>
         </div>
@@ -660,11 +667,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </div>
         )}
 
-        <div className="pt-1">
-          {isInstalled ? (
+        <div className="pt-1 space-y-2">
+          {isInstalled || isNativeApp ? (
             <div className="w-full py-2.5 px-3 bg-white/20 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
-              <span>Installed on this device</span>
+              <span>{isNativeApp ? 'Running the Android app' : 'Installed on this device'}</span>
             </div>
           ) : (
             <button
@@ -673,8 +680,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               className="w-full py-2.5 px-4 bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all active:scale-98"
             >
               <Smartphone className="w-4 h-4" />
-              <span>Install to Home Screen</span>
+              <span>Install App</span>
             </button>
+          )}
+
+          {/* Native Android build: downloads the signed APK from GitHub Releases */}
+          {APK_DOWNLOAD_URL && (
+            <a
+              href={APK_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              download="manchitra.apk"
+              className="w-full py-2.5 px-4 bg-emerald-950/40 hover:bg-emerald-900/50 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 border border-white/20"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Android App (APK)</span>
+            </a>
           )}
         </div>
       </div>

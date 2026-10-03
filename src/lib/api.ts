@@ -3,9 +3,27 @@ const RAW_BASE = (import.meta.env.VITE_API_BASE ?? '').trim();
 /** Empty string means "same origin", which is what local dev and a single-server deploy use. */
 export const API_BASE = RAW_BASE.replace(/\/+$/, '');
 
+export const isNativeApp =
+  typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform);
+
+if (isNativeApp && !API_BASE) {
+  console.warn(
+    '[api] This Android build has no VITE_API_BASE configured. The app is served from ' +
+      'https://localhost inside the WebView, so sign-in and pandal publishing will not work.'
+  );
+}
+
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '').trim();
 
 export const isGoogleConfigured = GOOGLE_CLIENT_ID.length > 0;
+
+/**
+ * Stable GitHub Releases URL for the newest Android build. The release workflow
+ * always attaches the asset under this exact name, so the link never goes stale.
+ */
+export const APK_DOWNLOAD_URL = (import.meta.env.VITE_APK_URL ?? '').trim();
+
+export const isApkAvailable = APK_DOWNLOAD_URL.length > 0;
 
 export class ApiError extends Error {
   status: number;
@@ -24,6 +42,13 @@ export function apiUrl(path: string): string {
 }
 
 export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  if (isNativeApp && !API_BASE) {
+    throw new ApiError(
+      'This build has no server address configured. Please reinstall the latest app.',
+      0
+    );
+  }
+
   let response: Response;
   try {
     response = await fetch(apiUrl(path), {
