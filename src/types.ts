@@ -38,25 +38,29 @@ export interface Place {
   isFavorite: boolean;
   isPopular?: boolean;
   addedBy?: string;
+  addedByUserId?: string;
+  addedByEmail?: string;
   addedOn?: string;
   added_on?: string;
   tags?: string[];
   tips?: string;
 }
 
-export interface UserProfile {
+export type AuthProvider = 'email' | 'google';
+
+export interface AuthUser {
+  id: string;
+  email: string;
   name: string;
-  username: string;
-  level: string;
-  levelNumber: number;
-  avatar: string;
-  contributionsCount: number;
-  visitedCount: number;
-  savedCount: number;
-  badges: {
-    id: string;
-    title: string;
-    icon: string;
-    unlocked: boolean;
-  }[];
+  picture?: string;
+  provider: AuthProvider;
+  createdAt: string;
+  lastLoginAt: string;
+}
+
+export type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
+
+export interface AuthAvailability {
+  emailOtpEnabled: boolean;
+  googleEnabled: boolean;
 }

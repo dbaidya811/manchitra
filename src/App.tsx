@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Place, NavigationTab, CategoryType, UserProfile } from './types';
-import { INITIAL_PLACES, INITIAL_USER } from './data/mockData';
+import { Place, NavigationTab, CategoryType } from './types';
+import { INITIAL_PLACES } from './data/mockData';
 import { DesktopDeviceWrapper } from './components/DesktopDeviceWrapper';
 import { HeaderBar } from './components/HeaderBar';
 import { BottomNav } from './components/BottomNav';
@@ -14,9 +14,12 @@ import { MapScreen } from './components/MapScreen';
 import { AddScreen } from './components/AddScreen';
 import { GuideScreen } from './components/GuideScreen';
 import { ProfileScreen } from './components/ProfileScreen';
+import { LoginModal } from './components/LoginModal';
 import { PlaceDetailModal } from './components/PlaceDetailModal';
 import { DataManagerModal } from './components/DataManagerModal';
 import { SplashScreen } from './components/SplashScreen';
+import { useAuth } from './hooks/useAuth';
+import { apiFetch } from './lib/api';
 import { validateCoordinates } from './utils/geo';
 import { getSafeImageUrl } from './utils/imageHelper';
 import { CheckCircle2 } from 'lucide-react';
@@ -75,7 +78,8 @@ export default function App() {
     return INITIAL_PLACES.map((p, idx) => sanitizePlace(p, idx));
   });
 
-  const [user, setUser] = useState<UserProfile>(INITIAL_USER);
+  const auth = useAuth();
+
   const [activeTab, setActiveTab] = useState<NavigationTab>('home');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -87,6 +91,15 @@ export default function App() {
   const [isDataManagerOpen, setIsDataManagerOpen] = useState<boolean>(false);
   const [uploadedImages, setUploadedImages] = useState<{ name: string; url: string }[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Leaflet plus ~200 marker pins is expensive to build, so the map is only created
+  // once the user actually opens the Map tab. It then stays mounted, which keeps
+  // later tab switches instant.
+  const [hasOpenedMap, setHasOpenedMap] = useState<boolean>(false);
+  useEffect(() => {
+    if (activeTab === 'map') setHasOpenedMap(true);
+  }, [activeTab]);
+  const shouldRenderMap = hasOpenedMap || activeTab === 'map';
 
   // Dark Mode state: synced with localStorage and html.dark class
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -112,8 +125,7 @@ export default function App() {
 
   // Pure frontend support: attempt backend sync if available, otherwise rely on bundled places.json & localStorage
   useEffect(() => {
-    fetch('/api/places')
-      .then((res) => (res.ok ? res.json() : null))
+    apiFetch<Place[]>('/api/places')
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           const sanitized = data.map((p, idx) => sanitizePlace(p, idx));
@@ -158,21 +170,30 @@ export default function App() {
     }
   }, [places]);
 
-  const handleToggleFavorite = (placeId: string) => {
+  const handleToggleFavorite = useCallback((placeId: string) => {
     setPlaces((prev) =>
       prev.map((place) =>
         place.id === placeId ? { ...place, isFavorite: !place.isFavorite } : place
       )
     );
-  };
+  }, []);
 
   const handleAddPlace = (newPlace: Place) => {
     const sanitized = sanitizePlace(newPlace);
     setPlaces((prev) => [sanitized, ...prev]);
-    setUser((prev) => ({
-      ...prev,
-      contributionsCount: prev.contributionsCount + 1
-    }));
+  };
+
+  const handleUpdatePlace = (updatedPlace: Place) => {
+    const sanitized = sanitizePlace(updatedPlace);
+    setPlaces((prev) => prev.map((place) => (place.id === sanitized.id ? sanitized : place)));
+    setToastMessage(`Updated "${sanitized.name}"`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleDeletePlace = (placeId: string) => {
+    setPlaces((prev) => prev.filter((place) => place.id !== placeId));
+    setToastMessage('Pandal deleted');
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleSelectPlace = useCallback((place: Place) => {
@@ -256,7 +277,33 @@ export default function App() {
     setActiveNavigationStops(null);
   }, []);
 
-  const handleImportJsonText = (jsonText: string) => {
+  const [tabBeforeAdd, setTabBeforeAdd] = useState<NavigationTab>('home');
+
+  // The "+" tab is a toggle: it opens the Add screen, and tapping it again closes
+  // the Add screen and returns to whichever tab the user came from.
+  const handleTabChange = (nextTab: NavigationTab) => {
+    let target = nextTab;
+
+    if (nextTab === 'add') {
+      if (activeTab === 'add') {
+        target = tabBeforeAdd;
+      } else {
+        setTabBeforeAdd(activeTab);
+      }
+    }
+
+    setActiveTab(target);
+
+    if (target !== 'map') {
+      setSelectedPlaceForMap(null);
+      setAutoPlotRouteForPlace(false);
+      setActiveNavigationStops(null);
+    }
+  };
+
+  const handleOpenDataManager = useCallback(() => setIsDataManagerOpen(true), []);
+
+  const handleImportJsonText = useCallback((jsonText: string) => {
     const parsed = JSON.parse(jsonText);
     if (!Array.isArray(parsed)) {
       throw new Error('JSON format error: Must be an array of places.');
@@ -266,9 +313,9 @@ export default function App() {
     setPlaces(valid);
     setToastMessage(`Successfully imported ${valid.length} places!`);
     setTimeout(() => setToastMessage(null), 3000);
-  };
+  }, []);
 
-  const handleImportJsonFile = (file: File) => {
+  const handleImportJsonFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -279,16 +326,16 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-  };
+  }, [handleImportJsonText]);
 
-  const handleUploadImages = (files: FileList) => {
+  const handleUploadImages = useCallback((files: FileList) => {
     const newImgs: { name: string; url: string }[] = [];
     Array.from(files).forEach((file) => {
       const url = URL.createObjectURL(file);
       newImgs.push({ name: file.name, url });
     });
     setUploadedImages((prev) => [...newImgs, ...prev]);
-  };
+  }, []);
 
   const handleOpenMapWithQuery = (query: string) => {
     setSearchQuery(query);
@@ -334,7 +381,7 @@ export default function App() {
                 onNavigateToMap={handleNavigateToMap}
                 onNavigateToGuide={handleNavigateToGuide}
                 onAddPlaceToCustomRoute={handleAddPlaceToCustomRoute}
-                onOpenDataManager={() => setIsDataManagerOpen(true)}
+                onOpenDataManager={handleOpenDataManager}
                 onImportJsonText={handleImportJsonText}
                 onImportJsonFile={handleImportJsonFile}
                 onUploadImages={handleUploadImages}
@@ -345,25 +392,30 @@ export default function App() {
             )}
 
             {/* Persistent MapScreen for 0ms instant switching and zero loading time */}
-            <div className={`w-full h-full flex flex-col ${activeTab === 'map' ? 'block' : 'hidden'}`}>
-              <MapScreen
-                places={places}
-                selectedPlace={selectedPlaceForMap}
-                onSelectPlace={handleSelectPlaceForMap}
-                onClearSelectedPlace={handleClearSelectedPlace}
-                autoPlotRoute={autoPlotRouteForPlace}
-                onResetAutoPlotRoute={handleResetAutoPlotRoute}
-                isVisible={activeTab === 'map'}
-                customRoutePlaces={customRoutePlaces}
-                onClearCustomRoute={handleClearCustomRoute}
-                onAddPlaceToCustomRoute={handleAddPlaceToCustomRoute}
-                activeNavigationStops={activeNavigationStops}
-                onClearActiveNavigationStops={handleClearActiveNavigationStops}
-              />
-            </div>
+            {shouldRenderMap && (
+              <div className={`w-full h-full flex flex-col ${activeTab === 'map' ? 'block' : 'hidden'}`}>
+                <MapScreen
+                  places={places}
+                  selectedPlace={selectedPlaceForMap}
+                  onSelectPlace={handleSelectPlaceForMap}
+                  onClearSelectedPlace={handleClearSelectedPlace}
+                  autoPlotRoute={autoPlotRouteForPlace}
+                  onResetAutoPlotRoute={handleResetAutoPlotRoute}
+                  isVisible={activeTab === 'map'}
+                  customRoutePlaces={customRoutePlaces}
+                  onClearCustomRoute={handleClearCustomRoute}
+                  onAddPlaceToCustomRoute={handleAddPlaceToCustomRoute}
+                  activeNavigationStops={activeNavigationStops}
+                  onClearActiveNavigationStops={handleClearActiveNavigationStops}
+                />
+              </div>
+            )}
 
             {activeTab === 'add' && (
               <AddScreen
+                isAuthenticated={auth.isAuthenticated}
+                authStatus={auth.status}
+                onSignIn={auth.openLogin}
                 onAddPlace={handleAddPlace}
                 onSuccessNavigate={(newPlace) => {
                   setSelectedPlaceForMap(newPlace);
@@ -382,7 +434,7 @@ export default function App() {
                   setActiveTab('map');
                 }}
                 onSelectPlace={handleSelectPlace}
-                onOpenDataManager={() => setIsDataManagerOpen(true)}
+                onOpenDataManager={handleOpenDataManager}
                 customRoutePlaces={customRoutePlaces}
                 onUpdateCustomRoutePlaces={handleUpdateCustomRoutePlaces}
               />
@@ -390,13 +442,23 @@ export default function App() {
 
             {activeTab === 'profile' && (
               <ProfileScreen
-                user={user}
+                authUser={auth.user}
+                authStatus={auth.status}
+                onSignIn={auth.openLogin}
+                onSignOut={auth.logout}
                 favoritePlaces={places.filter((p) => p.isFavorite)}
-                contributionsCount={places.filter((p) => p.addedBy).length}
+                myContributions={auth.user
+                  ? places.filter((p) => p.addedByUserId === auth.user?.id)
+                  : []}
+                onUpdatePlace={handleUpdatePlace}
+                onDeletePlace={handleDeletePlace}
+                contributionsCount={
+                  auth.user ? places.filter((p) => p.addedByUserId === auth.user?.id).length : 0
+                }
                 onSelectPlace={handleSelectPlace}
                 onToggleFavorite={handleToggleFavorite}
                 onNavigateToMap={handleNavigateToMap}
-                onOpenDataManager={() => setIsDataManagerOpen(true)}
+                onOpenDataManager={handleOpenDataManager}
                 isDarkMode={isDarkMode}
                 onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
               />
@@ -406,14 +468,7 @@ export default function App() {
           {/* Bottom Navigation */}
           <BottomNav
             activeTab={activeTab}
-            onTabChange={(tab) => {
-              setActiveTab(tab);
-              if (tab !== 'map') {
-                setSelectedPlaceForMap(null);
-                setAutoPlotRouteForPlace(false);
-                setActiveNavigationStops(null);
-              }
-            }}
+            onTabChange={handleTabChange}
           />
 
           {/* Place Detail Modal */}
@@ -445,6 +500,11 @@ export default function App() {
                 localStorage.removeItem('manchitra_kolkata_places');
               }}
             />
+          )}
+
+          {/* Email OTP + Google Sign-In */}
+          {auth.isLoginOpen && (
+            <LoginModal auth={auth} onClose={auth.closeLogin} />
           )}
         </div>
       </DesktopDeviceWrapper>

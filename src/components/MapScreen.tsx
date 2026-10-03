@@ -287,8 +287,17 @@ export const MapScreen: React.FC<MapScreenProps> = ({
     markersMapRef.current = {};
     const batchMarkers: L.Marker[] = [];
 
+    // The dataset contains repeated entries for the same pandal. Drop any record
+    // whose name and coordinates were already plotted so a single pin is shown.
+    const plottedKeys = new Set<string>();
+
     places.forEach((place) => {
       const coords = validateCoordinates(place.coordinates);
+
+      const dedupeKey = `${(place.name || '').trim().toLowerCase()}|${coords[0].toFixed(4)}|${coords[1].toFixed(4)}`;
+      if (plottedKeys.has(dedupeKey)) return;
+      plottedKeys.add(dedupeKey);
+
       const isSelected = selectedPlace?.id === place.id;
       const marker = L.marker(coords, {
         icon: createPandalIcon(place, isSelected)

@@ -17,16 +17,28 @@ import {
   Trash2,
   CheckCircle2,
   LogOut,
-  AlertCircle
+  LogIn,
+  Loader2,
+  AlertCircle,
+  Pencil,
+  Landmark,
+  ArrowLeft
 } from 'lucide-react';
-import { Place, UserProfile } from '../types';
+import { Place, AuthUser, AuthStatus } from '../types';
 import { useDragScroll } from '../hooks/useDragScroll';
+import { ApiError, apiFetch } from '../lib/api';
 import { getSafeImageUrl, handleImageError, FALLBACK_PANDAL_IMAGE } from '../utils/imageHelper';
 
 interface ProfileScreenProps {
-  user: UserProfile;
+  authUser: AuthUser | null;
+  authStatus: AuthStatus;
+  onSignIn: () => void;
+  onSignOut: () => void;
   favoritePlaces: Place[];
   addedPlaces?: Place[];
+  myContributions: Place[];
+  onUpdatePlace: (place: Place) => void;
+  onDeletePlace: (placeId: string) => void;
   contributionsCount?: number;
   onSelectPlace: (place: Place) => void;
   onToggleFavorite?: (placeId: string) => void;
@@ -36,42 +48,42 @@ interface ProfileScreenProps {
   onToggleDarkMode: () => void;
 }
 
-interface GoogleAuthUser {
+interface EditFormState {
   name: string;
-  email: string;
-  picture?: string;
-  isConnected: boolean;
+  zone: string;
+  lat: string;
+  lng: string;
+  description: string;
+  sourceUrl: string;
+  imageUrl: string;
 }
 
+const EMPTY_EDIT_FORM: EditFormState = {
+  name: '',
+  zone: '',
+  lat: '',
+  lng: '',
+  description: '',
+  sourceUrl: '',
+  imageUrl: ''
+};
+
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  authUser,
+  authStatus,
+  onSignIn,
+  onSignOut,
   favoritePlaces,
+  myContributions,
+  onUpdatePlace,
+  onDeletePlace,
+  contributionsCount,
   onSelectPlace,
   onToggleFavorite,
   onNavigateToMap,
   isDarkMode,
   onToggleDarkMode
 }) => {
-  // Google Sign-In state: MUST NOT show any name/email until logged in!
-  const [googleUser, setGoogleUser] = useState<GoogleAuthUser>(() => {
-    try {
-      const saved = localStorage.getItem('manchitra_google_user');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.isConnected && parsed.name && parsed.email) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return {
-      name: '',
-      email: '',
-      picture: '',
-      isConnected: false
-    };
-  });
-
   // Legal Modals state
   const [showPrivacyModal, setShowPrivacyModal] = useState<boolean>(false);
   const [showTermsModal, setShowTermsModal] = useState<boolean>(false);
@@ -82,7 +94,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   );
   const [isInstalled, setIsInstalled] = useState<boolean>(false);
   const [installSuccessMessage, setInstallSuccessMessage] = useState<string | null>(null);
-  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // My Contributions: edit / delete the pandals this account published
+  const [showContributions, setShowContributions] = useState(false);
+  const [editingPlace, setEditingPlace] = useState<Place | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState>(EMPTY_EDIT_FORM);
+  const [deleteTarget, setDeleteTarget] = useState<Place | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [contributionError, setContributionError] = useState<string | null>(null);
 
   // Settings state
   const [notificationsActive, setNotificationsActive] = useState<boolean>(true);
@@ -155,25 +175,84 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  // Google Sign-In disabled notification as requested:
-  const handleGoogleSignIn = () => {
-    setGoogleNotice('Current time system is not working');
-    setTimeout(() => setGoogleNotice(null), 5000);
-  };
-
-  const handleDisconnectGoogle = () => {
-    const disconnected: GoogleAuthUser = {
-      name: '',
-      email: '',
-      picture: '',
-      isConnected: false
-    };
-    setGoogleUser(disconnected);
-    localStorage.removeItem('manchitra_google_user');
-  };
-
   const mainScrollRef = useDragScroll<HTMLDivElement>({ direction: 'vertical', speed: 1.2 });
   const savedScrollRef = useDragScroll<HTMLDivElement>({ direction: 'vertical', speed: 1.2 });
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await onSignOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
+  const openEditModal = (place: Place) => {
+    setContributionError(null);
+    setEditForm({
+      name: place.name || '',
+      zone: place.zone || place.district || '',
+      lat: String(place.latitude ?? place.coordinates?.[0] ?? ''),
+      lng: String(place.longitude ?? place.coordinates?.[1] ?? ''),
+      description: place.description || '',
+      sourceUrl: place.sourceUrl || '',
+      imageUrl:
+        place.image && place.image.startsWith('data:') ? '' : place.image || ''
+    });
+    setEditingPlace(place);
+  };
+
+  const handleSaveEdit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingPlace) return;
+
+    setIsSaving(true);
+    setContributionError(null);
+    try {
+      const result = await apiFetch<{ place: Place }>(
+        `/api/places/${encodeURIComponent(editingPlace.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: editForm.name.trim(),
+            zone: editForm.zone.trim(),
+            coordinates: [Number(editForm.lat), Number(editForm.lng)],
+            description: editForm.description.trim(),
+            sourceUrl: editForm.sourceUrl.trim(),
+            image: editForm.imageUrl.trim() || undefined
+          })
+        }
+      );
+      onUpdatePlace({ ...editingPlace, ...(result?.place || {}) });
+      setEditingPlace(null);
+    } catch (err) {
+      setContributionError(
+        err instanceof ApiError ? err.message : 'Could not save your changes.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setIsSaving(true);
+    setContributionError(null);
+    try {
+      await apiFetch(`/api/places/${encodeURIComponent(deleteTarget.id)}`, {
+        method: 'DELETE'
+      });
+      onDeletePlace(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      setContributionError(
+        err instanceof ApiError ? err.message : 'Could not delete this pandal.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div
@@ -181,113 +260,147 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       className="flex-1 min-h-0 overflow-y-auto touch-scroll p-3 space-y-4 pb-24 bg-slate-50 dark:bg-slate-950 transition-colors select-none"
       style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
     >
-      {/* GOOGLE ACCOUNT SECTION */}
+      {/* ACCOUNT SECTION */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 shadow-xs transition-colors">
-        {!googleUser.isConnected ? (
-          /* LOGGED OUT STATE: Absolutely NO name or email shown before logging in! */
+        {authStatus === 'loading' ? (
+          <div className="flex items-center justify-center gap-2 py-6 text-slate-500 dark:text-slate-400">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-xs font-semibold">Checking your session...</span>
+          </div>
+        ) : !authUser ? (
+          /* LOGGED OUT STATE: no name or email is shown before a real sign-in */
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.13C3.26 21.44 7.33 24 12 24z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.58H1.24C.45 8.15 0 9.99 0 12s.45 3.85 1.24 5.42l4.04-3.13z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.56 1.24 6.58l4.04 3.13c.95-2.83 3.6-4.96 6.72-4.96z"
-                  />
-                </svg>
+                <Lock className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                  Google Sign-In
+                  Sign in to Manchitra
                 </h3>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Sign in to sync your saved pandals & routes
+                  Required to add a pandal
                 </p>
               </div>
             </div>
 
-            {/* Clean, authentic Google Sign-In Button */}
             <button
               type="button"
-              onClick={handleGoogleSignIn}
-              className="w-full py-2.5 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700 rounded-2xl text-xs font-bold flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer active:scale-98"
+              onClick={onSignIn}
+              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer active:scale-98"
             >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.13C3.26 21.44 7.33 24 12 24z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.58H1.24C.45 8.15 0 9.99 0 12s.45 3.85 1.24 5.42l4.04-3.13z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.56 1.24 6.58l4.04 3.13c.95-2.83 3.6-4.96 6.72-4.96z"
-                />
-              </svg>
-              <span>Continue with Google</span>
+              <LogIn className="w-4 h-4" />
+              <span>Sign in with email or Google</span>
             </button>
 
-            {googleNotice && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-200 font-semibold flex items-center gap-2 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span>{googleNotice}</span>
-              </div>
-            )}
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                We send a one-time verification code to your email. No password is required or
+                stored.
+              </span>
+            </div>
           </div>
         ) : (
-          /* LOGGED IN STATE: Name and Email appear ONLY after signing in */
+          /* LOGGED IN STATE: real session identity from the server */
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h2 className="font-extrabold text-base text-slate-900 dark:text-white truncate">
-                  {googleUser.name}
-                </h2>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 flex items-center justify-center shrink-0 overflow-hidden">
+                {authUser.picture ? (
+                  <img
+                    src={authUser.picture}
+                    alt={authUser.name}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                    onError={handleImageError}
+                  />
+                ) : (
+                  <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">
+                    {authUser.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
 
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-                {googleUser.email}
-              </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h2 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                    {authUser.name}
+                  </h2>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                </div>
 
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                  <span>Google Account Connected</span>
-                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
+                  {authUser.email}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    <span>Verified account</span>
+                  </span>
+                  {typeof contributionsCount === 'number' && (
+                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                      {contributionsCount} contributed
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="shrink-0">
               <button
                 type="button"
-                onClick={handleDisconnectGoogle}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 border border-slate-200 dark:border-slate-700"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1 border border-slate-200 dark:border-slate-700"
                 title="Sign Out"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                {isSigningOut ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <LogOut className="w-3.5 h-3.5" />
+                )}
                 <span>Sign Out</span>
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* CONTRIBUTION OPTION: only available to a signed in account */}
+      {authUser && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 shadow-xs transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              setContributionError(null);
+              setShowContributions(true);
+            }}
+            className="w-full flex items-center justify-between gap-3 p-2.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left group"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Landmark className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-xs text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  Contribution
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                  Pandals you added &mdash; edit or delete them
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-900/60">
+                {myContributions.length}
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* DEDICATED SAVED PANDALS BOX */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-4 shadow-xs space-y-3 transition-colors">
@@ -600,10 +713,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               <div>
                 <h4 className="font-bold text-slate-900 dark:text-white text-xs mb-1">
-                  2. Google Sign-In & User Identity
+                  2. Email Verification Codes & Google Sign-In
                 </h4>
                 <p>
-                  Google Sign-In is used exclusively to associate your profile and bookmarks. We do not access your Google contacts, drive files, or private correspondence.
+                  Signing in is required to add a pandal. We email you a 6-digit one-time code and
+                  store only its hash together with your email address and the pandals you add.
+                  No password is ever created or stored. Google Sign-In is used solely to confirm
+                  your identity; we do not access your Google contacts, drive files, or private
+                  correspondence. You may sign out at any time, which deletes your session on our
+                  server.
                 </p>
               </div>
 
@@ -706,6 +824,342 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
               >
                 Accept Terms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MY CONTRIBUTION VIEW: opened from the Profile "Contribution" option */}
+      {showContributions && authUser && (
+        <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950 flex flex-col animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 p-3.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setShowContributions(false);
+                setContributionError(null);
+              }}
+              disabled={isSaving}
+              className="p-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-40"
+              aria-label="Back to Profile"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Landmark className="w-4 h-4" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h2 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                My Contribution
+              </h2>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                {myContributions.length} pandal{myContributions.length === 1 ? '' : 's'} added by you
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 pb-8 space-y-2.5">
+            {contributionError && !editingPlace && !deleteTarget && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs text-rose-800 dark:text-rose-200 font-semibold flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                <span>{contributionError}</span>
+              </div>
+            )}
+
+            {myContributions.length === 0 ? (
+              <div className="mt-8 p-8 text-center space-y-2 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                <Landmark className="w-9 h-9 text-slate-300 dark:text-slate-600 mx-auto" />
+                <h3 className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                  You have not added any pandals yet
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
+                  Use the + button on the bottom bar to add a pandal. Anything you publish will
+                  appear here so you can correct or remove it later.
+                </p>
+              </div>
+            ) : (
+              myContributions.map((place) => (
+                <div
+                  key={place.id}
+                  className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-3 flex gap-3 transition-all group shadow-2xs"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowContributions(false);
+                      onSelectPlace(place);
+                    }}
+                    className="w-16 h-16 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 shrink-0 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                    title="View details"
+                  >
+                    <img
+                      src={getSafeImageUrl(place.image)}
+                      alt={place.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      onError={handleImageError}
+                    />
+                  </button>
+
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                    <div>
+                      <h3 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-2">
+                        {place.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                        <MapPin className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="font-medium text-emerald-800 dark:text-emerald-300 truncate">
+                          {place.zone || place.district || 'Kolkata'}
+                        </span>
+                      </div>
+                      {place.addedOn && (
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                          Added on {new Date(place.addedOn).toLocaleDateString('en-IN')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(place)}
+                        className="flex-1 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 text-amber-700 dark:text-amber-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContributionError(null);
+                          setDeleteTarget(place);
+                        }}
+                        className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-600 dark:text-rose-300 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* EDIT MY CONTRIBUTION MODAL */}
+      {editingPlace && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  Edit Pandal
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPlace(null)}
+                disabled={isSaving}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer disabled:opacity-40"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-4 space-y-3 overflow-y-auto no-scrollbar">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Pandal Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  minLength={2}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Zone / Area
+                </label>
+                <input
+                  type="text"
+                  value={editForm.zone}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, zone: e.target.value }))}
+                  placeholder="e.g. Bagbazar, Salt Lake"
+                  className="w-full bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Coordinates (Latitude / Longitude)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={editForm.lat}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, lat: e.target.value }))}
+                    placeholder="Latitude"
+                    className="bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-600"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={editForm.lng}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, lng: e.target.value }))}
+                    placeholder="Longitude"
+                    className="bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  Must be inside West Bengal (lat 15-30, lng 75-95).
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                  className="w-full bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Google Maps Link
+                </label>
+                <input
+                  type="text"
+                  value={editForm.sourceUrl}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, sourceUrl: e.target.value }))
+                  }
+                  placeholder="google.com/maps/place/..."
+                  className="w-full bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                  Photo URL
+                </label>
+                <input
+                  type="text"
+                  value={editForm.imageUrl}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({ ...prev, imageUrl: e.target.value }))
+                  }
+                  placeholder="Leave empty to keep the current photo"
+                  className="w-full bg-slate-50/50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 text-xs focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              {contributionError && (
+                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl text-[11px] text-rose-800 dark:text-rose-200 font-semibold flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                  <span>{contributionError}</span>
+                </div>
+              )}
+            </form>
+
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingPlace(null)}
+                disabled={isSaving}
+                className="flex-1 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={isSaving || editForm.name.trim().length < 2}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE MY CONTRIBUTION CONFIRMATION */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden">
+            <div className="p-5 space-y-3 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                Delete this pandal?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                <span className="font-bold text-slate-700 dark:text-slate-200">
+                  {deleteTarget.name}
+                </span>{' '}
+                will be removed from Manchitra for every user. This cannot be undone.
+              </p>
+
+              {contributionError && (
+                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-xl text-[11px] text-rose-800 dark:text-rose-200 font-semibold flex items-start gap-2 text-left">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                  <span>{contributionError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setContributionError(null);
+                }}
+                disabled={isSaving}
+                className="flex-1 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold cursor-pointer transition-colors disabled:opacity-50"
+              >
+                Keep It
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isSaving}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                <span>{isSaving ? 'Deleting...' : 'Delete'}</span>
               </button>
             </div>
           </div>

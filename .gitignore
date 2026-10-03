@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Auth runtime data: OTP challenges, sessions and user records must never be committed
+data/auth/
+
+# Interrupted atomic writes
+*.tmp.*

@@ -5,11 +5,19 @@ import {
   Camera,
   CheckCircle2,
   Sparkles,
-  Database
+  Database,
+  Lock,
+  LogIn,
+  AlertCircle
 } from 'lucide-react';
 import { Place } from '../types';
+import type { AuthStatus } from '../types';
+import { ApiError, apiFetch } from '../lib/api';
 
 interface AddScreenProps {
+  isAuthenticated: boolean;
+  authStatus: AuthStatus;
+  onSignIn: () => void;
   onAddPlace: (newPlace: Place) => void;
   onSuccessNavigate: (place: Place) => void;
 }
@@ -27,7 +35,13 @@ const ADD_ZONE_OPTIONS = [
   { id: 'southern_suburbs', label: 'Southern Suburbs' }
 ];
 
-export const AddScreen: React.FC<AddScreenProps> = ({ onAddPlace, onSuccessNavigate }) => {
+export const AddScreen: React.FC<AddScreenProps> = ({
+  isAuthenticated,
+  authStatus,
+  onSignIn,
+  onAddPlace,
+  onSuccessNavigate
+}) => {
   const [name, setName] = useState('');
   const [selectedZoneId, setSelectedZoneId] = useState('custom');
   const [customZoneName, setCustomZoneName] = useState('');
@@ -41,6 +55,7 @@ export const AddScreen: React.FC<AddScreenProps> = ({ onAddPlace, onSuccessNavig
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,8 +92,14 @@ export const AddScreen: React.FC<AddScreenProps> = ({ onAddPlace, onSuccessNavig
     e.preventDefault();
     if (!name.trim()) return;
 
+    if (!isAuthenticated) {
+      setErrorMessage('You need to sign in before you can add a pandal.');
+      return;
+    }
+
     setIsSubmitting(true);
-    setStatusMessage('Saving pandal to JSON file...');
+    setErrorMessage(null);
+    setStatusMessage('Publishing your pandal...');
 
     const latitude = parseFloat(lat) || 22.5726;
     const longitude = parseFloat(lng) || 88.3639;
@@ -112,31 +133,71 @@ export const AddScreen: React.FC<AddScreenProps> = ({ onAddPlace, onSuccessNavig
       addedOn: new Date().toISOString()
     };
 
-    // Store destination via backend API
+    // The server owns the record: it stamps the id and the contributor identity
     try {
-      const res = await fetch('/api/places', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPlace)
-      });
-      if (res.ok) {
-        setStatusMessage('Destination published successfully!');
+      const result = await apiFetch<{ success: boolean; place: Place; totalPlaces: number }>(
+        '/api/places',
+        {
+          method: 'POST',
+          body: JSON.stringify(newPlace)
+        }
+      );
+
+      const savedPlace: Place = { ...newPlace, ...(result?.place || {}) };
+      setStatusMessage('Published successfully for all Manchitra users.');
+      onAddPlace(savedPlace);
+      setShowSuccessToast(true);
+
+      setTimeout(() => {
+        onSuccessNavigate(savedPlace);
+      }, 1200);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'AUTH_REQUIRED') {
+        setErrorMessage('Your session has expired. Please sign in again.');
       } else {
-        setStatusMessage('Destination added to local map.');
+        setErrorMessage(
+          err instanceof ApiError
+            ? err.message
+            : 'Could not reach the server. Your pandal was not published.'
+        );
       }
-    } catch {
-      setStatusMessage('Destination added to local map.');
+      setStatusMessage(null);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Update frontend state & localStorage
-    onAddPlace(newPlace);
-    setIsSubmitting(false);
-    setShowSuccessToast(true);
-
-    setTimeout(() => {
-      onSuccessNavigate(newPlace);
-    }, 1200);
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-1 overflow-y-auto touch-scroll no-scrollbar p-3.5 pb-24 bg-slate-50/60 dark:bg-slate-950 transition-colors">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 space-y-4 shadow-xs text-center">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">
+              Sign in to add a pandal
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Contributing a pandal requires a verified account so that every published place has a
+              real owner. Verify your email with a one-time code, or continue with Google.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onSignIn}
+            disabled={authStatus === 'loading'}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>{authStatus === 'loading' ? 'Checking session...' : 'Sign in to continue'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -153,9 +214,22 @@ export const AddScreen: React.FC<AddScreenProps> = ({ onAddPlace, onSuccessNavig
           Add New Durga Puja Pandal
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Any user can add new pandals. Your destination will be published directly to Manchitra and pinned on the map.
+          You are signed in, so this pandal will be published directly to Manchitra and pinned on
+          everyone's map.
         </p>
       </div>
+
+      {errorMessage && (
+        <div className="p-3.5 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 rounded-2xl flex items-start gap-2.5 animate-in slide-in-from-top duration-200">
+          <AlertCircle className="w-5 h-5 shrink-0 text-rose-600 dark:text-rose-400" />
+          <div className="text-xs">
+            <div className="font-bold text-rose-800 dark:text-rose-200">Could not publish</div>
+            <div className="text-[11px] text-rose-700 dark:text-rose-300 mt-0.5">
+              {errorMessage}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSuccessToast && (
         <div className="bg-emerald-600 text-white p-3.5 rounded-2xl flex items-center gap-2.5 shadow-lg shadow-emerald-600/20 animate-in slide-in-from-top duration-300">

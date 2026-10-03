@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   MapPin,
   Star,
@@ -7,7 +7,8 @@ import {
   Flame,
   Upload,
   FileText,
-  Route
+  Route,
+  ChevronDown
 } from 'lucide-react';
 import { Place, CategoryType } from '../types';
 import { ZONE_CATEGORIES } from '../data/mockData';
@@ -30,7 +31,9 @@ interface HomeScreenProps {
   searchQuery: string;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({
+const PAGE_SIZE = 24;
+
+const HomeScreenComponent: React.FC<HomeScreenProps> = ({
   places,
   onSelectPlace,
   onToggleFavorite,
@@ -51,33 +54,66 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [showPasteModal, setShowPasteModal] = useState(false);
   const [pastedJson, setPastedJson] = useState('');
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   // Filtered places according to zone category and search query
-  const filteredPlaces = places.filter((place) => {
-    let matchesCategory = true;
-    if (selectedCategory === 'popular') {
-      matchesCategory = !!place.isPopular;
-    } else if (selectedCategory) {
-      const targetZone = ZONE_CATEGORIES.find((z) => z.id === selectedCategory)?.label || selectedCategory;
-      const placeZone = place.zone || place.district || '';
-      matchesCategory =
-        placeZone.toLowerCase().includes(targetZone.toLowerCase()) ||
-        targetZone.toLowerCase().includes(placeZone.toLowerCase()) ||
-        Boolean(place.category && place.category.toLowerCase().includes(selectedCategory.toLowerCase()));
-    }
+  const filteredPlaces = useMemo(() => {
+    const targetZone =
+      (selectedCategory &&
+        ZONE_CATEGORIES.find((z) => z.id === selectedCategory)?.label) ||
+      selectedCategory ||
+      '';
 
-    const matchesSearch =
-      !searchQuery ||
-      place.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (place.zone && place.zone.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (place.district && place.district.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (place.description && place.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    return places.filter((place) => {
+      let matchesCategory = true;
+      if (selectedCategory === 'popular') {
+        matchesCategory = !!place.isPopular;
+      } else if (selectedCategory) {
+        const placeZone = place.zone || place.district || '';
+        matchesCategory =
+          placeZone.toLowerCase().includes(targetZone.toLowerCase()) ||
+          targetZone.toLowerCase().includes(placeZone.toLowerCase()) ||
+          Boolean(
+            place.category &&
+              place.category.toLowerCase().includes(selectedCategory.toLowerCase())
+          );
+      }
 
-    return matchesCategory && matchesSearch;
-  });
+      if (!normalizedQuery) return matchesCategory;
+
+      const matchesSearch =
+        place.name.toLowerCase().includes(normalizedQuery) ||
+        (place.zone && place.zone.toLowerCase().includes(normalizedQuery)) ||
+        (place.district && place.district.toLowerCase().includes(normalizedQuery)) ||
+        (place.description && place.description.toLowerCase().includes(normalizedQuery));
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [places, selectedCategory, normalizedQuery]);
 
   // Featured places: Popular destinations first
-  const featuredPlaces = places.filter((p) => p.isPopular).slice(0, 8);
+  const featuredPlaces = useMemo(
+    () => places.filter((p) => p.isPopular).slice(0, 8),
+    [places]
+  );
+
+  // Only the first page of cards is mounted. Rendering all ~230 cards at once made
+  // every state change on this screen re-layout the entire list.
+  const visiblePlaces = useMemo(
+    () => filteredPlaces.slice(0, visibleCount),
+    [filteredPlaces, visibleCount]
+  );
+  const remainingCount = filteredPlaces.length - visiblePlaces.length;
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedCategory, normalizedQuery]);
+
+  const handleShowMore = useCallback(() => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  }, []);
 
   const handleApplyPastedJson = () => {
     try {
@@ -206,12 +242,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     style={{ scrollSnapAlign: 'start' }}
                     className="w-[82vw] max-w-[310px] sm:w-[310px] h-[195px] rounded-2xl relative overflow-hidden shrink-0 cursor-pointer group shadow-sm border border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all bg-slate-900"
                   >
-                    <img
-                      src={getSafeImageUrl(place.image)}
-                      alt={place.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={handleImageError}
-                    />
+<img
+                    src={getSafeImageUrl(place.image)}
+                    alt={place.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    decoding="async"
+                    onError={handleImageError}
+                  />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
 
                     {/* Rating badge */}
@@ -285,7 +323,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
             ) : (
               <div className="space-y-2.5">
-                {filteredPlaces.map((place) => (
+                {visiblePlaces.map((place) => (
                   <div
                     key={place.id}
                     className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-2xl p-3 flex gap-3 transition-all hover:shadow-xs group cursor-pointer relative"
@@ -298,6 +336,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         alt={place.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
+                        decoding="async"
                         onError={handleImageError}
                       />
                       <div className="absolute top-1.5 left-1.5 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xs px-1.5 py-0.5 rounded text-[10px] text-slate-900 dark:text-slate-100 font-bold flex items-center gap-0.5 shadow-xs border dark:border-slate-800">
@@ -379,6 +418,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 ))}
               </div>
             )}
+
+            {remainingCount > 0 && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleShowMore}
+                  className="w-full py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-400 dark:hover:border-emerald-600 text-slate-700 dark:text-slate-200 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-[0.99]"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                  <span>
+                    Show more ({remainingCount} remaining of {filteredPlaces.length})
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -428,3 +482,5 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     </div>
   );
 };
+
+export const HomeScreen = React.memo(HomeScreenComponent);
