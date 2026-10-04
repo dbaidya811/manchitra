@@ -2,6 +2,8 @@
  * Geo calculation & Google Maps style turn-by-turn navigation utilities
  */
 
+import { TextToSpeech, QueueStrategy } from '@capacitor-community/text-to-speech';
+
 export const KOLKATA_CENTER: [number, number] = [22.5726, 88.3639];
 
 /**
@@ -467,39 +469,37 @@ export async function fetchRealRoadNavigationRoute(
 }
 
 /**
- * Speech synthesis with browser check and error suppression
+ * Voice guidance for navigation.
+ *
+ * Uses the native TextToSpeech plugin so voice works inside the Android APK
+ * (the Web Speech API `speechSynthesis` is not available in Android WebViews).
+ * The plugin falls back to `speechSynthesis` automatically on regular browsers.
  */
 export function speakVoiceInstruction(text: string, isMuted = false): void {
-  if (isMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  if (isMuted || typeof window === 'undefined' || !text) {
     return;
   }
 
   try {
-    window.speechSynthesis.cancel(); // Stop ongoing utterances
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-    utterance.lang = 'en-IN'; // Indian English cadence for local street names
-
-    // Select suitable voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const inVoice = voices.find((v) => v.lang === 'en-IN' || v.lang.startsWith('en'));
-    if (inVoice) {
-      utterance.voice = inVoice;
-    }
-
-    window.speechSynthesis.speak(utterance);
+    void TextToSpeech.speak({
+      text,
+      lang: 'en-IN', // Indian English cadence for local street names
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+      // Flush (stop) the ongoing utterance and speak the new instruction,
+      // matching the old speechSynthesis.cancel() behaviour.
+      queueStrategy: QueueStrategy.Flush
+    });
   } catch (err) {
     console.warn('Speech synthesis voice guide error:', err);
   }
 }
 
 export function stopVoiceInstruction(): void {
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch {
-      // ignore
-    }
+  try {
+    void TextToSpeech.stop();
+  } catch (err) {
+    console.warn('Stop speech synthesis error:', err);
   }
 }
