@@ -95,6 +95,7 @@ jobs:
 
       - name: Collect APK
         id: collect
+        working-directory: android
         run: |
           set -euo pipefail
           APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
