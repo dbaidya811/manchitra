@@ -188,7 +188,7 @@ And under **Settings -> Environments -> github-pages** add these *variables*:
 After that, push anything to `main` and the APK appears in the Releases page.
 
 #### Building an APK locally (optional)
-Requires Android Studio or a JDK 17 + Android SDK install.
+Requires Android Studio or a JDK 21 + Android SDK install.
 ```bash
 npm run android:apk
 ```
