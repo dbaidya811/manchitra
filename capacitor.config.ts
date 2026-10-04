@@ -11,6 +11,13 @@ const config: CapacitorConfig = {
   },
   server: {
     androidScheme: 'https'
+  },
+  plugins: {
+    SystemBars: {
+      // Do not draw the web content under the status bar / navigation bar.
+      // Keeps the header and search bar below the time/battery/network area.
+      insetsHandling: 'native'
+    }
   }
 };
 

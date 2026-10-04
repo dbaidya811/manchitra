@@ -54,7 +54,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     : [];
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 px-4 py-3 transition-colors">
+    <header className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-3 transition-colors">
       {!isSearchOpen || isSearchDisabled ? (
         /* Standard Header: Logo + App Name on the left, ONLY Search Icon on the right (hidden on guide & profile) */
         <div className="flex items-center justify-between">
