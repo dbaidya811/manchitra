@@ -148,13 +148,59 @@ Every time you push code to GitHub (`git push origin main`), the included GitHub
 2. Under **Build and deployment** -> **Source**, select **`GitHub Actions`**.
 3. That's it! Every future `git push` will deploy automatically without any manual commands.
 
-### 6. Build for Production & Static Hosting
+### 6. Build & Publish the Android APK (Automatic)
+Every push to `main` also runs `.github/workflows/apk-release.yml`, which builds a **release** Android APK and attaches it to a GitHub Release as `manchitra.apk`. The in-app button **Download Android App (APK)** points at a stable URL that always serves the newest build:
+
+```
+https://github.com/dbaidya811/manchitra/releases/latest/download/manchitra.apk
+```
+
+The build **works out of the box**: if the signing secrets below are *not* configured, the APK is signed with the
+Android debug key and a warning is shown in the workflow log. That is fine for sideloading and personal use, but for
+anything you distribute widely you should set up a production keystore.
+
+#### (Recommended) One-time setup: create the release keystore
+A production-signed APK needs a private keystore — the debug key is publicly known and anyone could use it to sign a fake update.
+
+```bash
+keytool -genkey -v -keystore manchitra-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias manchitra
+```
+
+> Back up `manchitra-release.jks` somewhere safe. If it is lost, existing installs can never be updated again (you would have to change the `applicationId` and ship a new app).
+
+#### (Recommended) One-time setup: add the GitHub Secrets
+Go to **Settings -> Secrets and variables -> Actions -> Secrets** and add the four secrets. Without them the workflow still succeeds but falls back to debug-key signing.
+
+| Secret | Value |
+| :--- | :--- |
+| `ANDROID_KEYSTORE_BASE64` | Output of `base64 -w 0 manchitra-release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | The keystore password you just chose |
+| `ANDROID_KEY_ALIAS` | `manchitra` (the alias) |
+| `ANDROID_KEY_PASSWORD` | Same password as the keystore |
+
+And under **Settings -> Environments -> github-pages** add these *variables*:
+
+| Variable | Value |
+| :--- | :--- |
+| `VITE_API_BASE` | Origin of your Express server, e.g. `https://manchitra-api.onrender.com`. **Never** a `github.io` URL — Pages is static and has no `/api`. |
+| `VITE_GOOGLE_CLIENT_ID` | OAuth client ID for Google Sign-In on the web build |
+
+After that, push anything to `main` and the APK appears in the Releases page.
+
+#### Building an APK locally (optional)
+Requires Android Studio or a JDK 17 + Android SDK install.
+```bash
+npm run android:apk
+```
+The APK is written to `android/app/build/outputs/apk/release/`.
+
+### 7. Build for Production & Static Hosting
 ```bash
 npm run build
 ```
-The output in `dist/` is a 100% self-contained static Progressive Web App that can be hosted on GitHub Pages, Netlify, Vercel, Firebase Hosting, or any static web server without requiring a Node.js backend.
+The output in `dist/` is a self-contained static app that can be hosted on GitHub Pages, Netlify, Vercel, Firebase Hosting, or any static web server without requiring a Node.js backend.
 
-### 7. Start Local Full-Stack Server (Optional)
+### 8. Start Local Full-Stack Server (Optional)
 ```bash
 npm start
 ```
@@ -167,9 +213,17 @@ Runs the Express server on port 3000.
 | Method | Endpoint | Description | Access |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/health` | Service health status, uptime, and timestamp | Public |
-| `GET` | `/api/places` | Retrieves all 2,900+ pandals database | Public (Rate-limited) |
-| `POST` | `/api/places` | Adds a new pandal with coordinate validation & sanitization | Public (Rate-limited) |
-| `POST` | `/api/places/bulk` | Synchronizes / updates full pandals catalog | Admin Token Required |
+| `GET` | `/api/auth/config` | Reports whether email OTP / Google login are configured | Public |
+| `GET` | `/api/auth/session` | Resolves the session cookie to a user | Public |
+| `POST` | `/api/auth/otp/request` | Emails a 6-digit one-time code (Gmail SMTP) | Public (Rate-limited) |
+| `POST` | `/api/auth/otp/verify` | Verifies the code and issues a session cookie | Public (Rate-limited) |
+| `POST` | `/api/auth/google` | Verifies a Google ID token and issues a session | Public (Rate-limited) |
+| `POST` | `/api/auth/logout` | Revokes the session | Public |
+| `GET` | `/api/places` | Retrieves the pandal catalogue | Public (Rate-limited) |
+| `POST` | `/api/places` | Adds a new pandal with coordinate validation & sanitization | **Signed-in user** (Rate-limited) |
+| `PATCH` | `/api/places/:id` | Edits a pandal (contributor only) | **Signed-in contributor** |
+| `DELETE` | `/api/places/:id` | Deletes a pandal (contributor only) | **Signed-in contributor** |
+| `POST` | `/api/places/bulk` | Replaces the whole catalogue | Signed in + `ADMIN_SYNC_TOKEN` |
 
 All endpoints are protected with OWASP security headers, in-memory sliding-window rate limiting, and a 6 MB request body limit.
 

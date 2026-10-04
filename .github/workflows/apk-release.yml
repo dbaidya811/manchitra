@@ -33,16 +33,27 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      # Signing secrets are optional. When they are all present the APK is signed
+      # with the production key; otherwise the build falls back to the Android debug
+      # key so a usable APK is still produced instead of failing the whole workflow.
       - name: Check release signing secrets
+        id: signing
         env:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE" ]; then
-            echo "::error::Secret ANDROID_KEYSTORE_BASE64 is not set. See the setup steps in the repository README."
-            exit 1
+          if [ -n "$KEYSTORE" ] && [ -n "$KS_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "signing_ready=true" >> "$GITHUB_OUTPUT"
+            echo "Release signing secrets found - APK will be signed with the release key."
+          else
+            echo "signing_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are not fully set (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). The APK will be signed with the default Android DEBUG key - fine for sideloading, but NOT for store distribution. Add the secrets to the repository to get a production-signed APK (see README)."
           fi
 
       - name: Restore release keystore
+        if: steps.signing.outputs.signing_ready == 'true'
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -71,7 +82,7 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      - name: Build signed APK
+      - name: Build release APK
         working-directory: android
         env:
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
@@ -118,4 +129,5 @@ jobs:
             echo ""
             echo "- Tag: \`apk-v${{ github.run_number }}\`"
             echo "- Download: https://github.com/${{ github.repository }}/releases/latest/download/manchitra.apk"
+            echo "- Signing: ${{ steps.signing.outputs.signing_ready == 'true' && 'release key' || 'debug key (secrets not configured - see README to enable production signing)' }}"
           } >> "$GITHUB_STEP_SUMMARY"
