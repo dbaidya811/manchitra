@@ -29,7 +29,6 @@ jobs:
         with:
           # Capacitor 8 requires NodeJS >= 22
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps

@@ -30,13 +30,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
 
       - name: Build Project
-        run: npm run build
+        run: |
+          npm run build
+          cp dist/index.html dist/404.html || true
+          touch dist/.nojekyll
         env:
           VITE_API_BASE: ${{ vars.VITE_API_BASE }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
