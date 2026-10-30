@@ -10,7 +10,7 @@ export type CategoryType =
   | 'southern_suburbs'
   | string;
 
-export type NavigationTab = 'home' | 'map' | 'add' | 'guide' | 'profile';
+export type NavigationTab = 'home' | 'map' | 'add' | 'guide' | 'profile' | 'admin';
 
 export interface Place {
   id: string;

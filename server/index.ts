@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
+import { adminRouter } from './adminRoutes';
 import { authRouter, requireAuth } from './authRoutes';
 import { corsMiddleware } from './cors';
 import { createRateLimiter, getClientIp } from './rateLimit';
@@ -458,7 +459,18 @@ if (fs.existsSync(path.resolve(__dirname, '../public'))) {
 }
 
 // Real authentication: email OTP + Google ID token, both issuing an httpOnly session cookie
-app.use('/api/auth', authRouter);
+// Cookie parser (minimal)
+app.use((req: any, _res, next) => {
+  const header = req.headers.cookie || '';
+  req.cookies = {};
+  header.split(';').forEach((c: string) => {
+    const [k, v] = c.trim().split('=');
+    if (k) req.cookies[k] = decodeURIComponent(v || '');
+  });
+  next();
+});
+
+app.use('/api/admin', adminRouter);
 
 // Health check endpoint for Cloud Run & load balancers
 app.get('/api/health', (_req, res) => {

@@ -37,6 +37,9 @@ export function setCustomBackendUrl(url: string): void {
 export function getApiBase(): string {
   const custom = getCustomBackendUrl();
   if (custom) return custom;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return '';
+  }
   if (RAW_ENV_BASE) return RAW_ENV_BASE.replace(/\/+$/, '');
   return RENDER_BACKEND_URL;
 }

@@ -14,6 +14,7 @@ import { MapScreen } from './components/MapScreen';
 import { AddScreen } from './components/AddScreen';
 import { GuideScreen } from './components/GuideScreen';
 import { ProfileScreen } from './components/ProfileScreen';
+import { AdminScreen } from './components/AdminScreen';
 import { LoginModal } from './components/LoginModal';
 import { PlaceDetailModal } from './components/PlaceDetailModal';
 import { DataManagerModal } from './components/DataManagerModal';
@@ -81,6 +82,12 @@ export default function App() {
   const auth = useAuth();
 
   const [activeTab, setActiveTab] = useState<NavigationTab>('home');
+  useEffect(() => {
+    const check = () => { if (window.location.hash.toLowerCase().includes('admin')) setActiveTab('admin'); };
+    check();
+    window.addEventListener('hashchange', check);
+    return () => window.removeEventListener('hashchange', check);
+  }, []);
   const [tabBeforeAdd, setTabBeforeAdd] = useState<NavigationTab>('home');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -287,8 +294,8 @@ export default function App() {
   
   useEffect(() => {
     const base = getApiBase();
-    const backendHost = base.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-    const protocol = base.startsWith('https') ? 'wss:' : 'ws:';
+    const backendHost = base ? base.replace(/^https?:\/\//, '').replace(/\/+$/, '') : window.location.host;
+    const protocol = (base ? base.startsWith('https') : window.location.protocol === 'https:') ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${backendHost}/ws/crowd`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -478,6 +485,8 @@ export default function App() {
                 onUpdateCustomRoutePlaces={handleUpdateCustomRoutePlaces}
               />
             )}
+
+            {activeTab === 'admin' && <AdminScreen />}
 
             {activeTab === 'profile' && (
               <ProfileScreen
