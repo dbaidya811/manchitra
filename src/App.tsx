@@ -96,6 +96,7 @@ export default function App() {
   // Leaflet plus ~200 marker pins is expensive to build, so the map is only created
   // once the user actually opens the Map tab. It then stays mounted, which keeps
   // later tab switches instant.
+  const [hasOpenedMap, setHasOpenedMap] = useState<boolean>(false);
   useEffect(() => {
     apiFetch('/api/health').catch(() => {});
   }, []);
