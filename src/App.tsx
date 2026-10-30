@@ -19,7 +19,7 @@ import { PlaceDetailModal } from './components/PlaceDetailModal';
 import { DataManagerModal } from './components/DataManagerModal';
 import { SplashScreen } from './components/SplashScreen';
 import { useAuth } from './hooks/useAuth';
-import { apiFetch } from './lib/api';
+import { apiFetch, getApiBase } from './lib/api';
 import { validateCoordinates } from './utils/geo';
 import { getSafeImageUrl } from './utils/imageHelper';
 import { CheckCircle2 } from 'lucide-react';
@@ -286,8 +286,10 @@ export default function App() {
   const wsRef = useRef<WebSocket | null>(null);
   
   useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/crowd`;
+    const base = getApiBase();
+    const backendHost = base.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const protocol = base.startsWith('https') ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${backendHost}/ws/crowd`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     
