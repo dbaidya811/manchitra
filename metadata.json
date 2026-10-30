@@ -1,0 +1,6 @@
+{
+  "name": "Manchitra",
+  "description": "Manchitra - Mobile & Tablet exploration and mapping web app with interactive map, community place contributor, and traveler profile.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
