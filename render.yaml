@@ -1,0 +1,23 @@
+# Render Blueprint Specification for Manchitra (Full-Stack Kolkata Pandal Guide & SQLite Server)
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: manchitra
+    runtime: node
+    plan: free
+    region: singapore # Closest low-latency region to Kolkata / South Asia
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SQLITE_DB_PATH
+        value: ./server/database.sqlite
+      # Optional secrets (can be customized in Render Dashboard)
+      - key: ADMIN_SYNC_TOKEN
+        generateValue: true
