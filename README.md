@@ -200,13 +200,14 @@ npm run build
 ```
 The output in `dist/` is a self-contained static app that can be hosted on GitHub Pages, Netlify, Vercel, Firebase Hosting, or any static web server without requiring a Node.js backend.
 
-### 8. Start Local Full-Stack Server (Optional)
+### 9. Run with Docker
 ```bash
-npm start
+docker compose up --build
 ```
-Runs the Express server on port 3000.
+Open [http://localhost:3000](http://localhost:3000). Data persists in `./data`.
 
 ---
+
 
 ## 📡 API Endpoints
 

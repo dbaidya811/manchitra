@@ -6,9 +6,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { authRouter, requireAuth } from './server/authRoutes';
-import { corsMiddleware } from './server/cors';
-import { createRateLimiter, getClientIp } from './server/rateLimit';
+import { authRouter, requireAuth } from './authRoutes';
+import { corsMiddleware } from './cors';
+import { createRateLimiter, getClientIp } from './rateLimit';
 import {
   getDbPlaces,
   getDbPlaceById,
@@ -16,7 +16,7 @@ import {
   updateDbPlace,
   deleteDbPlace,
   bulkImportDbPlaces
-} from './server/db';
+} from './db';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -132,8 +132,8 @@ app.use(express.urlencoded({ extended: true, limit: '6mb' }));
 app.use(corsMiddleware);
 
 // Paths for JSON storage
-const srcPlacesJsonPath = path.resolve(__dirname, 'src/data/places.json');
-const rootDataPlacesJsonPath = path.resolve(__dirname, 'data/places.json');
+const srcPlacesJsonPath = path.resolve(__dirname, '../src/data/places.json');
+const rootDataPlacesJsonPath = path.resolve(__dirname, '../data/places.json');
 
 // Helper to ensure file exists and read places with fallback to backup
 function readPlacesFromFile(): any[] {
@@ -450,11 +450,11 @@ function isPlaceOwner(place: any, author: PlaceAuthor): boolean {
 }
 
 // Static image serving
-if (fs.existsSync(path.resolve(__dirname, 'data/images'))) {
-  app.use('/images', express.static(path.resolve(__dirname, 'data/images')));
+if (fs.existsSync(path.resolve(__dirname, '../data/images'))) {
+  app.use('/images', express.static(path.resolve(__dirname, '../data/images')));
 }
-if (fs.existsSync(path.resolve(__dirname, 'public'))) {
-  app.use(express.static(path.resolve(__dirname, 'public')));
+if (fs.existsSync(path.resolve(__dirname, '../public'))) {
+  app.use(express.static(path.resolve(__dirname, '../public')));
 }
 
 // Real authentication: email OTP + Google ID token, both issuing an httpOnly session cookie
@@ -642,7 +642,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
+    const distPath = path.resolve(__dirname, '../dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
