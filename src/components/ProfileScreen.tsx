@@ -562,16 +562,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         )}
 
         <div className="pt-1 space-y-2">
-          {/* Direct Install Android App action */}
-          <button
-            type="button"
-            onClick={handleInstallClick}
-            className="w-full py-2.5 px-4 bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 shadow-xs cursor-pointer transition-all active:scale-98"
-          >
-            <Smartphone className="w-4 h-4 text-emerald-600" />
-            <span>Install Android App</span>
-          </button>
-
           {/* Download Android APK (Direct GitHub Release or file) */}
           <a
             href={
